@@ -19,8 +19,23 @@ const secondaryLinks = [
   { href: '/delete', key: 'footerDelete' as const },
 ]
 
-export function SiteFooter() {
+export function SiteFooter({
+  disclaimerMl,
+  disclaimerEn,
+  footerMl,
+  footerEn,
+  supportEmail,
+}: {
+  disclaimerMl?: string
+  disclaimerEn?: string
+  footerMl?: string
+  footerEn?: string
+  supportEmail?: string | null
+}) {
   const { lang } = useLang()
+  const disclaimer =
+    (lang === 'en' ? disclaimerEn : disclaimerMl)?.trim() || t(lang, 'notOfficial')
+  const footerNote = (lang === 'en' ? footerEn : footerMl)?.trim() || ''
 
   return (
     <footer className="mt-auto bg-ink text-stone-300">
@@ -48,7 +63,15 @@ export function SiteFooter() {
           ))}
         </nav>
 
-        <p className="mt-8 max-w-2xl text-sm leading-relaxed text-stone-400">{t(lang, 'notOfficial')}</p>
+        <p className="mt-8 max-w-2xl text-sm leading-relaxed text-stone-400">{disclaimer}</p>
+        {footerNote ? <p className="mt-3 max-w-2xl text-sm leading-relaxed text-stone-400">{footerNote}</p> : null}
+        {supportEmail ? (
+          <p className="mt-3 text-sm text-stone-400">
+            <a href={`mailto:${supportEmail}`} className={`text-stone-200 underline ${focusRing}`}>
+              {supportEmail}
+            </a>
+          </p>
+        ) : null}
 
         <div className="mt-8 flex flex-col gap-3 border-t border-white/10 pt-6 sm:flex-row sm:items-end sm:justify-between">
           <p className="font-mono text-xs text-stone-500">{t(lang, 'footerCopyright')}</p>
@@ -69,8 +92,14 @@ export function SiteFooter() {
   )
 }
 
-export function SiteFooterGate() {
+export function SiteFooterGate(props: {
+  disclaimerMl?: string
+  disclaimerEn?: string
+  footerMl?: string
+  footerEn?: string
+  supportEmail?: string | null
+}) {
   const pathname = usePathname()
   if (pathname.startsWith('/admin')) return null
-  return <SiteFooter />
+  return <SiteFooter {...props} />
 }

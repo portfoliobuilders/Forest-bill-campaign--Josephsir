@@ -1,12 +1,14 @@
 import type { Metadata } from 'next'
 import { Gayathri, IBM_Plex_Mono, Instrument_Serif, Inter, Manjari } from 'next/font/google'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 
 import { AuthErrorCatcher } from '@/components/AuthErrorCatcher'
 import { DemoBannerGate } from '@/components/DemoBanner'
 import { Header } from '@/components/Header'
 import { LanguageProvider } from '@/components/LanguageProvider'
 import { SiteFooterGate } from '@/components/SiteFooter'
+import { isAdminPath } from '@/lib/admin/paths'
+import { fetchSiteSettings } from '@/lib/admin/queries'
 import { resolveCampaignState } from '@/lib/campaign'
 import { parseLang } from '@/lib/lang'
 
@@ -48,6 +50,17 @@ const manjari = Manjari({
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://janashabdam.in'
 
+async function loadPublicSiteSettings() {
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || !process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()) {
+    return null
+  }
+  try {
+    return await fetchSiteSettings()
+  } catch {
+    return null
+  }
+}
+
 export const metadata: Metadata = {
   title: 'ജനശബ്ദം',
   description: 'നിങ്ങളുടെ സ്വന്തം ഇമെയിൽ വിലാസത്തിൽ നിന്ന് കൂടിയാലോചനയോടുള്ള വ്യക്തിഗത എതിർപ്പ് അയയ്ക്കുക.',
@@ -76,7 +89,10 @@ export default async function RootLayout({
 }>) {
   const cookieStore = await cookies()
   const lang = parseLang(cookieStore.get('lang')?.value)
-  const campaignState = await resolveCampaignState()
+  const pathname = (await headers()).get('x-pathname') ?? ''
+  const admin = isAdminPath(pathname)
+  const campaignState = admin ? { state: 'live' as const } : await resolveCampaignState()
+  const settings = admin ? null : await loadPublicSiteSettings()
 
   return (
     <html
@@ -85,11 +101,20 @@ export default async function RootLayout({
     >
       <body className="flex min-h-dvh flex-col bg-surface text-base text-ink antialiased">
         <LanguageProvider initialLang={lang}>
-          <AuthErrorCatcher />
-          <DemoBannerGate active={campaignState.state !== 'live'} />
-          <Header />
+          {admin ? null : <DemoBannerGate active={campaignState.state !== 'live'} />}
+          {admin ? null : (
+            <Header titleMl={settings?.site_title_ml} titleEn={settings?.site_title_en} />
+          )}
           <div className="flex-1">{children}</div>
-          <SiteFooterGate />
+          {admin ? null : (
+            <SiteFooterGate
+              disclaimerMl={settings?.public_disclaimer_ml}
+              disclaimerEn={settings?.public_disclaimer_en}
+              footerMl={settings?.public_footer_ml}
+              footerEn={settings?.public_footer_en}
+              supportEmail={settings?.support_email}
+            />
+          )}
         </LanguageProvider>
       </body>
     </html>

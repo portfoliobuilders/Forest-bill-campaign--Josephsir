@@ -36,7 +36,7 @@ export function HomePage({
   const isLive = mode === 'live'
   const isClosed = !isLive || new Date(shown.deadline_at).getTime() < Date.now()
   const title = lang === 'en' ? shown.title_en : shown.title_ml
-  const stake = lang === 'en' ? shown.summary_en : shown.summary_ml
+  const stake = lang === 'en' ? shown.homepage_intro_en || shown.summary_en : shown.homepage_intro_ml || shown.summary_ml
   const bullets = (lang === 'en' ? shown.explainer_en : shown.explainer_ml) ?? []
   const deadlineDate = formatCampaignDate(shown.deadline_at, lang)
   const gazetteDate = formatCampaignDate(shown.opens_at, lang)

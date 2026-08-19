@@ -1,9 +1,22 @@
 import { HomePage } from '@/components/HomePage'
 import { daysRemaining, resolveCampaignState } from '@/lib/campaign'
 import { publicCampaignSlug } from '@/lib/campaigns'
-import { publicPreparedCount } from '@/lib/public-stats'
+import { createAnonServerClient } from '@/lib/supabase/anon-server'
+import { createServiceClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
+
+async function confirmedCount(slug: string): Promise<number> {
+  try {
+    const supabase = createAnonServerClient() ?? createServiceClient()
+    const { data, error } = await supabase.rpc('campaign_stats', { p_slug: slug })
+    if (error || !data || !Array.isArray(data) || data.length === 0) return 0
+    const row = data[0] as { confirmed?: number }
+    return Number(row.confirmed ?? 0)
+  } catch {
+    return 0
+  }
+}
 
 type Props = {
   searchParams: Promise<{ preview?: string }>

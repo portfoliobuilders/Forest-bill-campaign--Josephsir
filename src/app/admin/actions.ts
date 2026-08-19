@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 
+import { writeAdminAudit } from '@/lib/admin/audit'
 import { requireAdminSession } from '@/lib/admin/auth'
 import { createServiceClient } from '@/lib/supabase/server'
 
@@ -31,8 +32,10 @@ export async function moderateCustomText(
 export async function markDeletionHandled(
   requestId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  let email: string
   try {
-    await requireAdminSession()
+    const session = await requireAdminSession()
+    email = session.email
   } catch {
     return { ok: false, error: 'unauthorized' }
   }
@@ -45,7 +48,14 @@ export async function markDeletionHandled(
     .is('handled_at', null)
 
   if (error) return { ok: false, error: 'update_failed' }
+  await writeAdminAudit({
+    adminEmail: email,
+    action: 'deletion_request_handled',
+    entityType: 'deletion_request',
+    entityId: requestId,
+  })
   revalidatePath('/admin')
+  revalidatePath('/admin/requests')
   return { ok: true }
 }
 

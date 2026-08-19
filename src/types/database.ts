@@ -10,6 +10,8 @@ export type SubmissionStatus =
 
 export type RepLevel = 'mla' | 'mp_lok_sabha' | 'mp_rajya_sabha' | 'minister' | 'local_body'
 
+export type PublishStatus = 'draft' | 'preview' | 'live' | 'closed' | 'archived'
+
 export type Campaign = {
   id: string
   slug: string
@@ -17,6 +19,8 @@ export type Campaign = {
   title_en: string
   summary_ml: string
   summary_en: string
+  homepage_intro_ml: string
+  homepage_intro_en: string
   recipient_email: string
   recipient_emails: string[]
   cc_emails: string[]
@@ -24,15 +28,21 @@ export type Campaign = {
   subject_en: string
   intro_ml: string
   intro_en: string
-  source_url: string
   closing_ml: string
   closing_en: string
+  body_template_ml: string
+  body_template_en: string
+  source_url: string
+  reference_url: string | null
   opens_at: string
   deadline_at: string
   is_active: boolean
+  publish_status: PublishStatus
   explainer_ml: string[]
   explainer_en: string[]
   created_at: string
+  updated_at?: string
+  updated_by?: string | null
 }
 
 export type ObjectionClause = {
@@ -46,6 +56,8 @@ export type ObjectionClause = {
   explain_en: string
   email_ml: string
   email_en: string
+  full_text_ml: string
+  full_text_en: string
   full_url: string | null
   sort_order: number
   is_active: boolean
@@ -66,6 +78,8 @@ export type Submission = {
   custom_text: string | null
   generated_subject: string
   generated_body: string
+  generated_to: string[]
+  generated_cc: string[]
   send_method: SendMethod | null
   status: SubmissionStatus
   show_name_public: boolean

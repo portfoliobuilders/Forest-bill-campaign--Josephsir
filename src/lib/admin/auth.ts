@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { isAdminEmail } from '@/lib/admin/allowlist'
 import { createServerSupabaseClient } from '@/lib/supabase/ssr'
 import { isEmergencyAdminEmail, readPasswordSession } from '@/lib/admin/password-auth'
 
@@ -8,20 +9,7 @@ export type AdminAccess =
   | { status: 'forbidden'; email: string }
   | { status: 'authorized'; email: string }
 
-export function getAdminEmails(): string[] {
-  const raw = process.env.ADMIN_EMAILS ?? ''
-  return raw
-    .split(',')
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean)
-}
-
-export function isAdminEmail(email: string | undefined | null): boolean {
-  if (!email) return false
-  const allowlist = getAdminEmails()
-  if (allowlist.length === 0) return false
-  return allowlist.includes(email.trim().toLowerCase())
-}
+export { getAdminEmails, isAdminEmail } from '@/lib/admin/allowlist'
 
 function isAuthorizedAdminEmail(email: string): boolean {
   return isAdminEmail(email) || isEmergencyAdminEmail(email)
@@ -69,4 +57,12 @@ export async function requireAdminSession(): Promise<{ email: string }> {
     throw new Error('unauthorized')
   }
   return session
+}
+
+export type AdminRole = 'super_admin' | 'editor' | 'analyst'
+
+/** v1: everyone on ADMIN_EMAILS is treated as super_admin. */
+export function getAdminRole(email: string): AdminRole {
+  void email
+  return 'super_admin'
 }

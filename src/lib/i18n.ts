@@ -29,7 +29,8 @@ export const dictionary = {
     printLetter: 'അച്ചടിക്കുക',
     downloadPdf: 'PDF ഡൗൺലോഡ്',
     confirmSent: 'ഞാൻ അയച്ചു',
-    consentNotice: 'ഈ വിവരം ഈ കാമ്പെയ്‌നിന് മാത്രം ഉപയോഗിക്കും. പട്ടികയിലേക്കോ രാഷ്ട്രീയ പാർട്ടിക്കോ കൈമാറില്ല.',
+    consentNotice:
+      'ഈ വിവരം എതിർപ്പ് തയ്യാറാക്കാനും, വ്യാജ/ആവർത്തന സമർപ്പണം തടയാനും, പങ്കാളിത്തം അളക്കാനും, നിയമാനുസൃത കാമ്പെയ്ൻ ഭരണത്തിനും മാത്രമേ ഉപയോഗിക്കൂ. പട്ടികയിലേക്കോ രാഷ്ട്രീയ പാർട്ടിക്കോ കൈമാറില്ല.',
     counterLabel: 'ഈ സൈറ്റ് വഴി എതിർപ്പ് തയ്യാറാക്കി അയച്ചവർ',
     methodology: 'എണ്ണം എങ്ങനെ കണക്കാക്കുന്നു',
     notOfficial: 'ഇത് സർക്കാർ സ്ഥാപനമല്ല. സർക്കാരുമായി ബന്ധമില്ല.',
@@ -208,7 +209,7 @@ export const dictionary = {
     downloadPdf: 'Download PDF',
     confirmSent: 'I sent it',
     consentNotice:
-      'This information is used only for this campaign. It is not shared with a mailing list or a political party.',
+      'This information is used to prepare your objection, prevent duplicate or fraudulent submissions, measure campaign participation, and allow legitimate campaign administration. It is not shared with a mailing list or a political party.',
     counterLabel: 'People who generated and sent an objection through this site',
     methodology: 'How we count',
     notOfficial: 'This is not a government body and is not affiliated with any government entity.',

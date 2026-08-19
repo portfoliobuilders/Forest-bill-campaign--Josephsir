@@ -21,7 +21,7 @@ export default async function BillPage({ searchParams }: Props) {
   const cookieStore = await cookies()
   const lang = parseLang(cookieStore.get('lang')?.value)
   const title = lang === 'en' ? campaign.title_en : campaign.title_ml
-  const summary = lang === 'en' ? campaign.summary_en : campaign.summary_ml
+  const summary = lang === 'en' ? campaign.homepage_intro_en || campaign.summary_en : campaign.homepage_intro_ml || campaign.summary_ml
   const bullets = (lang === 'en' ? campaign.explainer_en : campaign.explainer_ml) ?? []
 
   return (
