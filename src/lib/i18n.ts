@@ -108,7 +108,7 @@ export const dictionary = {
     howEmphasis:
       'ഇമെയിൽ വരുന്നത് പൗരന്റെ സ്വന്തം വിലാസത്തിൽ നിന്നാണ്. ഈ സൈറ്റ് ചോദിക്കാതെ നിങ്ങളുടെ പേരിൽ അയയ്ക്കില്ല.',
     daysRemaining: '{n} ദിവസം ബാക്കി',
-    ctaPreview: 'ഡെമോയിൽ എതിർപ്പ് തയ്യാറാക്കുക',
+    ctaPreview: 'ഇപ്പോൾ അപേക്ഷിക്കുക',
     demoClosedNote:
       'ഇത് 2024-ലെ ഫോറസ്റ്റ് ബിൽ ഉപയോഗിച്ചുള്ള ഒരു ഡെമോ ആണ്. തത്സമയ കൂടിയാലോചനയല്ല. സർക്കാർ ഓഫീസിലേക്ക് ഒന്നും അയയ്ക്കില്ല.',
     tryDemo: 'ഡെമോ പരീക്ഷിക്കുക',
@@ -249,7 +249,7 @@ export const dictionary = {
     howEmphasis:
       'The email comes from the citizen’s own address. This site never sends on your behalf without asking.',
     daysRemaining: '{n} days remaining',
-    ctaPreview: 'Try the demo objection',
+    ctaPreview: 'Apply now',
     demoClosedNote:
       'This walkthrough uses the 2024 Forest Bill so you can see how Janashabdam works. It is not a live consultation. Nothing is sent to a government office.',
     tryDemo: 'Try the demo',
