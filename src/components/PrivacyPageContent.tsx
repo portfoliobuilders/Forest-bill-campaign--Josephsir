@@ -38,8 +38,8 @@ export function PrivacyPageContent() {
           title={isMl ? 'എന്തിന്' : 'Why'}
           body={
             isMl
-              ? 'നിങ്ങളുടെ സ്വന്തം ഇമെയിൽ വിലാസത്തിൽ നിന്ന് എതിർപ്പ് തയ്യാറാക്കാനും, OTP സ്ഥിരീകരണത്തിനും, DPDP അനുസരണത്തിനും, aggregate സ്ഥിതിവിവരത്തിനും.'
-              : 'To compose an objection from your own email, verify identity via OTP, comply with the DPDP Act 2023, and publish aggregate statistics.'
+              ? 'നിങ്ങളുടെ സ്വന്തം ഇമെയിൽ വിലാസത്തിൽ നിന്ന് എതിർപ്പ് തയ്യാറാക്കാനും, DPDP അനുസരണത്തിനും, aggregate സ്ഥിതിവിവരത്തിനും.'
+              : 'To compose an objection from your own email, comply with the DPDP Act 2023, and publish aggregate statistics.'
           }
         />
         <Section

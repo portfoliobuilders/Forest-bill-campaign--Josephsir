@@ -17,7 +17,7 @@ Build this as a campaign-agnostic engine. A campaign row stays `is_active = fals
 - Tailwind CSS
 - Supabase (Postgres, RLS, security-definer RPCs)
 - Zod
-- Resend (OTP / receipts / opt-in server send later)
+- Resend (receipts / opt-in server send later)
 - No UI component library
 - No animation library
 - Client bundle budget: under 100 KB
@@ -59,7 +59,7 @@ forest-bill-campaign/
 | `objection_clauses` | Short selectable objection points that go into the email (max 220 chars). |
 | `submissions` | The product: one citizen's composed objection, status, and consent. |
 | `submission_clauses` | Which clauses a submission included, for breakdown queries. |
-| `otp_codes` | Hashed email OTP codes used before a draft can count. |
+| `otp_codes` | Legacy hashed email OTP codes. The wizard no longer uses email OTP. |
 | `rate_limits` | Hourly counters that block abuse by bucket and identifier. |
 | `deletion_requests` | DPDP erasure requests, honoured within 30 days. |
 | `constituencies` | Assembly / parliamentary areas used to route a CC to the local representative. |

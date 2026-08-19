@@ -1,15 +1,13 @@
 'use server'
 
-import { randomInt } from 'crypto'
 import { headers } from 'next/headers'
-import { Resend } from 'resend'
 import { z } from 'zod'
 
 import { composeEmail, clausesForLetter } from '@/lib/compose'
 import { getCampaignState, publicCampaign, readPreviewToken } from '@/lib/campaign'
 import { withForestClauses } from '@/lib/campaigns'
 import { demoCampaign, demoClauses } from '@/lib/demo-data'
-import { getClientIp, hashIp, hashOtp, hashesMatch, verifyTurnstile } from '@/lib/security'
+import { getClientIp, hashIp } from '@/lib/security'
 import { createServiceClient } from '@/lib/supabase/server'
 import { normalizeIndianPhone } from '@/lib/phone'
 import type { Campaign, ObjectionClause, SendMethod } from '@/types/database'
@@ -41,25 +39,6 @@ const letterInputSchema = z.object({
   ccRepIds: z.array(z.uuid()),
 })
 
-const createDraftSchema = letterInputSchema.extend({
-  turnstileToken: z.string().min(1),
-})
-
-const otpCodeSchema = z.string().regex(/^\d{6}$/)
-
-function otpEmailText(code: string, lang: 'ml' | 'en'): { subject: string; body: string } {
-  if (lang === 'en') {
-    return {
-      subject: 'Your Janashabdam verification code',
-      body: `Your verification code is ${code}. It expires in 10 minutes. Do not share this code.`,
-    }
-  }
-  return {
-    subject: 'ജനശബ്ദം — സ്ഥിരീകരണ കോഡ്',
-    body: `നിങ്ങളുടെ സ്ഥിരീകരണ കോഡ്: ${code}. 10 മിനിറ്റിൽ കാലാവധി തീരും. ഈ കോഡ് ആരുമായും പങ്കിടരുത്.`,
-  }
-}
-
 type LetterFields = z.infer<typeof letterInputSchema>
 
 type CanonicalCompose = {
@@ -85,7 +64,7 @@ async function composeCanonicalLetter(input: LetterFields): Promise<ActionResult
   let campaign: Campaign
   let sourceClauses: ObjectionClause[]
   let persistSlug: string | null = null
-  let isTest = true
+  let isTest = campaignState.state === 'preview'
 
   if (campaignState.state === 'dormant') {
     campaign = demoCampaign
@@ -94,7 +73,6 @@ async function composeCanonicalLetter(input: LetterFields): Promise<ActionResult
   } else {
     campaign = publicCampaign(campaignState.campaign)
     persistSlug = campaign.slug
-    isTest = campaignState.state !== 'live'
     try {
       const supabase = createServiceClient()
       let query = supabase
@@ -198,61 +176,6 @@ async function storeCanonicalLetter(
   }
 }
 
-export async function createDraft(
-  input: z.infer<typeof createDraftSchema>,
-): Promise<ActionResult<{ id: string; subject: string; body: string }>> {
-  const parsed = createDraftSchema.safeParse(input)
-  if (!parsed.success) {
-    return { ok: false, error: 'invalid_input' }
-  }
-
-  const headerStore = await headers()
-  const ip = getClientIp(headerStore)
-  const turnstileOk = await verifyTurnstile(parsed.data.turnstileToken, ip)
-  if (!turnstileOk) {
-    return { ok: false, error: 'turnstile_failed' }
-  }
-
-  const ipHash = hashIp(ip)
-  const supabase = createServiceClient()
-
-  const { data: allowed, error: rateError } = await supabase.rpc('bump_rate_limit', {
-    p_bucket: 'draft',
-    p_identifier: ipHash,
-    p_limit: 3,
-  })
-  if (rateError || allowed !== true) {
-    return { ok: false, error: 'rate_limit' }
-  }
-
-  const campaignState = await getCampaignState(parsed.data.campaignSlug, await readPreviewToken())
-  if (campaignState.state === 'dormant') {
-    return { ok: false, error: 'campaign_not_active' }
-  }
-
-  const canonical = await composeCanonicalLetter(parsed.data)
-  if (!canonical.ok) return canonical
-
-  const submissionId = await storeCanonicalLetter(
-    parsed.data,
-    canonical.data,
-    ipHash,
-    headerStore.get('user-agent') ?? '',
-  )
-  if (!submissionId) {
-    return { ok: false, error: 'draft_failed' }
-  }
-
-  return {
-    ok: true,
-    data: {
-      id: submissionId,
-      subject: canonical.data.composed.subject,
-      body: canonical.data.composed.body,
-    },
-  }
-}
-
 export async function prepareDemoLetter(
   input: z.infer<typeof letterInputSchema>,
 ): Promise<ActionResult<{ id: string | null; subject: string; body: string }>> {
@@ -266,12 +189,25 @@ export async function prepareDemoLetter(
 
   const headerStore = await headers()
   const ipHash = hashIp(getClientIp(headerStore))
-  const submissionId = await storeCanonicalLetter(
-    parsed.data,
-    { ...canonical.data, isTest: true },
-    ipHash,
-    headerStore.get('user-agent') ?? '',
-  )
+  let submissionId: string | null = null
+  try {
+    const supabase = createServiceClient()
+    const { data: allowed, error: rateError } = await supabase.rpc('bump_rate_limit', {
+      p_bucket: 'draft',
+      p_identifier: ipHash,
+      p_limit: 3,
+    })
+    if (rateError || allowed !== false) {
+      submissionId = await storeCanonicalLetter(
+        parsed.data,
+        canonical.data,
+        ipHash,
+        headerStore.get('user-agent') ?? '',
+      )
+    }
+  } catch {
+    // Letter still works if the database is unreachable.
+  }
 
   return {
     ok: true,
@@ -281,146 +217,6 @@ export async function prepareDemoLetter(
       body: canonical.data.composed.body,
     },
   }
-}
-
-export async function sendOtp(submissionId: string): Promise<ActionResult<{ sent: true }>> {
-  const idParsed = uuidSchema.safeParse(submissionId)
-  if (!idParsed.success) {
-    return { ok: false, error: 'invalid_input' }
-  }
-
-  const supabase = createServiceClient()
-  const { data: submission, error: fetchError } = await supabase
-    .from('submissions')
-    .select('id, email, email_normalized, language, status')
-    .eq('id', submissionId)
-    .maybeSingle()
-
-  if (fetchError || !submission) {
-    return { ok: false, error: 'not_found' }
-  }
-
-  if (submission.status !== 'draft') {
-    return { ok: false, error: 'not_found' }
-  }
-
-  const { data: allowed, error: rateError } = await supabase.rpc('bump_rate_limit', {
-    p_bucket: 'otp',
-    p_identifier: submission.email_normalized,
-    p_limit: 5,
-  })
-  if (rateError || allowed !== true) {
-    return { ok: false, error: 'otp_rate_limit' }
-  }
-
-  const code = String(randomInt(100_000, 1_000_000))
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
-
-  const { error: insertError } = await supabase.from('otp_codes').insert({
-    submission_id: submissionId,
-    code_hash: hashOtp(code),
-    expires_at: expiresAt,
-  })
-
-  if (insertError) {
-    return { ok: false, error: 'otp_send_failed' }
-  }
-
-  const apiKey = process.env.RESEND_API_KEY
-  const fromEmail = process.env.RESEND_FROM_EMAIL
-  if (!apiKey || !fromEmail) {
-    return { ok: false, error: 'otp_send_failed' }
-  }
-
-  const lang = submission.language === 'en' ? 'en' : 'ml'
-  const mail = otpEmailText(code, lang)
-  const resend = new Resend(apiKey)
-
-  const { error: sendError } = await resend.emails.send({
-    from: fromEmail,
-    to: submission.email,
-    subject: mail.subject,
-    text: mail.body,
-  })
-
-  if (sendError) {
-    return { ok: false, error: 'otp_send_failed' }
-  }
-
-  return { ok: true, data: { sent: true } }
-}
-
-export async function verifyOtp(submissionId: string, code: string): Promise<ActionResult<{ verified: true }>> {
-  const idParsed = uuidSchema.safeParse(submissionId)
-  const codeParsed = otpCodeSchema.safeParse(code)
-  if (!idParsed.success || !codeParsed.success) {
-    return { ok: false, error: 'invalid_input' }
-  }
-
-  const supabase = createServiceClient()
-
-  const { data: otpRow, error: otpError } = await supabase
-    .from('otp_codes')
-    .select('id, code_hash, attempts, expires_at, consumed_at')
-    .eq('submission_id', submissionId)
-    .is('consumed_at', null)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  if (otpError || !otpRow) {
-    return { ok: false, error: 'expired_code' }
-  }
-
-  if (new Date(otpRow.expires_at).getTime() < Date.now()) {
-    return { ok: false, error: 'expired_code' }
-  }
-
-  if (otpRow.attempts >= 5) {
-    return { ok: false, error: 'too_many_attempts' }
-  }
-
-  if (!hashesMatch(hashOtp(codeParsed.data), otpRow.code_hash)) {
-    const nextAttempts = otpRow.attempts + 1
-    await supabase
-      .from('otp_codes')
-      .update({
-        attempts: nextAttempts,
-        ...(nextAttempts >= 5 ? { consumed_at: new Date().toISOString() } : {}),
-      })
-      .eq('id', otpRow.id)
-
-    if (nextAttempts >= 5) {
-      return { ok: false, error: 'too_many_attempts' }
-    }
-    return { ok: false, error: 'wrong_code' }
-  }
-
-  await supabase.from('otp_codes').update({ consumed_at: new Date().toISOString() }).eq('id', otpRow.id)
-
-  const { data, error: updateError } = await supabase
-    .from('submissions')
-    .update({
-      status: 'verified',
-      verified_at: new Date().toISOString(),
-    })
-    .eq('id', submissionId)
-    .eq('status', 'draft')
-    .select('id')
-    .maybeSingle()
-
-  if (updateError) {
-    if (updateError.code === '23505') {
-      return { ok: false, error: 'already_submitted' }
-    }
-    return { ok: false, error: 'verify_failed' }
-  }
-
-  if (!data) {
-    return { ok: false, error: 'verify_failed' }
-  }
-
-  return { ok: true, data: { verified: true } }
 }
 
 export async function markHandoff(submissionId: string, method: SendMethod): Promise<ActionResult<{ ok: true }>> {
@@ -439,7 +235,7 @@ export async function markHandoff(submissionId: string, method: SendMethod): Pro
       send_method: methodParsed.data,
     })
     .eq('id', submissionId)
-    .in('status', ['verified', 'handoff_opened'])
+    .in('status', ['draft', 'verified', 'handoff_opened'])
     .select('id')
     .maybeSingle()
 

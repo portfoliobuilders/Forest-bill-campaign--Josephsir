@@ -13,8 +13,7 @@ import {
   Step1_ClauseSelector,
 } from '@/components/wizard/Step1_ClauseSelector'
 import { emptyRouting, Step2_DetailsForm } from '@/components/wizard/Step2_DetailsForm'
-import { Step3_Verify } from '@/components/wizard/Step3_Verify'
-import { Step4_Preview, type CanonicalLetter } from '@/components/wizard/Step4_Preview'
+import { Step3_Preview, type CanonicalLetter } from '@/components/wizard/Step3_Preview'
 import { useLang } from '@/components/LanguageProvider'
 import { clausesForLetter, composeEmail, type LetterMode } from '@/lib/compose'
 import { cx } from '@/lib/cx'
@@ -28,10 +27,10 @@ import {
 import { t } from '@/lib/i18n'
 import { normalizeIndianPhone } from '@/lib/phone'
 import { btnGhost, btnPrimary, focusRing } from '@/lib/ui'
-import { skipsVerification, type WizardMode } from '@/lib/wizard-mode'
+import type { WizardMode } from '@/lib/wizard-mode'
 import type { Campaign, ObjectionClause, WizardRouting } from '@/types/database'
 
-type Step = 1 | 2 | 3 | 4
+type Step = 1 | 2 | 3
 
 type WizardState = {
   step: Step
@@ -41,7 +40,6 @@ type WizardState = {
   details: DetailsFields
   routing: WizardRouting
   submissionId: string | null
-  verified: boolean
   detailsErrors: FieldErrors
   clauseError: boolean
   canonicalLetter: CanonicalLetter | null
@@ -65,9 +63,8 @@ type WizardAction =
   | { type: 'details_invalid'; errors: FieldErrors }
   | { type: 'next' }
   | { type: 'clause_error' }
-  | { type: 'set_verified'; submissionId: string; letter: CanonicalLetter }
   | { type: 'goto'; step: Step }
-  | { type: 'back'; skipVerify?: boolean }
+  | { type: 'back' }
 
 const emptyDetails: DetailsFields = {
   fullName: '',
@@ -159,7 +156,6 @@ function reducer(state: WizardState, action: WizardAction): WizardState {
         details: action.details,
         detailsErrors: {},
         step: action.nextStep,
-        verified: action.nextStep === 4 ? true : state.verified,
         canonicalLetter: action.letter === undefined ? state.canonicalLetter : action.letter,
         submissionId: action.submissionId === undefined ? state.submissionId : action.submissionId,
       }
@@ -168,17 +164,11 @@ function reducer(state: WizardState, action: WizardAction): WizardState {
     case 'clause_error':
       return { ...state, clauseError: true }
     case 'next':
-      return { ...state, step: state.step < 4 ? ((state.step + 1) as Step) : state.step }
-    case 'set_verified':
-      return { ...state, submissionId: action.submissionId, verified: true, canonicalLetter: action.letter }
+      return { ...state, step: state.step < 3 ? ((state.step + 1) as Step) : state.step }
     case 'goto':
       return { ...state, step: action.step }
-    case 'back': {
-      if (action.skipVerify && state.step === 4) {
-        return { ...state, step: 2 }
-      }
+    case 'back':
       return { ...state, step: state.step > 1 ? ((state.step - 1) as Step) : state.step }
-    }
     default:
       return state
   }
@@ -206,13 +196,11 @@ export function Wizard({
     details: emptyDetails,
     routing: emptyRouting,
     submissionId: null,
-    verified: false,
     detailsErrors: {},
     clauseError: false,
     canonicalLetter: null,
   })
 
-  const skipVerify = skipsVerification(mode)
   const extraConcerns = flattenCustomConcerns(state.customConcerns)
     .split('\n')
     .map((item) => item.trim())
@@ -238,10 +226,6 @@ export function Wizard({
     }
     const phone = normalizeIndianPhone(parsed.data.phone) ?? parsed.data.phone
     const details = { ...parsed.data, phone }
-    if (!skipVerify) {
-      dispatch({ type: 'submit_details', details, nextStep: 3 })
-      return
-    }
 
     try {
       const prepared = await prepareDemoLetter({
@@ -265,7 +249,7 @@ export function Wizard({
         dispatch({
           type: 'submit_details',
           details,
-          nextStep: 4,
+          nextStep: 3,
           letter: { subject: prepared.data.subject, body: prepared.data.body },
           submissionId: prepared.data.id,
         })
@@ -294,14 +278,11 @@ export function Wizard({
     dispatch({
       type: 'submit_details',
       details,
-      nextStep: 4,
+      nextStep: 3,
       letter: { subject: local.subject, body: local.body },
       submissionId: null,
     })
   }
-
-  const showStep4 = state.step === 4 && (skipVerify || (state.verified && Boolean(state.submissionId)))
-  const showStep3 = !skipVerify && (state.step === 3 || (state.step === 4 && !showStep4))
 
   return (
     <PageContainer>
@@ -327,7 +308,7 @@ export function Wizard({
         </p>
       ) : null}
 
-      <Progress step={showStep4 ? 4 : showStep3 ? 3 : state.step} omitVerify={skipVerify} />
+      <Progress step={state.step} />
 
       {state.step === 1 ? (
         <Step1_ClauseSelector
@@ -356,24 +337,8 @@ export function Wizard({
         />
       ) : null}
 
-      {showStep3 ? (
-        <Step3_Verify
-          campaignSlug={campaign.slug}
-          clauseCodes={selectedClauses.map((c) => c.code)}
-          extraConcerns={extraConcerns}
-          letterMode={state.letterMode}
-          details={state.details}
-          routing={state.routing}
-          mode={mode}
-          initialSubmissionId={state.submissionId}
-          initiallyVerified={state.verified}
-          onVerified={(id, letter) => dispatch({ type: 'set_verified', submissionId: id, letter })}
-          onContinue={() => dispatch({ type: 'next' })}
-        />
-      ) : null}
-
-      {showStep4 ? (
-        <Step4_Preview
+      {state.step === 3 ? (
+        <Step3_Preview
           campaign={campaign}
           clauses={selectedClauses}
           details={state.details}
@@ -407,7 +372,7 @@ export function Wizard({
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
           <button
             type="button"
-            onClick={() => dispatch({ type: 'back', skipVerify })}
+            onClick={() => dispatch({ type: 'back' })}
             className={cx(btnGhost, 'w-full sm:w-auto')}
           >
             {t(lang, 'back')}
@@ -421,7 +386,7 @@ export function Wizard({
 
       {state.step > 2 ? (
         <div className="mt-8 flex justify-center">
-          <button type="button" onClick={() => dispatch({ type: 'back', skipVerify })} className={btnGhost}>
+          <button type="button" onClick={() => dispatch({ type: 'back' })} className={btnGhost}>
             {t(lang, 'back')}
           </button>
         </div>
