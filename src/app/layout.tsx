@@ -1,10 +1,9 @@
 import type { Metadata } from 'next'
 import { Noto_Sans_Malayalam } from 'next/font/google'
 import { cookies } from 'next/headers'
-import { Suspense } from 'react'
 
 import { Header } from '@/components/Header'
-import { DemoBannerGate } from '@/components/DemoBanner'
+import { DemoBanner } from '@/components/DemoBanner'
 import { LanguageProvider } from '@/components/LanguageProvider'
 import { resolveCampaignState } from '@/lib/campaign'
 import { parseLang } from '@/lib/lang'
@@ -53,9 +52,7 @@ export default async function RootLayout({
     <html lang={lang} className={notoSansMalayalam.className}>
       <body className="min-h-dvh bg-stone-100 text-base text-stone-900 antialiased">
         <LanguageProvider initialLang={lang}>
-          <Suspense fallback={null}>
-            <DemoBannerGate active={campaignState.state !== 'live'} />
-          </Suspense>
+          {campaignState.state === 'preview' ? <DemoBanner /> : null}
           <Header />
           {children}
         </LanguageProvider>

@@ -199,7 +199,7 @@ export function Step3_Verify({
       <div>
         <h2 className="text-xl font-bold text-stone-900">{t(lang, 'verify')}</h2>
         <p className="mt-3 text-base leading-relaxed text-stone-700">
-          {t(lang, mode === 'preview' ? 'verifyPreviewHint' : 'verifyDemoBlocked')}
+          {t(lang, 'verifyPreviewHint')}
         </p>
         <button
           type="button"

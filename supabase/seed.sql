@@ -18,7 +18,10 @@ insert into campaigns (
   source_url,
   opens_at,
   deadline_at,
-  is_active
+  is_active,
+  preview_token,
+  explainer_ml,
+  explainer_en
 ) values (
   'kerala-forest-amendment-2024',
   'കേരള ഫോറസ്റ്റ് (ഭേദഗതി) ബിൽ 2024',
@@ -36,7 +39,24 @@ insert into campaigns (
   'https://prsindia.org/files/bills_acts/bills_states/kerala/2024/Bills228of2024KL.pdf',
   timestamptz '2024-11-01 00:00:00+05:30',
   timestamptz '2024-12-31 23:59:59+05:30',
-  false
+  false,
+  encode(gen_random_bytes(24), 'hex'),
+  array[
+    'വാച്ചർമാരെ ഫോറസ്റ്റ് ഓഫീസറാക്കി നിയമാധികാരം നൽകും.',
+    'വീടിനടുത്തുള്ള പുഴകളെ വനപുഴയായി കാണാം.',
+    'സംശയം മാത്രം മതി, വനത്തിന് പുറത്ത് വീട് പരിശോധിക്കാം.',
+    'താഴെത്തട്ടിലുള്ള ഉദ്യോഗസ്ഥർക്ക് വാഹനം തടയാനുള്ള അധികാരം കൂടും.',
+    'വാറന്റില്ലാതെ അറസ്റ്റ് വനത്തിന് പുറത്തും നടക്കാം.',
+    'അറസ്റ്റ് ചെയ്ത ആളെ ഫോറസ്റ്റ് സ്റ്റേഷനിൽ നിർത്താം.'
+  ],
+  array[
+    'Watchers would be treated as Forest Officers with legal powers.',
+    'Rivers near homes could be labelled forest rivers.',
+    'Homes outside the forest could be searched on mere suspicion.',
+    'Junior staff would get wider power to stop vehicles.',
+    'Warrantless arrest could happen anywhere, not only in forest.',
+    'Arrested people could be held at a forest station.'
+  ]
 );
 
 insert into objection_clauses (

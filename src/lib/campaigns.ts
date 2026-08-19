@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { getDefaultCampaignSlug, publicCampaign, type CampaignState } from '@/lib/campaign'
-import { demoCampaign, demoClauses, KERALA_DISTRICTS, type DistrictOption } from '@/lib/demo-data'
+import { demoClauses, KERALA_DISTRICTS, type DistrictOption } from '@/lib/demo-data'
 import { createServiceClient } from '@/lib/supabase/server'
 import type { WizardMode } from '@/lib/wizard-mode'
 import type { Campaign, Constituency, ObjectionClause } from '@/types/database'
@@ -33,17 +33,10 @@ function uniqueDistricts(rows: Pick<Constituency, 'district' | 'name_ml' | 'name
   return ordered.length > 0 ? [...ordered, ...extras] : KERALA_DISTRICTS
 }
 
-const bundledDemo: ObjectionPageData = {
-  campaign: demoCampaign,
-  clauses: demoClauses,
-  districts: KERALA_DISTRICTS,
-  mode: 'compose',
-}
+export async function loadObjectionData(state: CampaignState): Promise<ObjectionPageData | null> {
+  if (state.state === 'dormant') return null
 
-async function loadCampaignBundle(
-  campaign: Campaign,
-  mode: WizardMode,
-): Promise<ObjectionPageData> {
+  const campaign = publicCampaign(state.campaign)
   let clauses: ObjectionClause[] = []
   let districts = KERALA_DISTRICTS
 
@@ -64,45 +57,20 @@ async function loadCampaignBundle(
       districts = uniqueDistricts(constituencyRows as Pick<Constituency, 'district' | 'name_ml' | 'name_en'>[])
     }
   } catch {
-    if (mode === 'live') {
-      return { campaign, clauses, districts, mode }
+    return {
+      campaign,
+      clauses: clauses.length > 0 ? clauses : state.state === 'preview' ? demoClauses : clauses,
+      districts,
+      mode: state.state,
     }
-    return clauses.length > 0 ? { campaign, clauses, districts, mode } : bundledDemo
   }
 
-  if (clauses.length === 0 && mode !== 'live') {
-    return { ...bundledDemo, districts }
+  return {
+    campaign,
+    clauses: clauses.length > 0 ? clauses : state.state === 'preview' ? demoClauses : clauses,
+    districts,
+    mode: state.state,
   }
-
-  return { campaign, clauses, districts, mode }
-}
-
-/** Public walkthrough. Never live, never writes a submission. */
-export async function loadComposeData(): Promise<ObjectionPageData> {
-  try {
-    const supabase = createServiceClient()
-    const slug = getDefaultCampaignSlug()
-    const bySlug = await supabase.from('campaigns').select('*').eq('slug', slug).maybeSingle()
-    const fallback = bySlug.data
-      ? null
-      : await supabase.from('campaigns').select('*').order('created_at', { ascending: false }).limit(1).maybeSingle()
-    const row = (bySlug.data ?? fallback?.data ?? null) as (Campaign & { preview_token?: string | null }) | null
-    if (row) {
-      return loadCampaignBundle(publicCampaign(row), 'compose')
-    }
-  } catch {
-    return bundledDemo
-  }
-
-  return bundledDemo
-}
-
-export async function loadObjectionData(state: CampaignState): Promise<ObjectionPageData | null> {
-  if (state.state === 'dormant') {
-    return loadComposeData()
-  }
-
-  return loadCampaignBundle(state.campaign, state.state)
 }
 
 export function publicCampaignSlug(): string {

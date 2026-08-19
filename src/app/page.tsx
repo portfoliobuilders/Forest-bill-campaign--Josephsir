@@ -1,6 +1,6 @@
 import { HomePage } from '@/components/HomePage'
 import { daysRemaining, resolveCampaignState } from '@/lib/campaign'
-import { loadComposeData } from '@/lib/campaigns'
+import { publicCampaignSlug } from '@/lib/campaigns'
 import { createServiceClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
@@ -24,17 +24,10 @@ type Props = {
 export default async function Home({ searchParams }: Props) {
   const params = await searchParams
   const state = await resolveCampaignState(params.preview)
+  const campaign = state.state === 'dormant' ? null : state.campaign
+  const slug = campaign?.slug ?? publicCampaignSlug()
+  const count = state.state === 'dormant' ? 0 : await confirmedCount(slug)
+  const daysLeft = campaign ? daysRemaining(campaign.deadline_at) : 0
 
-  if (state.state === 'dormant') {
-    const data = await loadComposeData()
-    return <HomePage mode="compose" campaign={data.campaign} daysLeft={0} confirmedCount={0} />
-  }
-
-  const campaign = state.campaign
-  const count = state.state === 'live' ? await confirmedCount(campaign.slug) : 0
-  const daysLeft = state.state === 'live' ? daysRemaining(campaign.deadline_at) : 0
-
-  return (
-    <HomePage mode={state.state} campaign={campaign} daysLeft={daysLeft} confirmedCount={count} />
-  )
+  return <HomePage mode={state.state} campaign={campaign} daysLeft={daysLeft} confirmedCount={count} />
 }

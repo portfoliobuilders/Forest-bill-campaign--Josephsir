@@ -1,1 +1,1 @@
-export type WizardMode = 'live' | 'preview' | 'compose'
+export type WizardMode = 'live' | 'preview'
