@@ -69,8 +69,40 @@ export async function sendAdminMagicLink(
 
     const mailed = await emailAdminMagicLink(normalized, origin)
     if (mailed.ok) return mailed
-    if (mailed.error === 'mailer_missing') return { ok: false, error: 'config' }
-    return mailed
+
+    if (mailed.error !== 'config' && mailed.error !== 'mailer_missing') {
+      return mailed
+    }
+
+    const { cookies } = await import('next/headers')
+    const { createServerSupabaseClient } = await import('@/lib/supabase/ssr')
+    const cookieStore = await cookies()
+    const lastTry = Number(cookieStore.get('admin_link_try')?.value || '0')
+    if (Number.isFinite(lastTry) && Date.now() - lastTry < 15 * 60 * 1000) {
+      return { ok: false, error: 'rate_limit' }
+    }
+
+    const supabase = await createServerSupabaseClient()
+    cookieStore.set('admin_link_try', String(Date.now()), {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: true,
+      path: '/',
+      maxAge: 60 * 60,
+    })
+    const { error } = await supabase.auth.signInWithOtp({
+      email: normalized,
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: `${origin}/auth/callback`,
+      },
+    })
+    if (!error) return { ok: true }
+    const message = error.message.toLowerCase()
+    if (message.includes('rate') || message.includes('too many') || message.includes('second')) {
+      return { ok: false, error: 'rate_limit' }
+    }
+    return { ok: false, error: 'config' }
   } catch {
     return { ok: false, error: 'config' }
   }
