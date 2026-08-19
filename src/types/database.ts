@@ -105,3 +105,22 @@ export type Representative = {
   verified_at: string
   is_current: boolean
 }
+
+export type ConstituencyConfidence = 'exact' | 'probable' | 'district'
+
+export type ConstituencyCandidate = {
+  constituency: Constituency
+  confidence: ConstituencyConfidence
+}
+
+export type ConstituencyMatch = ConstituencyCandidate & {
+  representative: Representative | null
+}
+
+export type WizardRouting = {
+  constituencyId: string | null
+  ccMla: boolean
+  ccRepresentativeIds: string[]
+  constituency: Constituency | null
+  representative: Representative | null
+}
