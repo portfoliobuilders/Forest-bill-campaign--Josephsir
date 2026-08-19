@@ -1,37 +1,76 @@
 'use client'
 
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 
 import { useLang } from '@/components/LanguageProvider'
 import { t } from '@/lib/i18n'
+import { focusRing } from '@/lib/ui'
 
-const focusRing =
-  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800'
-
-const links = [
-  { href: '/data', key: 'footerData' as const },
-  { href: '/privacy', key: 'footerPrivacy' as const },
-  { href: '/delete', key: 'footerDelete' as const },
+const primaryLinks = [
   { href: '/about', key: 'footerAbout' as const },
+  { href: '/faq', key: 'footerFaq' as const },
+  { href: '/privacy', key: 'footerPrivacy' as const },
+  { href: '/contact', key: 'footerContact' as const },
+]
+
+const secondaryLinks = [
+  { href: '/data', key: 'footerData' as const },
+  { href: '/delete', key: 'footerDelete' as const },
 ]
 
 export function SiteFooter() {
   const { lang } = useLang()
 
   return (
-    <footer className="mt-12 border-t border-stone-300 py-6">
-      <nav className="flex flex-wrap gap-x-4 gap-y-2">
-        {links.map((link) => (
-          <Link
-            key={link.href}
-            href={link.href}
-            className={`min-h-[44px] content-center text-sm font-medium text-emerald-900 underline ${focusRing}`}
-          >
-            {t(lang, link.key)}
-          </Link>
-        ))}
-      </nav>
-      <p className="mt-4 text-sm text-stone-600">{t(lang, 'notOfficial')}</p>
+    <footer className="mt-auto bg-ink text-stone-300">
+      <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6">
+        <nav aria-label={t(lang, 'footerAbout')} className="flex flex-col gap-x-8 gap-y-3 sm:flex-row sm:flex-wrap">
+          {primaryLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className={`inline-flex min-h-11 items-center text-sm font-medium text-stone-200 hover:text-white ${focusRing}`}
+            >
+              {t(lang, link.key)}
+            </Link>
+          ))}
+        </nav>
+        <nav className="mt-4 flex flex-col gap-x-8 gap-y-2 sm:flex-row sm:flex-wrap" aria-label={t(lang, 'footerData')}>
+          {secondaryLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className={`inline-flex min-h-11 items-center text-sm text-stone-400 hover:text-stone-200 ${focusRing}`}
+            >
+              {t(lang, link.key)}
+            </Link>
+          ))}
+        </nav>
+
+        <p className="mt-8 max-w-2xl text-sm leading-relaxed text-stone-400">{t(lang, 'notOfficial')}</p>
+
+        <div className="mt-8 flex flex-col gap-3 border-t border-white/10 pt-6 sm:flex-row sm:items-end sm:justify-between">
+          <p className="font-mono text-xs text-stone-500">{t(lang, 'footerCopyright')}</p>
+          <p className="font-mono text-[10px] tracking-wide text-stone-600">
+            {t(lang, 'poweredBy')}{' '}
+            <a
+              href="https://portfolix.tech"
+              className={`text-stone-500 hover:text-stone-300 ${focusRing}`}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              Portfolix.Tech
+            </a>
+          </p>
+        </div>
+      </div>
     </footer>
   )
+}
+
+export function SiteFooterGate() {
+  const pathname = usePathname()
+  if (pathname.startsWith('/admin')) return null
+  return <SiteFooter />
 }

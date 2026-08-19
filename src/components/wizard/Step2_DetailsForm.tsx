@@ -2,21 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react'
 
+import { SelectField, TextAreaField, TextField } from '@/components/ui/FormField'
 import { useLang } from '@/components/LanguageProvider'
 import { cx } from '@/lib/cx'
 import { sampleDemoDetails, type DistrictOption } from '@/lib/demo-data'
 import { MAX_CUSTOM_CHARS, type DetailsFields, type FieldErrors } from '@/lib/details-schema'
 import { t } from '@/lib/i18n'
+import { btnGhost, focusRing } from '@/lib/ui'
 import type { ConstituencyMatch, WizardRouting } from '@/types/database'
-
-const focusRing =
-  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800'
-
-const fieldClass = cx(
-  'mt-1 min-h-[44px] w-full rounded-md border border-stone-400 bg-white px-3 text-base text-stone-900',
-  'transition-colors duration-150',
-  focusRing,
-)
 
 const PINCODE_RE = /^[1-9][0-9]{5}$/
 
@@ -26,15 +19,6 @@ export const emptyRouting: WizardRouting = {
   ccRepresentativeIds: [],
   constituency: null,
   representative: null,
-}
-
-function FieldError({ id, message }: { id: string; message?: string }) {
-  if (!message) return null
-  return (
-    <p id={id} className="mt-1 text-sm text-red-700">
-      {message}
-    </p>
-  )
 }
 
 function hasOfficialEmail(match: ConstituencyMatch | undefined): boolean {
@@ -154,217 +138,152 @@ export function Step2_DetailsForm({
 
   return (
     <div>
-      <h2 className="text-xl font-bold text-stone-900">{t(lang, 'yourDetails')}</h2>
-      <p className="mt-2 text-sm text-stone-600">{t(lang, 'consentNotice')}</p>
+      <h1 className="font-display text-2xl text-ink sm:text-3xl">{t(lang, 'yourDetails')}</h1>
+      <p className="mt-2 text-base leading-relaxed text-body">
+        {t(lang, 'detailsHowUsed')}{' '}
+        <a href="/privacy" className={`font-medium text-accent underline ${focusRing}`}>
+          {t(lang, 'footerPrivacy')}
+        </a>
+      </p>
       {allowSample ? (
-        <div className="mt-3">
-          <button
-            type="button"
-            onClick={() => onChange(sampleDemoDetails(lang))}
-            className={cx(
-              'inline-flex min-h-[44px] items-center justify-center rounded-md border border-stone-400 bg-white px-4 text-base font-semibold text-stone-900 hover:bg-stone-100',
-              focusRing,
-            )}
-          >
+        <div className="mt-4">
+          <button type="button" onClick={() => onChange(sampleDemoDetails(lang))} className={btnGhost}>
             {t(lang, 'fillSample')}
           </button>
-          <p className="mt-1 text-sm text-stone-600">{t(lang, 'sampleHint')}</p>
+          <p className="mt-1 text-sm text-muted">{t(lang, 'sampleHint')}</p>
         </div>
       ) : null}
 
-      <div className="mt-5 rounded-md border-2 border-emerald-800 bg-emerald-50 p-4">
-        <label htmlFor="customText" className="block text-lg font-bold text-emerald-950">
-          {t('ml', 'customTextInvite')}
-        </label>
-        {lang === 'en' ? (
-          <p className="mt-1 text-sm text-emerald-900">{t('en', 'customTextInvite')}</p>
-        ) : null}
-        <textarea
+      <div className="mt-6 rounded-[8px] border border-rule bg-raised p-4">
+        <TextAreaField
           id="customText"
           name="customText"
+          label={t('ml', 'customTextInvite')}
           value={details.customText}
           maxLength={MAX_CUSTOM_CHARS}
           rows={5}
           onChange={(event) => onChange({ customText: event.target.value })}
-          className={cx(fieldClass, 'min-h-[140px] resize-y py-2')}
-          aria-describedby="customText-count customText-error"
+          hint={`${details.customText.length}/${MAX_CUSTOM_CHARS} ${t(lang, 'charsUsed')}`}
+          error={errors.customText}
         />
-        <p id="customText-count" className="mt-1 text-sm text-emerald-900">
-          {details.customText.length}/{MAX_CUSTOM_CHARS} {t(lang, 'charsUsed')}
-        </p>
-        <FieldError id="customText-error" message={errors.customText} />
+        {lang === 'en' ? <p className="mt-2 text-sm text-muted">{t('en', 'customTextInvite')}</p> : null}
       </div>
 
-      <div className="mt-5 space-y-4">
-        <div>
-          <label htmlFor="fullName" className="block font-medium">
-            {t(lang, 'fullName')}
-          </label>
-          <input
-            id="fullName"
-            name="fullName"
-            autoComplete="name"
-            value={details.fullName}
-            onChange={(event) => onChange({ fullName: event.target.value })}
-            className={fieldClass}
-            aria-invalid={Boolean(errors.fullName)}
-            aria-describedby={errors.fullName ? 'fullName-error' : undefined}
-          />
-          <FieldError id="fullName-error" message={errors.fullName} />
-        </div>
-
-        <div>
-          <label htmlFor="addressLine" className="block font-medium">
-            {t(lang, 'address')}
-          </label>
-          <input
+      <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <TextField
+          id="fullName"
+          name="fullName"
+          autoComplete="name"
+          label={t(lang, 'fullName')}
+          value={details.fullName}
+          onChange={(event) => onChange({ fullName: event.target.value })}
+          error={errors.fullName}
+        />
+        <TextField
+          id="phone"
+          name="phone"
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          label={t(lang, 'phone')}
+          value={details.phone}
+          onChange={(event) => onChange({ phone: event.target.value })}
+          hint={t(lang, 'phoneHint')}
+          error={errors.phone}
+        />
+        <TextField
+          id="email"
+          name="email"
+          type="email"
+          autoComplete="email"
+          label={t(lang, 'email')}
+          value={details.email}
+          onChange={(event) => onChange({ email: event.target.value })}
+          error={errors.email}
+        />
+        <SelectField
+          id="district"
+          name="district"
+          autoComplete="address-level1"
+          label={t(lang, 'district')}
+          value={details.district}
+          onChange={(event) => onChange({ district: event.target.value })}
+          error={errors.district}
+        >
+          <option value="">{t(lang, 'selectDistrict')}</option>
+          {districts.map((district) => (
+            <option key={district.value} value={district.value}>
+              {lang === 'en' ? district.labelEn : district.labelMl}
+            </option>
+          ))}
+        </SelectField>
+        <TextField
+          id="pincode"
+          name="pincode"
+          inputMode="numeric"
+          autoComplete="postal-code"
+          label={t(lang, 'pincode')}
+          value={details.pincode}
+          onChange={(event) => onChange({ pincode: event.target.value })}
+          error={errors.pincode}
+        />
+        <TextField
+          id="panchayat"
+          name="panchayat"
+          autoComplete="address-level2"
+          label={t(lang, 'panchayat')}
+          value={details.panchayat}
+          onChange={(event) => onChange({ panchayat: event.target.value })}
+        />
+        <div className="sm:col-span-2">
+          <TextField
             id="addressLine"
             name="addressLine"
             autoComplete="street-address"
+            label={t(lang, 'address')}
             value={details.addressLine}
             onChange={(event) => onChange({ addressLine: event.target.value })}
-            className={fieldClass}
-            aria-invalid={Boolean(errors.addressLine)}
-            aria-describedby={errors.addressLine ? 'addressLine-error' : undefined}
-          />
-          <FieldError id="addressLine-error" message={errors.addressLine} />
-        </div>
-
-        <div>
-          <label htmlFor="panchayat" className="block font-medium">
-            {t(lang, 'panchayat')}
-          </label>
-          <input
-            id="panchayat"
-            name="panchayat"
-            autoComplete="address-level2"
-            value={details.panchayat}
-            onChange={(event) => onChange({ panchayat: event.target.value })}
-            className={fieldClass}
+            error={errors.addressLine}
           />
         </div>
+      </div>
 
-        <div>
-          <label htmlFor="district" className="block font-medium">
-            {t(lang, 'district')}
-          </label>
-          <select
-            id="district"
-            name="district"
-            autoComplete="address-level1"
-            value={details.district}
-            onChange={(event) => onChange({ district: event.target.value })}
-            className={fieldClass}
-            aria-invalid={Boolean(errors.district)}
-            aria-describedby={errors.district ? 'district-error' : undefined}
+      {candidates.length > 0 ? (
+        <div className="mt-4">
+          <SelectField
+            id="constituency"
+            name="constituency"
+            label={t(lang, 'constituencyConfirm')}
+            value={routing.constituencyId ?? ''}
+            onChange={(event) => selectConstituency(event.target.value)}
           >
-            <option value="">{t(lang, 'selectDistrict')}</option>
-            {districts.map((district) => (
-              <option key={district.value} value={district.value}>
-                {lang === 'en' ? district.labelEn : district.labelMl}
+            <option value="">{t(lang, 'constituencyConfirm')}</option>
+            {candidates.map((candidate) => (
+              <option key={candidate.constituency.id} value={candidate.constituency.id}>
+                {lang === 'en' ? candidate.constituency.name_en : candidate.constituency.name_ml}
               </option>
             ))}
-          </select>
-          <FieldError id="district-error" message={errors.district} />
-        </div>
+          </SelectField>
 
-        <div>
-          <label htmlFor="pincode" className="block font-medium">
-            {t(lang, 'pincode')}
-          </label>
-          <input
-            id="pincode"
-            name="pincode"
-            inputMode="numeric"
-            autoComplete="postal-code"
-            value={details.pincode}
-            onChange={(event) => onChange({ pincode: event.target.value })}
-            className={fieldClass}
-            aria-invalid={Boolean(errors.pincode)}
-            aria-describedby={errors.pincode ? 'pincode-error' : undefined}
-          />
-          <FieldError id="pincode-error" message={errors.pincode} />
-        </div>
-
-        {candidates.length > 0 ? (
-          <div>
-            <label htmlFor="constituency" className="block font-medium">
-              {t(lang, 'constituencyConfirm')}
-            </label>
-            <select
-              id="constituency"
-              name="constituency"
-              value={routing.constituencyId ?? ''}
-              onChange={(event) => selectConstituency(event.target.value)}
-              className={fieldClass}
-            >
-              <option value="">{t(lang, 'constituencyConfirm')}</option>
-              {candidates.map((candidate) => (
-                <option key={candidate.constituency.id} value={candidate.constituency.id}>
-                  {lang === 'en' ? candidate.constituency.name_en : candidate.constituency.name_ml}
-                </option>
-              ))}
-            </select>
-
-            {showMlaOptIn && selected?.representative ? (
-              <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-md border border-stone-300 bg-white p-3">
+          {showMlaOptIn && selected?.representative ? (
+            <div className="mt-3">
+              <p className="text-base leading-relaxed text-ink">
+                {lang === 'en' ? selected.representative.name_en : selected.representative.name_ml}
+              </p>
+              <label className="mt-2 flex min-h-11 cursor-pointer items-start gap-3 rounded-[8px] border border-rule bg-raised p-3">
                 <input
                   type="checkbox"
                   name="ccMla"
                   checked={routing.ccMla}
                   onChange={(event) => setCcMla(event.target.checked)}
-                  className={cx('mt-1 size-6 shrink-0 accent-emerald-800', focusRing)}
+                  className={cx('mt-1 size-6 shrink-0 accent-accent', focusRing)}
                 />
-                <span className="text-base leading-relaxed text-stone-900">
-                  {t(lang, 'ccMlaNamed')
-                    .replace('{name}', selected.representative.name_ml)
-                    .replace('{constituency}', selected.constituency.name_ml)}
-                </span>
+                <span className="text-base leading-relaxed text-ink">{t(lang, 'ccRepresentative')}</span>
               </label>
-            ) : null}
-          </div>
-        ) : null}
-
-        <div>
-          <label htmlFor="phone" className="block font-medium">
-            {t(lang, 'phone')}
-          </label>
-          <input
-            id="phone"
-            name="phone"
-            type="tel"
-            inputMode="tel"
-            autoComplete="tel"
-            value={details.phone}
-            onChange={(event) => onChange({ phone: event.target.value })}
-            className={fieldClass}
-            aria-invalid={Boolean(errors.phone)}
-            aria-describedby={errors.phone ? 'phone-error' : 'phone-hint'}
-          />
-          <p id="phone-hint" className="mt-1 text-sm text-stone-600">
-            {t(lang, 'phoneHint')}
-          </p>
-          <FieldError id="phone-error" message={errors.phone} />
+            </div>
+          ) : null}
         </div>
-
-        <div>
-          <label htmlFor="email" className="block font-medium">
-            {t(lang, 'email')}
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            value={details.email}
-            onChange={(event) => onChange({ email: event.target.value })}
-            className={fieldClass}
-            aria-invalid={Boolean(errors.email)}
-            aria-describedby={errors.email ? 'email-error' : undefined}
-          />
-          <FieldError id="email-error" message={errors.email} />
-        </div>
-      </div>
+      ) : null}
     </div>
   )
 }

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
 
 import { markHandoff } from '@/app/actions/submission'
+import { IconCopy, IconEnvelope, IconGmail } from '@/components/ui/icons'
 import { useLang } from '@/components/LanguageProvider'
 import {
   composeEmail,
@@ -17,19 +18,11 @@ import {
 import { cx } from '@/lib/cx'
 import type { DetailsFields } from '@/lib/details-schema'
 import { t } from '@/lib/i18n'
+import { PDF_LETTER_AVAILABLE } from '@/lib/pdf-available'
 import { normalizeIndianPhone } from '@/lib/phone'
+import { btnGhost, btnPrimary, btnSecondary } from '@/lib/ui'
 import type { WizardMode } from '@/lib/wizard-mode'
 import type { Campaign, ObjectionClause, WizardRouting } from '@/types/database'
-
-const focusRing =
-  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800'
-
-const btnBase = `inline-flex min-h-[44px] min-w-[44px] flex-1 items-center justify-center rounded-md px-3 text-center text-base font-semibold transition-colors duration-150 ${focusRing}`
-
-function downloadPdf(submissionId: string | null): void {
-  if (!submissionId) return
-  window.open(`/api/pdf?id=${submissionId}`, '_blank', 'noopener,noreferrer')
-}
 
 export function Step4_Preview({
   campaign,
@@ -39,6 +32,7 @@ export function Step4_Preview({
   submissionId,
   mode,
   testerEmail,
+  onEditDetails,
 }: {
   campaign: Campaign
   clauses: ObjectionClause[]
@@ -47,6 +41,7 @@ export function Step4_Preview({
   submissionId: string | null
   mode: WizardMode
   testerEmail: string | null
+  onEditDetails: () => void
 }) {
   const { lang } = useLang()
   const router = useRouter()
@@ -69,14 +64,18 @@ export function Step4_Preview({
     })
   }, [campaign, clauses, details, lang])
 
+  const isPreview = mode === 'preview'
+  const testerTo = (testerEmail ?? details.email).trim()
+
   const optedIn =
+    !isPreview &&
     routing.ccMla &&
     routing.constituencyId !== null &&
     Boolean(routing.representative?.official_email?.trim()) &&
     routing.representative !== null &&
     routing.ccRepresentativeIds.includes(routing.representative.id)
 
-  const mailParams = withRepresentativeCc(
+  const liveParams = withRepresentativeCc(
     {
       to: campaign.recipient_email,
       cc: campaign.cc_emails,
@@ -86,6 +85,11 @@ export function Step4_Preview({
     routing.representative?.official_email,
     optedIn,
   )
+
+  const mailParams = isPreview
+    ? { to: testerTo, cc: [] as string[], subject: composed.subject, body: composed.body }
+    : liveParams
+
   const gmailHref = gmailComposeUrl(mailParams)
   const mailtoHref = mailtoUrl(mailParams)
   const urlLength = estimateUrlLength(mailParams)
@@ -93,29 +97,20 @@ export function Step4_Preview({
   const tooLong = composed.error === 'too_long'
   const overAmber = composed.charCount > 1300
   const atLimit = composed.charCount >= MAX_BODY_CHARS
-  const isDemo = mode !== 'live'
-  const dryRunTo = (testerEmail ?? details.email).trim()
-  const dryRunParams = {
-    to: dryRunTo,
-    cc: [] as string[],
-    subject: composed.subject,
-    body: composed.body,
-  }
-  const dryRunHref = mailtoUrl(dryRunParams)
-  const sendDisabled = tooLong
+  const sendDisabled = tooLong || !mailParams.to
 
   async function openHandoff(method: 'gmail_web' | 'mailto' | 'copy', href?: string) {
+    if (href && method === 'gmail_web') {
+      window.open(href, '_blank', 'noopener,noreferrer')
+    } else if (href && method === 'mailto') {
+      window.location.href = href
+    }
+
     if (submissionId) {
       await markHandoff(submissionId, method)
-      router.push(`/sent?id=${submissionId}`)
-    }
-    if (!href) return
-    if (method === 'gmail_web') {
-      window.open(href, '_blank', 'noopener,noreferrer')
-      return
-    }
-    if (method === 'mailto') {
-      window.location.href = href
+      if (method !== 'mailto') {
+        router.push(`/sent?id=${submissionId}`)
+      }
     }
   }
 
@@ -131,32 +126,49 @@ export function Step4_Preview({
 
   return (
     <div>
-      <h2 className="text-xl font-bold text-stone-900">{t(lang, 'preview')}</h2>
-      {isDemo ? <p className="mt-2 text-base leading-relaxed text-amber-900">{t(lang, 'demoLetterHint')}</p> : null}
-
-      <div className="mt-4 space-y-1 text-base">
-        <p>
-          <span className="font-medium">{t(lang, 'toLabel')}: </span>
-          <span className="select-all">{campaign.recipient_email}</span>
-        </p>
-        {mailParams.cc.length > 0 ? (
-          <p>
-            <span className="font-medium">{t(lang, 'ccLabel')}: </span>
-            <span className="select-all">{mailParams.cc.join(', ')}</span>
-          </p>
-        ) : null}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="font-display text-2xl text-ink sm:text-3xl">{t(lang, 'letterTitle')}</h1>
+          <p className="mt-2 text-base leading-relaxed text-body">{t(lang, 'letterSupport')}</p>
+        </div>
+        <button type="button" onClick={onEditDetails} className={cx(btnGhost, 'shrink-0 self-start')}>
+          {t(lang, 'editDetails')}
+        </button>
       </div>
+      {isPreview ? <p className="mt-3 text-base leading-relaxed text-amber-900">{t(lang, 'demoLetterHint')}</p> : null}
 
-      <pre className="mt-4 max-h-[50vh] overflow-auto whitespace-pre-wrap break-words rounded-md border border-stone-400 bg-white p-3 font-mono text-sm leading-relaxed text-stone-900">
+      <dl className="mt-5 space-y-1 text-sm sm:text-base">
+        <div>
+          <dt className="inline font-semibold text-ink">{t(lang, 'toLabel')}: </dt>
+          <dd className="inline select-all text-body">{mailParams.to}</dd>
+        </div>
+        {mailParams.cc.length > 0 ? (
+          <div>
+            <dt className="inline font-semibold text-ink">{t(lang, 'ccLabel')}: </dt>
+            <dd className="inline select-all text-body">{mailParams.cc.join(', ')}</dd>
+          </div>
+        ) : null}
+        <div>
+          <dt className="inline font-semibold text-ink">{t(lang, 'subjectLabel')}: </dt>
+          <dd className="inline text-body">{mailParams.subject}</dd>
+        </div>
+      </dl>
+
+      <pre
+        className={cx(
+          'mt-4 max-h-[50vh] overflow-auto whitespace-pre-wrap break-words rounded-[8px] border border-rule bg-raised p-4 text-sm leading-relaxed text-ink sm:text-base',
+          lang === 'en' && 'font-serif',
+        )}
+      >
         {composed.body}
       </pre>
 
       <p
         className={cx(
-          'mt-2 text-base font-medium',
-          atLimit && 'text-red-700',
-          overAmber && !atLimit && 'text-amber-700',
-          !overAmber && 'text-stone-700',
+          'mt-2 text-sm font-medium',
+          atLimit && 'text-red-800',
+          overAmber && !atLimit && 'text-amber-800',
+          !overAmber && 'text-muted',
         )}
       >
         {composed.charCount}/{MAX_BODY_CHARS} {t(lang, 'charsUsed')}
@@ -165,93 +177,58 @@ export function Step4_Preview({
       {tooLong ? <p className="mt-2 text-base text-red-800">{t(lang, 'tooLongBody')}</p> : null}
       {urlTooLong ? <p className="mt-2 text-sm text-amber-800">{t(lang, 'urlTooLong')}</p> : null}
 
-      <div className="mt-5 grid grid-cols-2 gap-3">
-        <span className="flex" title={sendDisabled ? t(lang, 'sendDisabledTooltip') : undefined}>
+      <p className="mt-5 text-sm leading-relaxed text-muted">{t(lang, 'trustLine')}</p>
+
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+        <span className="flex flex-1" title={sendDisabled ? t(lang, 'sendDisabledTooltip') : undefined}>
           <button
             type="button"
             disabled={sendDisabled}
             onClick={() => void openHandoff('gmail_web', gmailHref)}
-            className={cx(
-              btnBase,
-              'w-full',
-              sendDisabled ? 'cursor-not-allowed bg-stone-300 text-stone-500' : 'bg-emerald-800 text-white hover:bg-emerald-900',
-            )}
+            className={cx(btnPrimary, 'w-full')}
           >
+            <IconGmail className="size-5 shrink-0" />
             {t(lang, 'sendGmail')}
           </button>
         </span>
 
-        <span className="flex" title={sendDisabled ? t(lang, 'sendDisabledTooltip') : undefined}>
+        <span className="flex flex-1" title={sendDisabled ? t(lang, 'sendDisabledTooltip') : undefined}>
           <button
             type="button"
             disabled={sendDisabled}
             onClick={() => void openHandoff('mailto', mailtoHref)}
-            className={cx(
-              btnBase,
-              'w-full',
-              sendDisabled
-                ? 'cursor-not-allowed bg-stone-300 text-stone-500'
-                : 'border border-emerald-800 bg-white text-emerald-900 hover:bg-emerald-50',
-            )}
+            className={cx(btnSecondary, 'w-full')}
           >
+            <IconEnvelope className="size-4 shrink-0" />
             {t(lang, 'sendMailto')}
           </button>
         </span>
 
-        <span className="flex" title={sendDisabled ? t(lang, 'sendDisabledTooltip') : undefined}>
+        <span className="flex flex-1" title={sendDisabled ? t(lang, 'sendDisabledTooltip') : undefined}>
           <button
             type="button"
             disabled={sendDisabled}
             onClick={() => void copyBody()}
-            className={cx(
-              btnBase,
-              'w-full',
-              sendDisabled
-                ? 'cursor-not-allowed bg-stone-300 text-stone-500'
-                : 'border border-stone-400 bg-white text-stone-900 hover:bg-stone-100',
-            )}
+            className={cx(btnGhost, 'w-full')}
           >
+            <IconCopy className="size-4 shrink-0" />
             {copyState === 'copied' ? t(lang, 'copied') : t(lang, 'copyText')}
           </button>
         </span>
-
-        <button
-          type="button"
-          disabled={!submissionId || isDemo}
-          onClick={() => downloadPdf(submissionId)}
-          title={
-            isDemo ? t(lang, 'sendDisabledTooltip') : submissionId ? undefined : t(lang, 'pdfUnavailable')
-          }
-          className={cx(
-            btnBase,
-            submissionId && !isDemo
-              ? 'border border-stone-400 bg-white text-stone-900 hover:bg-stone-100'
-              : 'cursor-not-allowed bg-stone-200 text-stone-500',
-          )}
-        >
-          {t(lang, 'downloadPdf')}
-        </button>
       </div>
+      <p className="sr-only" aria-live="polite">
+        {copyState === 'copied' ? t(lang, 'copied') : copyState === 'failed' ? t(lang, 'copyFailed') : ''}
+      </p>
+      {copyState === 'failed' ? <p className="mt-2 text-sm text-red-800">{t(lang, 'copyFailed')}</p> : null}
 
-      {isDemo ? (
-        <button
-          type="button"
-          disabled={!dryRunTo || tooLong}
-          onClick={() => {
-            window.location.href = dryRunHref
-          }}
-          className={cx(
-            btnBase,
-            'mt-3 w-full',
-            !dryRunTo || tooLong
-              ? 'cursor-not-allowed bg-stone-300 text-stone-500'
-              : 'bg-emerald-800 text-white hover:bg-emerald-900',
-          )}
-        >
-          {t(lang, 'dryRun')}
-        </button>
-      ) : null}
-      {copyState === 'failed' ? <p className="mt-2 text-sm text-red-700">{t(lang, 'copyFailed')}</p> : null}
+      <button
+        type="button"
+        disabled={!PDF_LETTER_AVAILABLE || sendDisabled}
+        title={t(lang, 'pdfUnavailable')}
+        className={cx(btnGhost, 'mt-3 w-full sm:w-auto', (!PDF_LETTER_AVAILABLE || sendDisabled) && 'opacity-50')}
+      >
+        {t(lang, 'downloadPdf')}
+      </button>
     </div>
   )
 }

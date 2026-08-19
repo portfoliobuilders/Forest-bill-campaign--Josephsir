@@ -1,7 +1,9 @@
 'use client'
 
-import { useReducer, useState } from 'react'
+import { useReducer } from 'react'
 
+import { PageContainer } from '@/components/ui/PageContainer'
+import { IconChevronRight } from '@/components/ui/icons'
 import { Progress } from '@/components/wizard/Progress'
 import { MAX_SELECTED_CLAUSES, Step1_ClauseSelector } from '@/components/wizard/Step1_ClauseSelector'
 import { emptyRouting, Step2_DetailsForm } from '@/components/wizard/Step2_DetailsForm'
@@ -18,11 +20,9 @@ import {
 } from '@/lib/details-schema'
 import { t } from '@/lib/i18n'
 import { normalizeIndianPhone } from '@/lib/phone'
+import { btnGhost, btnPrimary, focusRing } from '@/lib/ui'
 import type { WizardMode } from '@/lib/wizard-mode'
 import type { Campaign, ObjectionClause, WizardRouting } from '@/types/database'
-
-const focusRing =
-  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800'
 
 type Step = 1 | 2 | 3 | 4
 
@@ -33,6 +33,8 @@ type WizardState = {
   routing: WizardRouting
   submissionId: string | null
   verified: boolean
+  detailsErrors: FieldErrors
+  clauseError: boolean
 }
 
 type WizardAction =
@@ -40,8 +42,11 @@ type WizardAction =
   | { type: 'set_details'; details: Partial<DetailsFields> }
   | { type: 'set_routing'; routing: WizardRouting }
   | { type: 'submit_details'; details: DetailsFields }
+  | { type: 'details_invalid'; errors: FieldErrors }
   | { type: 'next' }
+  | { type: 'clause_error' }
   | { type: 'set_verified'; submissionId: string }
+  | { type: 'goto'; step: Step }
   | { type: 'back' }
 
 const emptyDetails: DetailsFields = {
@@ -62,28 +67,45 @@ function reducer(state: WizardState, action: WizardAction): WizardState {
       if (selected) {
         return {
           ...state,
+          clauseError: false,
           selectedClauseIds: state.selectedClauseIds.filter((id) => id !== action.id),
         }
       }
       if (state.selectedClauseIds.length >= MAX_SELECTED_CLAUSES) {
         return state
       }
-      return { ...state, selectedClauseIds: [...state.selectedClauseIds, action.id] }
+      return {
+        ...state,
+        clauseError: false,
+        selectedClauseIds: [...state.selectedClauseIds, action.id],
+      }
     }
-    case 'set_details':
-      return { ...state, details: { ...state.details, ...action.details } }
+    case 'set_details': {
+      const detailsErrors = { ...state.detailsErrors }
+      for (const key of Object.keys(action.details) as Array<keyof DetailsFields>) {
+        delete detailsErrors[key]
+      }
+      return { ...state, details: { ...state.details, ...action.details }, detailsErrors }
+    }
     case 'set_routing':
       return { ...state, routing: action.routing }
     case 'submit_details':
       return {
         ...state,
         details: action.details,
+        detailsErrors: {},
         step: state.step < 4 ? ((state.step + 1) as Step) : state.step,
       }
+    case 'details_invalid':
+      return { ...state, detailsErrors: action.errors }
+    case 'clause_error':
+      return { ...state, clauseError: true }
     case 'next':
       return { ...state, step: state.step < 4 ? ((state.step + 1) as Step) : state.step }
     case 'set_verified':
       return { ...state, submissionId: action.submissionId, verified: true }
+    case 'goto':
+      return { ...state, step: action.step }
     case 'back':
       return { ...state, step: state.step > 1 ? ((state.step - 1) as Step) : state.step }
     default:
@@ -112,9 +134,9 @@ export function Wizard({
     routing: emptyRouting,
     submissionId: null,
     verified: false,
+    detailsErrors: {},
+    clauseError: false,
   })
-  const [detailsErrors, setDetailsErrors] = useState<FieldErrors>({})
-  const [clauseError, setClauseError] = useState(false)
 
   const selectedClauses = clauses
     .filter((clause) => state.selectedClauseIds.includes(clause.id))
@@ -122,10 +144,9 @@ export function Wizard({
 
   function goNextFromStep1() {
     if (state.selectedClauseIds.length < 1) {
-      setClauseError(true)
+      dispatch({ type: 'clause_error' })
       return
     }
-    setClauseError(false)
     dispatch({ type: 'next' })
   }
 
@@ -135,24 +156,23 @@ export function Wizard({
       districts.map((d) => d.value),
     ).safeParse(state.details)
     if (!parsed.success) {
-      setDetailsErrors(fieldErrorsFromZod(parsed.error))
+      dispatch({ type: 'details_invalid', errors: fieldErrorsFromZod(parsed.error) })
       return
     }
     const phone = normalizeIndianPhone(parsed.data.phone) ?? parsed.data.phone
-    setDetailsErrors({})
     dispatch({ type: 'submit_details', details: { ...parsed.data, phone } })
   }
 
+  const showStep4 = state.step === 4 && state.verified && Boolean(state.submissionId)
+  const showStep3 = state.step === 3 || (state.step === 4 && !showStep4)
+
   return (
-    <main className="mx-auto w-full max-w-[640px] px-4 py-6">
-      <h1 className="mb-2 text-2xl font-bold text-stone-900">
-        {lang === 'en' ? campaign.title_en : campaign.title_ml}
-      </h1>
+    <PageContainer>
       {mode !== 'live' ? (
-        <p className="mb-4 text-sm leading-relaxed text-stone-600">
+        <p className="mb-4 font-mono text-xs leading-relaxed text-muted sm:text-sm">
           <a
             href={FOREST_BILL_SOURCE_URL}
-            className={`font-medium text-emerald-900 underline ${focusRing}`}
+            className={`font-medium text-accent underline ${focusRing}`}
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -161,7 +181,7 @@ export function Wizard({
           {' · '}
           <a
             href={FOREST_BILL_VOLUNTEER_URL}
-            className={`font-medium text-emerald-900 underline ${focusRing}`}
+            className={`font-medium text-accent underline ${focusRing}`}
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -170,16 +190,13 @@ export function Wizard({
         </p>
       ) : null}
 
-      <Progress step={state.step} />
+      <Progress step={showStep4 ? 4 : showStep3 ? 3 : state.step} />
 
       {state.step === 1 ? (
         <Step1_ClauseSelector
           clauses={clauses}
           selectedIds={state.selectedClauseIds}
-          onToggle={(id) => {
-            setClauseError(false)
-            dispatch({ type: 'toggle_clause', id })
-          }}
+          onToggle={(id) => dispatch({ type: 'toggle_clause', id })}
         />
       ) : null}
 
@@ -187,24 +204,15 @@ export function Wizard({
         <Step2_DetailsForm
           details={state.details}
           districts={districts}
-          errors={detailsErrors}
+          errors={state.detailsErrors}
           routing={state.routing}
           allowSample={mode !== 'live'}
-          onChange={(patch) => {
-            setDetailsErrors((current) => {
-              const next = { ...current }
-              for (const key of Object.keys(patch) as Array<keyof DetailsFields>) {
-                delete next[key]
-              }
-              return next
-            })
-            dispatch({ type: 'set_details', details: patch })
-          }}
+          onChange={(patch) => dispatch({ type: 'set_details', details: patch })}
           onRoutingChange={(routing) => dispatch({ type: 'set_routing', routing })}
         />
       ) : null}
 
-      {state.step === 3 ? (
+      {showStep3 ? (
         <Step3_Verify
           campaignSlug={campaign.slug}
           clauseCodes={selectedClauses.map((c) => c.code)}
@@ -218,7 +226,7 @@ export function Wizard({
         />
       ) : null}
 
-      {state.step === 4 ? (
+      {showStep4 ? (
         <Step4_Preview
           campaign={campaign}
           clauses={selectedClauses}
@@ -227,53 +235,44 @@ export function Wizard({
           submissionId={state.submissionId}
           mode={mode}
           testerEmail={testerEmail}
+          onEditDetails={() => dispatch({ type: 'goto', step: 2 })}
         />
       ) : null}
 
-      {state.step === 1 && clauseError ? (
-        <p className="mt-3 text-sm text-red-700">{t(lang, 'minClausesHint')}</p>
+      {state.step === 1 && state.clauseError ? (
+        <p className="mt-3 text-sm text-red-800" role="alert" aria-live="assertive">
+          {t(lang, 'minClausesHint')}
+        </p>
       ) : null}
 
-      <div className="mt-6 flex gap-3">
-        {state.step > 1 ? (
-          <button
-            type="button"
-            onClick={() => dispatch({ type: 'back' })}
-            className={cx(
-              'inline-flex min-h-[44px] min-w-[44px] flex-1 items-center justify-center rounded-md border border-stone-400 bg-white px-4 text-base font-semibold text-stone-900 transition-colors duration-150 hover:bg-stone-100',
-              focusRing,
-            )}
-          >
+      {state.step === 1 ? (
+        <div className="mt-6">
+          <button type="button" onClick={goNextFromStep1} className={cx(btnPrimary, 'w-full')}>
+            {t(lang, 'continueToDetails')}
+            <IconChevronRight className="size-4 shrink-0" />
+          </button>
+        </div>
+      ) : null}
+
+      {state.step === 2 ? (
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+          <button type="button" onClick={() => dispatch({ type: 'back' })} className={cx(btnGhost, 'w-full sm:w-auto')}>
             {t(lang, 'back')}
           </button>
-        ) : null}
-
-        {state.step === 1 ? (
-          <button
-            type="button"
-            onClick={goNextFromStep1}
-            className={cx(
-              'inline-flex min-h-[44px] min-w-[44px] flex-1 items-center justify-center rounded-md bg-emerald-800 px-4 text-base font-semibold text-white transition-colors duration-150 hover:bg-emerald-900',
-              focusRing,
-            )}
-          >
-            {t(lang, 'continue')}
+          <button type="button" onClick={goNextFromStep2} className={cx(btnPrimary, 'w-full sm:flex-1')}>
+            {t(lang, 'continueToLetter')}
+            <IconChevronRight className="size-4 shrink-0" />
           </button>
-        ) : null}
+        </div>
+      ) : null}
 
-        {state.step === 2 ? (
-          <button
-            type="button"
-            onClick={goNextFromStep2}
-            className={cx(
-              'inline-flex min-h-[44px] min-w-[44px] flex-1 items-center justify-center rounded-md bg-emerald-800 px-4 text-base font-semibold text-white transition-colors duration-150 hover:bg-emerald-900',
-              focusRing,
-            )}
-          >
-            {t(lang, 'continue')}
+      {state.step > 2 ? (
+        <div className="mt-8 flex justify-center">
+          <button type="button" onClick={() => dispatch({ type: 'back' })} className={btnGhost}>
+            {t(lang, 'back')}
           </button>
-        ) : null}
-      </div>
-    </main>
+        </div>
+      ) : null}
+    </PageContainer>
   )
 }

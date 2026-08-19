@@ -1,5 +1,6 @@
 'use client'
 
+import { IconCheck } from '@/components/ui/icons'
 import { useLang } from '@/components/LanguageProvider'
 import { cx } from '@/lib/cx'
 import { t } from '@/lib/i18n'
@@ -11,33 +12,48 @@ export function Progress({ step }: { step: 1 | 2 | 3 | 4 }) {
   const currentName = t(lang, STEP_KEYS[step - 1])
 
   return (
-    <div className="mb-6">
-      <ol className="flex gap-2" aria-label={currentName}>
+    <nav className="mb-8" aria-label={currentName}>
+      <ol className="flex items-start">
         {STEP_KEYS.map((key, index) => {
           const n = (index + 1) as 1 | 2 | 3 | 4
           const current = n === step
           const done = n < step
+          const last = index === STEP_KEYS.length - 1
           return (
-            <li key={key} className="min-w-0 flex-1">
-              <div
-                className={cx(
-                  'flex min-h-[44px] items-center justify-center rounded-md border px-1 text-sm font-medium transition-colors duration-150',
-                  current && 'border-emerald-800 bg-emerald-800 text-white',
-                  done && 'border-emerald-700 bg-emerald-50 text-emerald-900',
-                  !current && !done && 'border-stone-300 bg-white text-stone-600',
-                )}
-                aria-current={current ? 'step' : undefined}
-              >
-                <span className="sr-only">{n}. </span>
-                <span className="truncate">{t(lang, key)}</span>
+            <li key={key} className={cx('flex min-w-0', last ? 'flex-none' : 'flex-1')}>
+              <div className="flex min-w-0 flex-col items-center text-center">
+                <span
+                  className={cx(
+                    'inline-flex size-8 items-center justify-center rounded-full border text-sm font-semibold',
+                    current && 'border-accent bg-accent text-white',
+                    done && 'border-accent bg-accent text-white',
+                    !current && !done && 'border-rule bg-raised text-muted',
+                  )}
+                  aria-current={current ? 'step' : undefined}
+                >
+                  {done ? <IconCheck className="size-3.5" /> : n}
+                </span>
+                <span
+                  className={cx(
+                    'mt-2 max-w-[4.8rem] text-xs leading-snug sm:max-w-none sm:text-sm',
+                    current && 'font-semibold text-accent',
+                    done && 'text-accent',
+                    !current && !done && 'text-muted',
+                  )}
+                >
+                  {t(lang, key)}
+                </span>
               </div>
+              {last ? null : (
+                <div
+                  className={cx('mx-1 mt-4 h-px min-w-3 flex-1 sm:mx-3', done ? 'bg-accent' : 'bg-rule')}
+                  aria-hidden="true"
+                />
+              )}
             </li>
           )
         })}
       </ol>
-      <p className="mt-3 text-lg font-bold text-stone-900">
-        {step}/4 — {currentName}
-      </p>
-    </div>
+    </nav>
   )
 }

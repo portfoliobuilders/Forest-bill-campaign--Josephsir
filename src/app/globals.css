@@ -1,11 +1,96 @@
 @import "tailwindcss";
 
+@theme {
+  --color-ink: #1a1a18;
+  --color-body: #4a4a45;
+  --color-muted: #7a7a72;
+  --color-surface: #faf9f6;
+  --color-raised: #ffffff;
+  --color-rule: #e3e0d8;
+  --color-accent: #0f5132;
+  --color-accent-hover: #0a3d26;
+  --color-accent-tint: #edf3ef;
+  --color-alert-bg: #111111;
+  --color-alert-fg: #ffd400;
+  --color-input-border: #d8d5cc;
+}
+
+@theme inline {
+  --font-sans: var(--font-manjari), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-gayathri), var(--font-instrument), ui-serif, Georgia, "Times New Roman", serif;
+  --font-mono: var(--font-ibm), ui-monospace, "Cascadia Mono", "Segoe UI Mono", monospace;
+}
+
 html {
   font-size: 16px;
 }
 
 body {
   margin: 0;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 16px;
+}
+
+@media (min-width: 768px) {
+  body {
+    font-size: 17px;
+  }
+}
+
+html[lang="en"] {
+  --font-display: var(--font-instrument), ui-serif, Georgia, serif;
+  --font-ui: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+html[lang="ml"] {
+  --font-display: var(--font-gayathri), ui-serif, serif;
+  --font-ui: var(--font-manjari), ui-sans-serif, sans-serif;
+}
+
+html[lang="en"] body {
+  font-family: var(--font-ui);
+  line-height: 1.5;
+}
+
+html[lang="ml"] body {
+  font-family: var(--font-ui);
+  line-height: 1.7;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+html[lang="en"] .font-display {
+  line-height: 1.2;
+}
+
+html[lang="ml"] .font-display {
+  line-height: 1.35;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+html[lang="ml"] h1,
+html[lang="ml"] h2,
+html[lang="ml"] h3 {
+  font-family: var(--font-display);
+  line-height: 1.35;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+html[lang="en"] h1.font-display,
+html[lang="en"] h2.font-display {
+  font-family: var(--font-display);
+}
+
+html[lang="ml"] .tracking-wide,
+html[lang="ml"] .tracking-wider,
+html[lang="ml"] .uppercase {
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 button:focus-visible,
@@ -13,6 +98,6 @@ a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid #065f46;
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }

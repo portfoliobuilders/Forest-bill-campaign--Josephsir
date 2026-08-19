@@ -1,20 +1,48 @@
 import type { Metadata } from 'next'
-import { Noto_Sans_Malayalam } from 'next/font/google'
+import { Gayathri, IBM_Plex_Mono, Instrument_Serif, Inter, Manjari } from 'next/font/google'
 import { cookies } from 'next/headers'
-import { Suspense } from 'react'
 
-import { Header } from '@/components/Header'
 import { DemoBannerGate } from '@/components/DemoBanner'
+import { Header } from '@/components/Header'
 import { LanguageProvider } from '@/components/LanguageProvider'
+import { SiteFooterGate } from '@/components/SiteFooter'
 import { resolveCampaignState } from '@/lib/campaign'
 import { parseLang } from '@/lib/lang'
 
 import './globals.css'
 
-const notoSansMalayalam = Noto_Sans_Malayalam({
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+})
+
+const instrumentSerif = Instrument_Serif({
+  subsets: ['latin'],
+  weight: '400',
+  display: 'swap',
+  variable: '--font-instrument',
+})
+
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  display: 'swap',
+  variable: '--font-ibm',
+})
+
+const gayathri = Gayathri({
+  subsets: ['malayalam'],
+  weight: '700',
+  display: 'swap',
+  variable: '--font-gayathri',
+})
+
+const manjari = Manjari({
   subsets: ['malayalam', 'latin'],
   weight: ['400', '700'],
   display: 'swap',
+  variable: '--font-manjari',
 })
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://janashabdam.in'
@@ -50,14 +78,16 @@ export default async function RootLayout({
   const campaignState = await resolveCampaignState()
 
   return (
-    <html lang={lang} className={notoSansMalayalam.className}>
-      <body className="min-h-dvh bg-stone-100 text-base text-stone-900 antialiased">
+    <html
+      lang={lang}
+      className={`${inter.variable} ${instrumentSerif.variable} ${ibmPlexMono.variable} ${gayathri.variable} ${manjari.variable}`}
+    >
+      <body className="flex min-h-dvh flex-col bg-surface text-base text-ink antialiased">
         <LanguageProvider initialLang={lang}>
-          <Suspense fallback={null}>
-            <DemoBannerGate active={campaignState.state !== 'live'} />
-          </Suspense>
+          <DemoBannerGate active={campaignState.state !== 'live'} />
           <Header />
-          {children}
+          <div className="flex-1">{children}</div>
+          <SiteFooterGate />
         </LanguageProvider>
       </body>
     </html>

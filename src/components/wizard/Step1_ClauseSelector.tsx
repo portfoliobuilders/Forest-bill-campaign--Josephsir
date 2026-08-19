@@ -1,14 +1,13 @@
 'use client'
 
+import { IconInfo } from '@/components/ui/icons'
 import { useLang } from '@/components/LanguageProvider'
 import { cx } from '@/lib/cx'
 import { t } from '@/lib/i18n'
+import { focusRing } from '@/lib/ui'
 import type { ObjectionClause } from '@/types/database'
 
 export const MAX_SELECTED_CLAUSES = 6
-
-const focusRing =
-  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800'
 
 export function Step1_ClauseSelector({
   clauses,
@@ -24,13 +23,14 @@ export function Step1_ClauseSelector({
 
   return (
     <div>
-      <h2 className="text-xl font-bold text-stone-900">{t(lang, 'pickConcerns')}</h2>
-      <p className="mt-1 text-base text-stone-700">
+      <h1 className="font-display text-2xl text-ink sm:text-3xl">{t(lang, 'pickConcerns')}</h1>
+      <p className="mt-2 text-base leading-relaxed text-body">{t(lang, 'concernsLead')}</p>
+      <p className="mt-2 text-sm text-muted">
         {selectedIds.length} {t(lang, 'selected')}
       </p>
-      {atMax ? <p className="mt-2 text-sm text-amber-800">{t(lang, 'maxClausesHint')}</p> : null}
+      {atMax ? <p className="mt-2 text-sm text-amber-900">{t(lang, 'maxClausesHint')}</p> : null}
 
-      <ul className="mt-4 space-y-3">
+      <ul className="mt-5 space-y-3">
         {clauses.map((clause) => {
           const checked = selectedIds.includes(clause.id)
           const disabled = atMax && !checked
@@ -38,26 +38,44 @@ export function Step1_ClauseSelector({
           const explain = lang === 'en' ? clause.explain_en : clause.explain_ml
           return (
             <li key={clause.id}>
-              <label
+              <div
                 className={cx(
-                  'flex cursor-pointer gap-3 rounded-md border border-stone-300 bg-white p-3 transition-colors duration-150',
-                  checked && 'border-emerald-800 bg-emerald-50',
-                  disabled && 'cursor-not-allowed opacity-50',
-                  !disabled && 'hover:border-emerald-700',
+                  'flex items-start gap-3 rounded-[8px] border bg-raised p-3 transition-colors',
+                  checked ? 'border-accent bg-accent-tint' : 'border-rule',
+                  disabled && 'opacity-50',
                 )}
               >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  disabled={disabled}
-                  onChange={() => onToggle(clause.id)}
-                  className={cx('mt-1 size-6 shrink-0 accent-emerald-800', focusRing)}
-                />
-                <span className="min-w-0">
-                  <span className="block font-bold text-stone-900">{title}</span>
-                  <span className="mt-1 block text-sm leading-relaxed text-stone-700">{explain}</span>
-                </span>
-              </label>
+                <label className={cx('flex min-w-0 flex-1 cursor-pointer gap-3', disabled && 'cursor-not-allowed')}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={disabled}
+                    onChange={() => onToggle(clause.id)}
+                    className={cx(
+                      'mt-1 size-6 shrink-0 rounded-[4px] border-input-border accent-accent',
+                      focusRing,
+                    )}
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-base font-bold text-ink">{title}</span>
+                    <span className="mt-1 block text-sm leading-relaxed text-body">{explain}</span>
+                  </span>
+                </label>
+                {clause.full_url ? (
+                  <a
+                    href={clause.full_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={cx(
+                      'inline-flex size-11 shrink-0 items-center justify-center rounded-[5px] text-accent',
+                      focusRing,
+                    )}
+                    aria-label={t(lang, 'concernMoreInfo')}
+                  >
+                    <IconInfo />
+                  </a>
+                ) : null}
+              </div>
             </li>
           )
         })}

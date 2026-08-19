@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { getDefaultCampaignSlug, publicCampaign, type CampaignState } from '@/lib/campaign'
-import { demoClauses, KERALA_DISTRICTS, type DistrictOption } from '@/lib/demo-data'
+import { KERALA_DISTRICTS, type DistrictOption } from '@/lib/demo-data'
 import { createServiceClient } from '@/lib/supabase/server'
 import type { WizardMode } from '@/lib/wizard-mode'
 import type { Campaign, Constituency, ObjectionClause } from '@/types/database'
@@ -16,20 +16,18 @@ export type ObjectionPageData = {
 }
 
 function uniqueDistricts(rows: Pick<Constituency, 'district' | 'name_ml' | 'name_en'>[]): DistrictOption[] {
-  const seen = new Map<string, DistrictOption>()
-  for (const row of rows) {
-    if (!seen.has(row.district)) {
-      seen.set(row.district, {
-        value: row.district,
-        labelEn: row.name_en || row.district,
-        labelMl: row.name_ml || row.district,
-      })
-    }
-  }
-  const ordered = KERALA_DISTRICTS.map((known) => seen.get(known.value)).filter((row): row is DistrictOption =>
-    Boolean(row),
-  )
-  const extras = [...seen.values()].filter((row) => !KERALA_DISTRICTS.some((known) => known.value === row.value))
+  const seen = new Set(rows.map((row) => row.district))
+  const ordered = KERALA_DISTRICTS.filter((known) => seen.has(known.value))
+  const extras = [...seen]
+    .filter((district) => !KERALA_DISTRICTS.some((known) => known.value === district))
+    .map((district) => {
+      const row = rows.find((r) => r.district === district)
+      return {
+        value: district,
+        labelEn: row?.name_en || district,
+        labelMl: row?.name_ml || district,
+      }
+    })
   return ordered.length > 0 ? [...ordered, ...extras] : KERALA_DISTRICTS
 }
 
@@ -59,7 +57,7 @@ export async function loadObjectionData(state: CampaignState): Promise<Objection
   } catch {
     return {
       campaign,
-      clauses: clauses.length > 0 ? clauses : state.state === 'preview' ? demoClauses : clauses,
+      clauses,
       districts,
       mode: state.state,
     }
@@ -67,7 +65,7 @@ export async function loadObjectionData(state: CampaignState): Promise<Objection
 
   return {
     campaign,
-    clauses: clauses.length > 0 ? clauses : state.state === 'preview' ? demoClauses : clauses,
+    clauses,
     districts,
     mode: state.state,
   }

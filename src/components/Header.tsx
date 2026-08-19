@@ -2,32 +2,26 @@
 
 import Link from 'next/link'
 
+import { LanguageToggle } from '@/components/LanguageToggle'
 import { useLang } from '@/components/LanguageProvider'
-import { t, type Lang } from '@/lib/i18n'
-
-const focusRing =
-  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800'
+import { t } from '@/lib/i18n'
+import { focusRing } from '@/lib/ui'
 
 export function Header() {
-  const { lang, setLang } = useLang()
-  const nextLang: Lang = lang === 'ml' ? 'en' : 'ml'
+  const { lang } = useLang()
 
   return (
-    <header className="border-b border-stone-300 bg-white">
-      <div className="mx-auto flex w-full max-w-[640px] items-center justify-between gap-3 px-4 py-3">
-        <Link
-          href="/"
-          className={`min-h-[44px] min-w-[44px] content-center text-lg font-bold text-emerald-900 ${focusRing}`}
-        >
-          {t(lang, 'siteName')}
+    <header className="border-b border-rule bg-surface">
+      <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        <Link href="/" className={`min-h-11 min-w-0 content-center ${focusRing}`}>
+          <span className="block font-mono text-[11px] font-medium tracking-[0.16em] text-muted">
+            {t(lang, 'wordmarkEn')}
+          </span>
+          <span className="mt-1 block text-xl leading-none text-ink [font-family:var(--font-gayathri),serif] [letter-spacing:0]">
+            {t(lang, 'wordmarkMl')}
+          </span>
         </Link>
-        <button
-          type="button"
-          onClick={() => setLang(nextLang)}
-          className={`min-h-[44px] min-w-[44px] rounded-md border border-stone-400 px-3 text-base text-stone-900 transition-colors duration-150 hover:bg-stone-100 ${focusRing}`}
-        >
-          {t(lang, 'languageToggle')}
-        </button>
+        <LanguageToggle />
       </div>
     </header>
   )

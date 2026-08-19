@@ -31,6 +31,8 @@ function persistPreviewCookie(request: NextRequest, response: NextResponse): voi
 }
 
 export async function middleware(request: NextRequest) {
+  // Next.js 15.5.23 (>= 15.2.3) patches CVE-2025-29927. Admin routes still
+  // verify the session and ADMIN_EMAILS allowlist in the server layout.
   const previewToken = request.nextUrl.searchParams.get('preview')?.trim()
   if (previewToken) {
     request.cookies.set(PREVIEW_COOKIE, previewToken)

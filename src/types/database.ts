@@ -79,6 +79,7 @@ export type Submission = {
   created_at: string
   constituency_id: string | null
   cc_representative_ids: string[]
+  is_test: boolean
 }
 
 export type Constituency = {

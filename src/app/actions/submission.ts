@@ -1,12 +1,13 @@
 'use server'
 
+import { randomInt } from 'crypto'
 import { headers } from 'next/headers'
 import { Resend } from 'resend'
 import { z } from 'zod'
 
 import { composeEmail } from '@/lib/compose'
 import { getCampaignState, readPreviewToken } from '@/lib/campaign'
-import { getClientIp, hashIp, hashOtp, verifyTurnstile } from '@/lib/security'
+import { getClientIp, hashIp, hashOtp, hashesMatch, verifyTurnstile } from '@/lib/security'
 import { createServiceClient } from '@/lib/supabase/server'
 import { normalizeIndianPhone } from '@/lib/phone'
 import type { ObjectionClause, SendMethod } from '@/types/database'
@@ -81,10 +82,11 @@ export async function createDraft(input: z.infer<typeof createDraftSchema>): Pro
   }
 
   const campaignState = await getCampaignState(parsed.data.campaignSlug, await readPreviewToken())
-  if (campaignState.state !== 'live') {
+  if (campaignState.state === 'dormant') {
     return { ok: false, error: 'campaign_not_active' }
   }
   const campaign = campaignState.campaign
+  const isTest = campaignState.state === 'preview'
 
   const { data: clauses, error: clauseError } = await supabase
     .from('objection_clauses')
@@ -142,6 +144,7 @@ export async function createDraft(input: z.infer<typeof createDraftSchema>): Pro
     p_consent_version: CONSENT_VERSION,
     p_constituency_id: parsed.data.constituencyId,
     p_cc_rep_ids: parsed.data.ccRepIds,
+    p_is_test: isTest,
   })
 
   if (rpcError || !submissionId) {
@@ -181,7 +184,7 @@ export async function sendOtp(submissionId: string): Promise<ActionResult<{ sent
     return { ok: false, error: 'otp_rate_limit' }
   }
 
-  const code = String(Math.floor(100_000 + Math.random() * 900_000))
+  const code = String(randomInt(100_000, 1_000_000))
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
 
   const { error: insertError } = await supabase.from('otp_codes').insert({
@@ -240,10 +243,6 @@ export async function verifyOtp(submissionId: string, code: string): Promise<Act
     return { ok: false, error: 'expired_code' }
   }
 
-  if (otpRow.consumed_at) {
-    return { ok: false, error: 'expired_code' }
-  }
-
   if (new Date(otpRow.expires_at).getTime() < Date.now()) {
     return { ok: false, error: 'expired_code' }
   }
@@ -252,8 +251,7 @@ export async function verifyOtp(submissionId: string, code: string): Promise<Act
     return { ok: false, error: 'too_many_attempts' }
   }
 
-  const incomingHash = hashOtp(codeParsed.data)
-  if (incomingHash !== otpRow.code_hash) {
+  if (!hashesMatch(hashOtp(codeParsed.data), otpRow.code_hash)) {
     const nextAttempts = otpRow.attempts + 1
     await supabase
       .from('otp_codes')
@@ -271,7 +269,7 @@ export async function verifyOtp(submissionId: string, code: string): Promise<Act
 
   await supabase.from('otp_codes').update({ consumed_at: new Date().toISOString() }).eq('id', otpRow.id)
 
-  const { error: updateError } = await supabase
+  const { data, error: updateError } = await supabase
     .from('submissions')
     .update({
       status: 'verified',
@@ -279,11 +277,17 @@ export async function verifyOtp(submissionId: string, code: string): Promise<Act
     })
     .eq('id', submissionId)
     .eq('status', 'draft')
+    .select('id')
+    .maybeSingle()
 
   if (updateError) {
     if (updateError.code === '23505') {
       return { ok: false, error: 'already_submitted' }
     }
+    return { ok: false, error: 'verify_failed' }
+  }
+
+  if (!data) {
     return { ok: false, error: 'verify_failed' }
   }
 
@@ -306,7 +310,7 @@ export async function markHandoff(submissionId: string, method: SendMethod): Pro
       send_method: methodParsed.data,
     })
     .eq('id', submissionId)
-    .eq('status', 'verified')
+    .in('status', ['verified', 'handoff_opened'])
     .select('id')
     .maybeSingle()
 
