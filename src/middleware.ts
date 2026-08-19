@@ -6,6 +6,7 @@ import {
   isAdminPath,
   isAdminPublicPath,
 } from '@/lib/admin/paths'
+import { ADMIN_PASSWORD_COOKIE } from '@/lib/admin/password-cookie'
 import { PREVIEW_COOKIE } from '@/lib/preview-cookie'
 
 function persistPreviewCookie(request: NextRequest, response: NextResponse): void {
@@ -76,6 +77,9 @@ export async function middleware(request: NextRequest) {
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !anon) {
+    if (request.cookies.get(ADMIN_PASSWORD_COOKIE)?.value) {
+      return nextWithPathname(request)
+    }
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = '/admin/login'
     const redirected = NextResponse.redirect(loginUrl)
@@ -106,6 +110,9 @@ export async function middleware(request: NextRequest) {
   // Convenience layer only: send anonymous visitors to login.
   // Allowlisted vs not-allowlisted is decided in src/app/admin/layout.tsx.
   if (!user) {
+    if (request.cookies.get(ADMIN_PASSWORD_COOKIE)?.value) {
+      return response
+    }
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = '/admin/login'
     if (pathname !== '/admin/login') {

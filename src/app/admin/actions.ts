@@ -142,10 +142,42 @@ export async function verifyAdminLoginCode(
   }
 }
 
+export async function adminPasswordSignIn(
+  email: string,
+  password: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const { isAdminEmail } = await import('@/lib/admin/auth')
+    const {
+      canUsePasswordLogin,
+      verifyAdminPassword,
+      writePasswordSession,
+    } = await import('@/lib/admin/password-auth')
+
+    const normalized = email.trim().toLowerCase()
+    if (!canUsePasswordLogin(normalized, isAdminEmail(normalized))) {
+      return { ok: false, error: 'not_allowed' }
+    }
+    if (!verifyAdminPassword(password)) {
+      return { ok: false, error: 'wrong_password' }
+    }
+    await writePasswordSession(normalized)
+    return { ok: true }
+  } catch {
+    return { ok: false, error: 'config' }
+  }
+}
+
 export async function adminSignOut(): Promise<void> {
   const { createServerSupabaseClient } = await import('@/lib/supabase/ssr')
+  const { clearPasswordSession } = await import('@/lib/admin/password-auth')
   const { redirect } = await import('next/navigation')
-  const supabase = await createServerSupabaseClient()
-  await supabase.auth.signOut()
+  await clearPasswordSession()
+  try {
+    const supabase = await createServerSupabaseClient()
+    await supabase.auth.signOut()
+  } catch {
+    // Password-only sessions have no Supabase session.
+  }
   redirect('/admin/login')
 }

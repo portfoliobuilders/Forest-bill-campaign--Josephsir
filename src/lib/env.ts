@@ -13,7 +13,6 @@ export function assertAdminEnv(): void {
   if (missing('NEXT_PUBLIC_SUPABASE_URL')) absent.push('NEXT_PUBLIC_SUPABASE_URL')
   if (missing('NEXT_PUBLIC_SUPABASE_ANON_KEY')) absent.push('NEXT_PUBLIC_SUPABASE_ANON_KEY')
   if (missing('SUPABASE_SERVICE_ROLE_KEY')) absent.push('SUPABASE_SERVICE_ROLE_KEY')
-  if (missing('ADMIN_EMAILS')) absent.push('ADMIN_EMAILS')
   if (missing('NEXT_PUBLIC_SITE_URL')) absent.push('NEXT_PUBLIC_SITE_URL')
 
   if (absent.length > 0) {
