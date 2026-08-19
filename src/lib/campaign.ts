@@ -5,7 +5,7 @@ import { cookies } from 'next/headers'
 
 import { defaultBodyTemplate } from '@/lib/email-template'
 import { PREVIEW_COOKIE } from '@/lib/preview-cookie'
-import { runtimeEnv } from '@/lib/runtime-env'
+import { createAnonServerClient } from '@/lib/supabase/anon-server'
 import { createServiceClient } from '@/lib/supabase/server'
 import type { Campaign, PublishStatus } from '@/types/database'
 
@@ -107,6 +107,32 @@ async function getCampaignStateFromService(
   return { state: 'dormant' }
 }
 
+function parseRpcState(data: unknown): CampaignState | null {
+  if (!data || typeof data !== 'object') return null
+  const row = data as { state?: unknown; campaign?: unknown }
+  if (row.state === 'dormant') return { state: 'dormant' }
+  if ((row.state === 'live' || row.state === 'preview') && row.campaign && typeof row.campaign === 'object') {
+    const campaign = publicCampaign(row.campaign as Campaign)
+    if (!campaign.id || !campaign.slug) return null
+    return { state: row.state, campaign }
+  }
+  return null
+}
+
+async function getCampaignStateFromRpc(
+  slug: string,
+  previewToken: string | null | undefined,
+): Promise<CampaignState> {
+  const supabase = createAnonServerClient()
+  if (!supabase) return { state: 'dormant' }
+  const { data, error } = await supabase.rpc('campaign_public_state', {
+    p_slug: slug,
+    p_preview: previewToken ?? '',
+  })
+  if (error) return { state: 'dormant' }
+  return parseRpcState(data) ?? { state: 'dormant' }
+}
+
 export async function getCampaignState(
   slug: string,
   previewToken: string | null | undefined,
@@ -119,6 +145,7 @@ export async function getCampaignState(
       // Fall through to the anon RPC so a missing/broken service query cannot hide a live campaign.
     }
   }
+  return getCampaignStateFromRpc(slug, previewToken)
 }
 
 export async function resolveCampaignState(searchPreview?: string | null): Promise<CampaignState> {

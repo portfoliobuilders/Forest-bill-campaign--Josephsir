@@ -101,6 +101,7 @@ export default async function RootLayout({
     >
       <body className="flex min-h-dvh flex-col bg-surface text-base text-ink antialiased">
         <LanguageProvider initialLang={lang}>
+          <AuthErrorCatcher />
           {admin ? null : <DemoBannerGate active={campaignState.state !== 'live'} />}
           {admin ? null : (
             <Header titleMl={settings?.site_title_ml} titleEn={settings?.site_title_en} />
