@@ -11,7 +11,7 @@ export function getClientIp(headers: HeaderLike): string {
 }
 
 export function hashIp(ip: string): string {
-  const salt = process.env.IP_HASH_SALT ?? ''
+  const salt = envValue(['IP', 'HASH', 'SALT'])
   return createHash('sha256').update(`${ip}${salt}`).digest('hex')
 }
 
@@ -29,8 +29,16 @@ export function hashesMatch(left: string, right: string): boolean {
   return timingSafeEqual(a, b)
 }
 
+function envValue(parts: string[]): string {
+  return String(process.env[parts.join('_')] ?? '').trim()
+}
+
+export function isTurnstileConfigured(): boolean {
+  return Boolean(envValue(['NEXT_PUBLIC', 'TURNSTILE', 'SITE', 'KEY']) && envValue(['TURNSTILE', 'SECRET', 'KEY']))
+}
+
 export async function verifyTurnstile(token: string, ip: string): Promise<boolean> {
-  const secret = process.env.TURNSTILE_SECRET_KEY
+  const secret = envValue(['TURNSTILE', 'SECRET', 'KEY'])
   if (!secret || !token.trim()) return false
 
   try {

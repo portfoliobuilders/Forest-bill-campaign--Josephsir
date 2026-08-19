@@ -9,12 +9,20 @@ import { composeEmail, clausesForLetter } from '@/lib/compose'
 import { getCampaignState, publicCampaign, readPreviewToken } from '@/lib/campaign'
 import { withForestClauses } from '@/lib/campaigns'
 import { demoCampaign, demoClauses } from '@/lib/demo-data'
-import { getClientIp, hashIp, hashOtp, hashesMatch, verifyTurnstile } from '@/lib/security'
+import {
+  getClientIp,
+  hashIp,
+  hashOtp,
+  hashesMatch,
+  isTurnstileConfigured,
+  verifyTurnstile,
+} from '@/lib/security'
 import { createServiceClient } from '@/lib/supabase/server'
 import { normalizeIndianPhone } from '@/lib/phone'
 import type { Campaign, ObjectionClause, SendMethod } from '@/types/database'
 
 import { CONSENT_VERSION } from '@/lib/consent'
+import { runtimeEnv } from '@/lib/runtime-env'
 import type { ActionResult } from '@/lib/submission-types'
 
 const uuidSchema = z.uuid()
@@ -42,7 +50,7 @@ const letterInputSchema = z.object({
 })
 
 const createDraftSchema = letterInputSchema.extend({
-  turnstileToken: z.string().min(1),
+  turnstileToken: z.string(),
 })
 
 const otpCodeSchema = z.string().regex(/^\d{6}$/)
@@ -85,7 +93,7 @@ async function composeCanonicalLetter(input: LetterFields): Promise<ActionResult
   let campaign: Campaign
   let sourceClauses: ObjectionClause[]
   let persistSlug: string | null = null
-  let isTest = true
+  let isTest = campaignState.state === 'preview'
 
   if (campaignState.state === 'dormant') {
     campaign = demoCampaign
@@ -94,7 +102,6 @@ async function composeCanonicalLetter(input: LetterFields): Promise<ActionResult
   } else {
     campaign = publicCampaign(campaignState.campaign)
     persistSlug = campaign.slug
-    isTest = campaignState.state !== 'live'
     try {
       const supabase = createServiceClient()
       let query = supabase
@@ -201,55 +208,61 @@ async function storeCanonicalLetter(
 export async function createDraft(
   input: z.infer<typeof createDraftSchema>,
 ): Promise<ActionResult<{ id: string; subject: string; body: string }>> {
-  const parsed = createDraftSchema.safeParse(input)
-  if (!parsed.success) {
-    return { ok: false, error: 'invalid_input' }
-  }
+  try {
+    const parsed = createDraftSchema.safeParse(input)
+    if (!parsed.success) {
+      return { ok: false, error: 'invalid_input' }
+    }
 
-  const headerStore = await headers()
-  const ip = getClientIp(headerStore)
-  const turnstileOk = await verifyTurnstile(parsed.data.turnstileToken, ip)
-  if (!turnstileOk) {
-    return { ok: false, error: 'turnstile_failed' }
-  }
+    const headerStore = await headers()
+    const ip = getClientIp(headerStore)
+    if (isTurnstileConfigured()) {
+      const turnstileOk = await verifyTurnstile(parsed.data.turnstileToken, ip)
+      if (!turnstileOk) {
+        return { ok: false, error: 'turnstile_failed' }
+      }
+    }
 
-  const ipHash = hashIp(ip)
-  const supabase = createServiceClient()
+    const ipHash = hashIp(ip)
+    const supabase = createServiceClient()
 
-  const { data: allowed, error: rateError } = await supabase.rpc('bump_rate_limit', {
-    p_bucket: 'draft',
-    p_identifier: ipHash,
-    p_limit: 3,
-  })
-  if (rateError || allowed !== true) {
-    return { ok: false, error: 'rate_limit' }
-  }
+    const { data: allowed, error: rateError } = await supabase.rpc('bump_rate_limit', {
+      p_bucket: 'draft',
+      p_identifier: ipHash,
+      p_limit: 3,
+    })
+    if (rateError || allowed !== true) {
+      return { ok: false, error: 'rate_limit' }
+    }
 
-  const campaignState = await getCampaignState(parsed.data.campaignSlug, await readPreviewToken())
-  if (campaignState.state === 'dormant') {
-    return { ok: false, error: 'campaign_not_active' }
-  }
+    const campaignState = await getCampaignState(parsed.data.campaignSlug, await readPreviewToken())
+    if (campaignState.state === 'dormant') {
+      return { ok: false, error: 'campaign_not_active' }
+    }
 
-  const canonical = await composeCanonicalLetter(parsed.data)
-  if (!canonical.ok) return canonical
+    const canonical = await composeCanonicalLetter(parsed.data)
+    if (!canonical.ok) return canonical
 
-  const submissionId = await storeCanonicalLetter(
-    parsed.data,
-    canonical.data,
-    ipHash,
-    headerStore.get('user-agent') ?? '',
-  )
-  if (!submissionId) {
+    const submissionId = await storeCanonicalLetter(
+      parsed.data,
+      canonical.data,
+      ipHash,
+      headerStore.get('user-agent') ?? '',
+    )
+    if (!submissionId) {
+      return { ok: false, error: 'draft_failed' }
+    }
+
+    return {
+      ok: true,
+      data: {
+        id: submissionId,
+        subject: canonical.data.composed.subject,
+        body: canonical.data.composed.body,
+      },
+    }
+  } catch {
     return { ok: false, error: 'draft_failed' }
-  }
-
-  return {
-    ok: true,
-    data: {
-      id: submissionId,
-      subject: canonical.data.composed.subject,
-      body: canonical.data.composed.body,
-    },
   }
 }
 
@@ -266,12 +279,25 @@ export async function prepareDemoLetter(
 
   const headerStore = await headers()
   const ipHash = hashIp(getClientIp(headerStore))
-  const submissionId = await storeCanonicalLetter(
-    parsed.data,
-    { ...canonical.data, isTest: true },
-    ipHash,
-    headerStore.get('user-agent') ?? '',
-  )
+  let submissionId: string | null = null
+  try {
+    const supabase = createServiceClient()
+    const { data: allowed, error: rateError } = await supabase.rpc('bump_rate_limit', {
+      p_bucket: 'draft',
+      p_identifier: ipHash,
+      p_limit: 3,
+    })
+    if (rateError || allowed !== false) {
+      submissionId = await storeCanonicalLetter(
+        parsed.data,
+        canonical.data,
+        ipHash,
+        headerStore.get('user-agent') ?? '',
+      )
+    }
+  } catch {
+    // Letter still works if the database is unreachable.
+  }
 
   return {
     ok: true,
@@ -326,24 +352,28 @@ export async function sendOtp(submissionId: string): Promise<ActionResult<{ sent
     return { ok: false, error: 'otp_send_failed' }
   }
 
-  const apiKey = process.env.RESEND_API_KEY
-  const fromEmail = process.env.RESEND_FROM_EMAIL
+  const apiKey = runtimeEnv('RESEND_API_KEY')
+  const fromEmail = runtimeEnv('RESEND_FROM_EMAIL')
   if (!apiKey || !fromEmail) {
     return { ok: false, error: 'otp_send_failed' }
   }
 
   const lang = submission.language === 'en' ? 'en' : 'ml'
   const mail = otpEmailText(code, lang)
-  const resend = new Resend(apiKey)
 
-  const { error: sendError } = await resend.emails.send({
-    from: fromEmail,
-    to: submission.email,
-    subject: mail.subject,
-    text: mail.body,
-  })
+  try {
+    const resend = new Resend(apiKey)
+    const { error: sendError } = await resend.emails.send({
+      from: fromEmail,
+      to: submission.email,
+      subject: mail.subject,
+      text: mail.body,
+    })
 
-  if (sendError) {
+    if (sendError) {
+      return { ok: false, error: 'otp_send_failed' }
+    }
+  } catch {
     return { ok: false, error: 'otp_send_failed' }
   }
 
@@ -439,7 +469,7 @@ export async function markHandoff(submissionId: string, method: SendMethod): Pro
       send_method: methodParsed.data,
     })
     .eq('id', submissionId)
-    .in('status', ['verified', 'handoff_opened'])
+    .in('status', ['draft', 'verified', 'handoff_opened'])
     .select('id')
     .maybeSingle()
 
