@@ -20,6 +20,6 @@ export function DemoBanner() {
 
 export function DemoBannerGate({ active }: { active: boolean }) {
   const pathname = usePathname()
-  if (!active && pathname !== '/demo') return null
+  if (!active && pathname !== '/demo' && pathname !== '/objection') return null
   return <DemoBanner />
 }

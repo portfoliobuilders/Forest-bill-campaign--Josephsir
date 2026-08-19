@@ -1,33 +1,17 @@
-import { NoLiveConsultation } from '@/components/NoLiveConsultation'
 import { Wizard } from '@/components/wizard/Wizard'
-import { getAdminSession } from '@/lib/admin/auth'
-import { resolveCampaignState } from '@/lib/campaign'
-import { loadObjectionData } from '@/lib/campaigns'
+import { demoCampaign, demoClauses, KERALA_DISTRICTS } from '@/lib/demo-data'
 
 export const dynamic = 'force-dynamic'
 
-type Props = {
-  searchParams: Promise<{ preview?: string }>
-}
-
-export default async function ObjectionPage({ searchParams }: Props) {
-  const params = await searchParams
-  const state = await resolveCampaignState(params.preview)
-  const data = await loadObjectionData(state)
-
-  if (!data) {
-    return <NoLiveConsultation />
-  }
-
-  const session = await getAdminSession()
-
+/** Bundled Forest Bill 2024 letter — works without Supabase or a live consultation flag. */
+export default function ObjectionPage() {
   return (
     <Wizard
-      campaign={data.campaign}
-      clauses={data.clauses}
-      districts={data.districts}
-      mode={data.mode}
-      testerEmail={session?.email ?? null}
+      campaign={demoCampaign}
+      clauses={demoClauses}
+      districts={KERALA_DISTRICTS}
+      mode="preview"
+      testerEmail={null}
     />
   )
 }

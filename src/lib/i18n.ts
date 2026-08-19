@@ -40,8 +40,7 @@ export const dictionary = {
     noLiveTitle: 'ഇപ്പോൾ തത്സമയ കൂടിയാലോചനയില്ല',
     noLiveBody:
       'ഒരു ഔദ്യോഗിക കൂടിയാലോചന സ്ഥിരീകരിക്കുമ്പോൾ ഈ പേജ് തുറക്കും. വാട്ട്‌സ്ആപ്പ് ഫോർവേഡ് മാത്രം മതിയാകില്ല.',
-    demoBanner:
-      '2024 ഡിസംബർ 31-ന് ഔദ്യോഗിക കൂടിയാലോചന അവസാനിച്ചു. കാബിനറ്റ് ബിൽ പിൻവലിച്ചു. കത്ത് തയ്യാറാക്കാം. അയയ്ക്കുന്നത് നിങ്ങളുടെ സ്വന്തം ഇമെയിലിൽ നിന്നാണ്.',
+    demoBanner: 'ഡെമോ — ഇത് തത്സമയ കൂടിയാലോചനയല്ല. ഒരു സർക്കാർ ഓഫീസിലേക്കും ഒന്നും അയയ്ക്കില്ല.',
     step1: 'ആശങ്കകൾ',
     step2: 'വിവരങ്ങൾ',
     step3: 'സ്ഥിരീകരണം',
@@ -129,7 +128,9 @@ export const dictionary = {
     sendDisabledTooltip: 'ഇത് ഡെമോ ആണ്. സർക്കാർ ഓഫീസിലേക്ക് അയയ്ക്കില്ല.',
     dryRun: 'ഡ്രൈ റൺ — എന്റെ ഇമെയിലിലേക്ക് തുറക്കുക',
     demoLetterHint:
-      'സർക്കാർ വിലാസത്തിലേക്കുള്ള ബട്ടണുകൾ അടച്ചിരിക്കുന്നു. വാചകം പകർത്തുക, അല്ലെങ്കിൽ നിങ്ങളുടെ സ്വന്തം ഇമെയിലിലേക്ക് തുറക്കുക.',
+      'സർക്കാർ വിലാസത്തിലേക്കുള്ള ബട്ടണുകൾ അടച്ചിരിക്കുന്നു. ഡ്രൈ റൺ നിങ്ങളുടെ സ്വന്തം ഇമെയിലിലേക്ക് മാത്രം തുറക്കും.',
+    volunteerLetter: 'യഥാർത്ഥ കത്ത്',
+    gazetteBill: 'ഗസറ്റ് ബിൽ 228',
     verifyPreviewHint: 'ഡെമോയിൽ ഇമെയിൽ സ്ഥിരീകരണം വേണ്ട. കത്ത് കാണാം. സർക്കാരിലേക്ക് അയയ്ക്കില്ല.',
     footerData: 'പൊതു വിവരം',
     footerPrivacy: 'സ്വകാര്യത',
@@ -178,7 +179,7 @@ export const dictionary = {
     noLiveBody:
       'This page opens when an official consultation is verified from a primary source. A WhatsApp forward is not enough.',
     demoBanner:
-      'The official comment window closed on 31 December 2024. The Cabinet later dropped the Bill. You can still prepare a letter. Sending it is your choice, from your own email.',
+      'DEMO — this is not a live consultation. Nothing will be sent to any government office.',
     step1: 'Concerns',
     step2: 'Details',
     step3: 'Verify',
@@ -266,7 +267,9 @@ export const dictionary = {
     sendDisabledTooltip: 'This is a demo. Nothing is sent to a government office.',
     dryRun: 'Dry run — open to my email',
     demoLetterHint:
-      'Buttons to the government address stay off. Copy the text, or open it to your own email.',
+      'Buttons to the government address stay off. Dry run opens the letter to your own email only.',
+    volunteerLetter: 'Original letter',
+    gazetteBill: 'Gazette Bill 228',
     verifyPreviewHint: 'Preview mode skips email verification. You can read the letter. Nothing goes to government.',
     footerData: 'Public data',
     footerPrivacy: 'Privacy',

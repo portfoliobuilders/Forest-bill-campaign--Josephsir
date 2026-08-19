@@ -31,6 +31,9 @@ const FOREST_BILL_CAMPAIGN_ID = '00000000-0000-4000-8000-000000000001'
 export const FOREST_BILL_SOURCE_URL =
   'https://prsindia.org/files/bills_acts/bills_states/kerala/2024/Bills228of2024KL.pdf'
 
+/** Volunteer letter page this model is based on. Not a primary source. */
+export const FOREST_BILL_VOLUNTEER_URL = 'http://malayali.com/ForestBill2024/FAB.html'
+
 export const demoCampaign: Campaign = {
   id: FOREST_BILL_CAMPAIGN_ID,
   slug: 'kerala-forest-amendment-2024',

@@ -145,7 +145,7 @@ export function Wizard({
 
   return (
     <main className="mx-auto w-full max-w-[640px] px-4 py-6">
-      <h1 className="mb-4 text-2xl font-bold text-stone-900">
+      <h1 className="mb-2 text-2xl font-bold text-stone-900">
         {lang === 'en' ? campaign.title_en : campaign.title_ml}
       </h1>
 

@@ -198,13 +198,22 @@ export function Step4_Preview({
           </button>
         </span>
 
-        <button
-          type="button"
-          onClick={() => void copyBody()}
-          className={cx(btnBase, 'w-full border border-stone-400 bg-white text-stone-900 hover:bg-stone-100')}
-        >
-          {copyState === 'copied' ? t(lang, 'copied') : t(lang, 'copyText')}
-        </button>
+        <span className="flex" title={sendDisabled ? t(lang, 'sendDisabledTooltip') : undefined}>
+          <button
+            type="button"
+            disabled={sendDisabled}
+            onClick={() => void copyBody()}
+            className={cx(
+              btnBase,
+              'w-full',
+              sendDisabled
+                ? 'cursor-not-allowed bg-stone-300 text-stone-500'
+                : 'border border-stone-400 bg-white text-stone-900 hover:bg-stone-100',
+            )}
+          >
+            {copyState === 'copied' ? t(lang, 'copied') : t(lang, 'copyText')}
+          </button>
+        </span>
 
         <button
           type="button"
