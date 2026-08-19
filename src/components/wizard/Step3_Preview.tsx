@@ -88,7 +88,7 @@ function hasIdentity(details: DetailsFields): boolean {
   )
 }
 
-export function Step4_Preview({
+export function Step3_Preview({
   campaign,
   clauses,
   details,

@@ -5,21 +5,20 @@ import { useLang } from '@/components/LanguageProvider'
 import { cx } from '@/lib/cx'
 import { t } from '@/lib/i18n'
 
-const STEP_KEYS = ['step1', 'step2', 'step3', 'step4'] as const
+const STEP_KEYS = ['step1', 'step2', 'step3'] as const
 
-export function Progress({ step, omitVerify = false }: { step: 1 | 2 | 3 | 4; omitVerify?: boolean }) {
+export function Progress({ step }: { step: 1 | 2 | 3 }) {
   const { lang } = useLang()
-  const keys = omitVerify ? (['step1', 'step2', 'step4'] as const) : STEP_KEYS
-  const currentName = t(lang, keys[Math.min(step, keys.length) - 1] ?? 'step1')
+  const currentName = t(lang, STEP_KEYS[step - 1] ?? 'step1')
 
   return (
     <nav className="mb-8" aria-label={currentName}>
       <ol className="flex items-start">
-        {keys.map((key, index) => {
-          const n = (index + 1) as 1 | 2 | 3 | 4
-          const current = omitVerify ? (step === 1 && index === 0) || (step === 2 && index === 1) || (step === 4 && index === 2) : n === step
-          const done = omitVerify ? (step === 2 && index === 0) || (step === 4 && index < 2) : n < step
-          const last = index === keys.length - 1
+        {STEP_KEYS.map((key, index) => {
+          const n = (index + 1) as 1 | 2 | 3
+          const current = step === n
+          const done = step > n
+          const last = index === STEP_KEYS.length - 1
           return (
             <li key={key} className={cx('flex min-w-0', last ? 'flex-none' : 'flex-1')}>
               <div className="flex min-w-0 flex-col items-center text-center">
