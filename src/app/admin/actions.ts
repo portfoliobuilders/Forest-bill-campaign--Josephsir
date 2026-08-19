@@ -59,13 +59,13 @@ export async function sendAdminMagicLink(
     return { ok: false, error: 'not_allowed' }
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
-  if (!siteUrl) {
+  const { resolvePublicOrigin } = await import('@/lib/site-url')
+  const origin = await resolvePublicOrigin()
+  if (!origin) {
     return { ok: false, error: 'config' }
   }
 
   const supabase = await createServerSupabaseClient()
-  const origin = siteUrl.replace(/\/$/, '')
   const { error } = await supabase.auth.signInWithOtp({
     email: email.trim().toLowerCase(),
     options: {

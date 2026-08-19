@@ -53,7 +53,13 @@ export function AdminLoginForm({ errorCode }: { errorCode: string | null }) {
 
       {errorCode ? (
         <p className="mt-4 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
-          {lang === 'ml' ? 'പ്രവേശനം പരാജയപ്പെട്ടു. വീണ്ടും ശ്രമിക്കുക.' : 'Sign-in failed. Try again.'} ({errorCode})
+          {errorCode === 'expired'
+            ? lang === 'ml'
+              ? 'ഈ പ്രവേശന ലിങ്ക് കാലഹരണപ്പെട്ടു അല്ലെങ്കിൽ ഇതിനകം ഉപയോഗിച്ചു. പുതിയ ലിങ്ക് ആവശ്യപ്പെടുക. localhost തുറക്കരുത് — തത്സമയ സൈറ്റ് ഉപയോഗിക്കുക.'
+              : 'This login link has expired or was already used. Request a new one on the live site. Do not open localhost.'
+            : lang === 'ml'
+              ? `പ്രവേശനം പരാജയപ്പെട്ടു. വീണ്ടും ശ്രമിക്കുക. (${errorCode})`
+              : `Sign-in failed. Try again. (${errorCode})`}
         </p>
       ) : null}
 

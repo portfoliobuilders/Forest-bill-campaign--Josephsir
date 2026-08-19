@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Gayathri, IBM_Plex_Mono, Instrument_Serif, Inter, Manjari } from 'next/font/google'
 import { cookies } from 'next/headers'
 
+import { AuthErrorCatcher } from '@/components/AuthErrorCatcher'
 import { DemoBannerGate } from '@/components/DemoBanner'
 import { Header } from '@/components/Header'
 import { LanguageProvider } from '@/components/LanguageProvider'
@@ -84,6 +85,7 @@ export default async function RootLayout({
     >
       <body className="flex min-h-dvh flex-col bg-surface text-base text-ink antialiased">
         <LanguageProvider initialLang={lang}>
+          <AuthErrorCatcher />
           <DemoBannerGate active={campaignState.state !== 'live'} />
           <Header />
           <div className="flex-1">{children}</div>

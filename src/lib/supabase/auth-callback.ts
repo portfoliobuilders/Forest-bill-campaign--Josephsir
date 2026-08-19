@@ -17,6 +17,17 @@ export async function handleAuthCallback(request: NextRequest): Promise<NextResp
     return NextResponse.redirect(new URL('/admin/login?error=config', request.url))
   }
 
+  const authError = request.nextUrl.searchParams.get('error')
+  const errorCode = request.nextUrl.searchParams.get('error_code')
+  if (authError || errorCode) {
+    const expired =
+      errorCode === 'otp_expired' ||
+      (request.nextUrl.searchParams.get('error_description') ?? '').toLowerCase().includes('expired')
+    return NextResponse.redirect(
+      new URL(expired ? '/admin/login?error=expired' : '/admin/login?error=auth', request.url),
+    )
+  }
+
   const code = request.nextUrl.searchParams.get('code')
   if (!code) {
     return NextResponse.redirect(new URL('/admin/login?error=missing_code', request.url))
