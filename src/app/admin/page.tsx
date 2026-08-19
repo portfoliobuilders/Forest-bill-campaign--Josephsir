@@ -1,3 +1,4 @@
+import { AdminDashboardShell } from '@/components/admin/AdminDashboardShell'
 import { getAdminSession } from '@/lib/admin/auth'
 import { parseAdminFilters } from '@/lib/admin/filters'
 import {
@@ -8,7 +9,7 @@ import {
   fetchFilterOptions,
   fetchNotifySignups,
 } from '@/lib/admin/queries'
-import { AdminDashboardShell } from '@/components/admin/AdminDashboardShell'
+import { assertAdminEnv } from '@/lib/env'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +22,8 @@ export default async function AdminPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
+  assertAdminEnv()
+
   const session = await getAdminSession()
   if (!session) return null
 
