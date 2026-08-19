@@ -308,7 +308,7 @@ export function Wizard({
       {mode !== 'live' ? (
         <p className="mb-4 font-mono text-xs leading-relaxed text-muted sm:text-sm">
           <a
-            href={FOREST_BILL_SOURCE_URL}
+            href={campaign.source_url || FOREST_BILL_SOURCE_URL}
             className={`font-medium text-accent underline ${focusRing}`}
             target="_blank"
             rel="noopener noreferrer"
@@ -317,7 +317,7 @@ export function Wizard({
           </a>
           {' · '}
           <a
-            href={FOREST_BILL_VOLUNTEER_URL}
+            href={campaign.reference_url || FOREST_BILL_VOLUNTEER_URL}
             className={`font-medium text-accent underline ${focusRing}`}
             target="_blank"
             rel="noopener noreferrer"

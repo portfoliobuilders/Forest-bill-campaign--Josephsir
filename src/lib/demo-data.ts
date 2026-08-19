@@ -52,12 +52,20 @@ export const demoCampaign: Campaign = {
     'കേരള ഫോറസ്റ്റ് നിയമ ഭേദഗതി 2024-നോട് ഞാൻ താഴെപ്പറയുന്ന ആശങ്കകളിൽ എതിർപ്പ് രേഖപ്പെടുത്തുന്നു.',
   intro_en:
     'I record my objection to the Kerala Forest (Amendment) Bill, 2024, on the points below.',
+  homepage_intro_ml:
+    '2024 നവംബർ 1-ലെ ഗസറ്റ് ബിൽ 228. പൊതുജന അഭിപ്രായത്തിന് 2024 ഡിസംബർ 31 വരെ സമയമുണ്ടായിരുന്നു. ആ കൂടിയാലോചന അവസാനിച്ചു; കാബിനറ്റ് ബിൽ പിൻവലിച്ചു. നിങ്ങളുടെ സ്വന്തം ഇമെയിലിൽ നിന്ന് ലിസ്റ്റ് ചെയ്ത ഓഫീസുകളിലേക്ക് എതിർപ്പ് അയയ്ക്കാം.',
+  homepage_intro_en:
+    'Gazette Bill 228 of 1 November 2024. Public comments closed on 31 December 2024. The Cabinet later dropped the Bill. You can still send a personal objection from your own email to the listed offices.',
   source_url: FOREST_BILL_SOURCE_URL,
+  reference_url: FOREST_BILL_VOLUNTEER_URL,
   closing_ml: 'ദയവായി ഈ ആശങ്കകൾ പരിഗണിച്ച് ബിൽ പിൻവലിക്കുക. നന്ദി.',
   closing_en: 'Please consider these concerns and withdraw the Bill. Thank you.',
+  body_template_ml: '',
+  body_template_en: '',
   opens_at: '2024-11-01T00:00:00+05:30',
   deadline_at: '2024-12-31T23:59:59+05:30',
   is_active: true,
+  publish_status: 'live',
   explainer_ml: [
     'വാച്ചർമാരെ ഫോറസ്റ്റ് ഓഫീസറാക്കി നിയമാധികാരം നൽകും.',
     'വീടിനടുത്തുള്ള പുഴകളെ വനപുഴയായി കാണാം.',
@@ -93,6 +101,8 @@ export const demoClauses: ObjectionClause[] = [
       'വാച്ചർ, ട്രൈബൽ വാച്ചർ എന്നിവരെ ഫോറസ്റ്റ് ഓഫീസർ നിർവചനത്തിൽ നിന്ന് ഒഴിവാക്കുക. PSC വഴി സ്ഥിര നിയമനവും പരിശീലനവും നേടിയവർക്ക് മാത്രമേ ആ പദവി നൽകാവൂ.',
     email_en:
       'Remove Watchers and Tribal Watchers from the Forest Officer definition. Only trained, regularly appointed PSC staff should hold that status.',
+    full_text_ml: '',
+    full_text_en: '',
     full_url: null,
     sort_order: 1,
     is_active: true,
@@ -112,6 +122,8 @@ export const demoClauses: ObjectionClause[] = [
       'പുഴ എന്നത് പൂർണമായും വനത്തിലൂടെ ഒഴുകുന്ന ഭാഗത്തേക്ക് മാത്രം ചുരുക്കുക. വനാതിർത്തിയിലെ പുഴകളിൽ അധികാരം പഞ്ചായത്തിനായിരിക്കണം.',
     email_en:
       'Limit "river" to stretches that flow wholly through forest. Panchayats must keep authority over rivers along the forest boundary.',
+    full_text_ml: '',
+    full_text_en: '',
     full_url: null,
     sort_order: 2,
     is_active: true,
@@ -131,6 +143,8 @@ export const demoClauses: ObjectionClause[] = [
       'വനത്തിന് പുറത്തുള്ള വീട് പരിശോധിക്കാൻ വെറും സംശയം മതിയാകരുത്. DFO അല്ലെങ്കിൽ ACF റാങ്കിലുള്ള വാറന്റ് വേണം. പരിശോധന ഫോറസ്റ്റ് ഉദ്യോഗസ്ഥർക്ക് മാത്രം.',
     email_en:
       'Do not allow house searches outside the forest on mere suspicion. Require a warrant from DFO or ACF rank. Only Forest Officers should take part.',
+    full_text_ml: '',
+    full_text_en: '',
     full_url: null,
     sort_order: 3,
     is_active: true,
@@ -148,6 +162,8 @@ export const demoClauses: ObjectionClause[] = [
       'വാഹന പരിശോധന ഫോറസ്റ്റ് ഓഫീസറുടെയോ എസ്.ഐ. റാങ്കിൽ കുറയാത്ത പോലീസുകാരന്റെയോ സന്നിധ്യത്തിൽ മാത്രം നടത്തുക.',
     email_en:
       'Vehicle checks must take place only in the presence of a Forest Officer or a police officer of at least SI rank.',
+    full_text_ml: '',
+    full_text_en: '',
     full_url: null,
     sort_order: 4,
     is_active: true,
@@ -167,6 +183,8 @@ export const demoClauses: ObjectionClause[] = [
       'വനത്തിന് പുറത്ത് വാറന്റില്ലാതെ അറസ്റ്റ് ചെയ്യരുത്. അങ്ങനെ അറസ്റ്റ് വേണമെങ്കിൽ DFO അല്ലെങ്കിൽ ACF റാങ്കിലുള്ള വാറന്റ് വേണം.',
     email_en:
       'Do not allow warrantless arrests outside the forest. Any such arrest must rest on a warrant from DFO or ACF rank.',
+    full_text_ml: '',
+    full_text_en: '',
     full_url: null,
     sort_order: 5,
     is_active: true,
@@ -186,6 +204,8 @@ export const demoClauses: ObjectionClause[] = [
       'സെക്ഷൻ 63.2 റദ്ദാക്കുക. ഔദ്യോഗിക കൃത്യം തടഞ്ഞു എന്ന് പറഞ്ഞ് ആരെയും അറസ്റ്റ് ചെയ്യാനുള്ള അധികാരം ഫോറസ്റ്റ് ഉദ്യോഗസ്ഥർക്ക് നൽകരുത്. അത് പോലീസിന് മാത്രം.',
     email_en:
       'Drop section 63.2. Forest staff must not get police-style power to arrest anyone for allegedly obstructing official duty.',
+    full_text_ml: '',
+    full_text_en: '',
     full_url: null,
     sort_order: 6,
     is_active: true,
@@ -205,6 +225,8 @@ export const demoClauses: ObjectionClause[] = [
       'അറസ്റ്റ് ചെയ്ത ആളെ ഫോറസ്റ്റ് സ്റ്റേഷനിലേക്ക് കൊണ്ടുപോകരുത്. ഉടൻ അടുത്ത പോലീസ് സ്റ്റേഷനിൽ ഹാജരാക്കണം എന്ന നിലവിലെ വ്യവസ്ഥ പുനഃസ്ഥാപിക്കുക.',
     email_en:
       'Do not take arrested people to a forest station. Restore the rule that they must be produced at the nearest police station at once.',
+    full_text_ml: '',
+    full_text_en: '',
     full_url: null,
     sort_order: 7,
     is_active: true,
@@ -224,6 +246,8 @@ export const demoClauses: ObjectionClause[] = [
       'സെക്ഷൻ 63.4 കേന്ദ്ര നിയമമായ BNS 2023-ന് വിരുദ്ധമാണ്. കോഗ്നിസബിൾ അല്ലാത്ത കുറ്റത്തിന് വാറന്റില്ലാതെ അറസ്റ്റ് അനുവദിക്കരുത്.',
     email_en:
       'Section 63.4 conflicts with BNS 2023. Do not allow warrantless arrest for forest offences that are not cognizable.',
+    full_text_ml: '',
+    full_text_en: '',
     full_url: null,
     sort_order: 8,
     is_active: true,
@@ -243,6 +267,8 @@ export const demoClauses: ObjectionClause[] = [
       'സെക്ഷൻ 69.2 പിൻവലിക്കുക. കുറ്റം തെളിയിക്കേണ്ടത് പ്രോസിക്യൂഷന്റെ ഉത്തരവാദിത്വമാണ്. വനോൽപ്പന്നം കയ്യിലുണ്ട് എന്ന് പറഞ്ഞ് പ്രതിയെ കുറ്റക്കാരനായി കരുതരുത്.',
     email_en:
       'Withdraw section 69.2. The prosecution must prove guilt. Possession of alleged forest produce must not be treated as proof of crime.',
+    full_text_ml: '',
+    full_text_en: '',
     full_url: null,
     sort_order: 9,
     is_active: true,
@@ -262,6 +288,8 @@ export const demoClauses: ObjectionClause[] = [
       'സെക്ഷൻ 72.2 റദ്ദാക്കുക. ഒരു ഉൽപ്പന്നം വനോൽപ്പന്നമാണോ എന്ന് റേഞ്ച് ഓഫീസർ സർട്ടിഫിക്കറ്റ് കൊണ്ട് തീരുമാനിക്കരുത്. ശാസ്ത്രീയ അന്വേഷണം വേണം.',
     email_en:
       'Repeal section 72.2. Whether something is forest produce must be proved by scientific inquiry, not a Range Officer certificate.',
+    full_text_ml: '',
+    full_text_en: '',
     full_url: null,
     sort_order: 10,
     is_active: true,
@@ -281,6 +309,8 @@ export const demoClauses: ObjectionClause[] = [
       'തെറ്റായ അറസ്റ്റിനുള്ള സെക്ഷൻ 65 ശിക്ഷ 200 രൂപയിൽ നിർത്തരുത്. അധികാര ദുർവിനിയോഗത്തിന് അഞ്ച് വർഷം വരെ തടവും കുറഞ്ഞത് ഒരു ലക്ഷം രൂപ പിഴയും വേണം.',
     email_en:
       'Do not leave the section 65 penalty for wrongful arrest at two hundred rupees. Raise it to up to five years in prison and a fine of at least one lakh rupees.',
+    full_text_ml: '',
+    full_text_en: '',
     full_url: null,
     sort_order: 11,
     is_active: true,
@@ -300,6 +330,8 @@ export const demoClauses: ObjectionClause[] = [
       'വന്യമൃഗ ആക്രമണം തടയാനുള്ള വകുപ്പുകൾ ബില്ലിൽ ഇല്ല. മനുഷ്യജീവനും കൃഷിക്കും മുൻഗണന നൽകുന്ന വ്യവസ്ഥകൾ കൂട്ടിച്ചേർക്കുക. ഈ രൂപത്തിൽ ബിൽ പിൻവലിക്കുക.',
     email_en:
       'The Bill has no clauses to reduce wildlife attacks. Add provisions that put human life and farms first, or withdraw the Bill in this form.',
+    full_text_ml: '',
+    full_text_en: '',
     full_url: null,
     sort_order: 12,
     is_active: true,

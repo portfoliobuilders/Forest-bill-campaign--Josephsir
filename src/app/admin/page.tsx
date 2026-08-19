@@ -1,14 +1,10 @@
-import { AdminDashboardShell } from '@/components/admin/AdminDashboardShell'
-import { getAdminSession } from '@/lib/admin/auth'
-import { parseAdminFilters } from '@/lib/admin/filters'
-import {
-  fetchAdminFunnel,
-  fetchAdminSubmissions,
-  fetchAdminSummary,
-  fetchDeletionRequests,
-  fetchFilterOptions,
-  fetchNotifySignups,
-} from '@/lib/admin/queries'
+import { Suspense } from 'react'
+
+import { DashboardClient } from '@/components/admin/DashboardClient'
+import { EmptyState, ErrorState } from '@/components/admin/AdminPrimitives'
+import { requireAdminCampaign } from '@/lib/admin/context'
+import { parseTrendRange } from '@/lib/admin/filters'
+import { fetchDashboardData } from '@/lib/admin/queries'
 import { assertAdminEnv } from '@/lib/env'
 
 export const dynamic = 'force-dynamic'
@@ -17,40 +13,29 @@ export async function generateMetadata() {
   return { title: 'Admin — ജനശബ്ദം', robots: { index: false, follow: false } }
 }
 
-export default async function AdminPage({
+export default async function AdminDashboardPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   assertAdminEnv()
+  const { campaign } = await requireAdminCampaign()
+  if (!campaign) {
+    return <EmptyState title="No campaign selected." body="Create a campaign to see participation." />
+  }
 
-  const session = await getAdminSession()
-  if (!session) return null
+  const params = await searchParams
+  const range = parseTrendRange(typeof params.range === 'string' ? params.range : undefined)
+  const includeTests = params.tests === 'include'
 
-  const filters = parseAdminFilters(await searchParams)
-  const includeTests = filters.tests === 'include'
-
-  const [list, summary, funnel, filterOptions, deletionRequests, notifySignups] = await Promise.all([
-    fetchAdminSubmissions(filters),
-    fetchAdminSummary(includeTests),
-    fetchAdminFunnel(includeTests),
-    fetchFilterOptions(),
-    fetchDeletionRequests(),
-    fetchNotifySignups(),
-  ])
-
-  return (
-    <AdminDashboardShell
-      rows={list.rows}
-      total={list.total}
-      page={list.page}
-      pageSize={list.pageSize}
-      summary={summary}
-      funnel={funnel}
-      filterOptions={filterOptions}
-      deletionRequests={deletionRequests}
-      notifySignups={notifySignups}
-      adminEmail={session.email}
-    />
-  )
+  try {
+    const data = await fetchDashboardData(campaign.id, includeTests, range)
+    return (
+      <Suspense fallback={<p className="text-sm text-stone-600">Loading dashboard…</p>}>
+        <DashboardClient data={data} />
+      </Suspense>
+    )
+  } catch {
+    return <ErrorState title="Unable to load analytics." body="The dashboard could not read submission totals." />
+  }
 }

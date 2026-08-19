@@ -10,6 +10,7 @@ export function DataPageContent({
   districtRows,
   constituencyRows,
   supporters,
+  timeline,
 }: {
   stats: { confirmed: number; opened: number; districts: number }
   clauses: { code: string; title_ml: string; title_en: string; cnt: number }[]
@@ -17,6 +18,7 @@ export function DataPageContent({
   districtRows: { district: string; cnt: number }[]
   constituencyRows: { name_ml: string; name_en: string; district: string; cnt: number }[]
   supporters: { display_name: string; district: string }[]
+  timeline: { day: string; prepared: number; opened: number; confirmed: number }[]
 }) {
   const { lang } = useLang()
   const isMl = lang === 'ml'
@@ -55,6 +57,34 @@ export function DataPageContent({
               )
             })}
           </ul>
+        </section>
+      ) : null}
+
+      {timeline.length > 0 ? (
+        <section className="mt-10">
+          <h2 className="font-display text-xl text-ink">{isMl ? 'കാലരേഖ' : 'Timeline'}</h2>
+          <div className="mt-3 overflow-x-auto rounded-[8px] border border-rule bg-raised">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-rule bg-surface text-muted">
+                <tr>
+                  <th className="px-3 py-2">{isMl ? 'ദിവസം' : 'Day'}</th>
+                  <th className="px-3 py-2">{isMl ? 'തയ്യാറാക്കി' : 'Prepared'}</th>
+                  <th className="px-3 py-2">{isMl ? 'തുറന്നു' : 'Opened'}</th>
+                  <th className="px-3 py-2">{isMl ? 'സ്ഥിരീകരിച്ചു' : 'Confirmed'}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {timeline.map((row) => (
+                  <tr key={row.day} className="border-b border-rule">
+                    <td className="px-3 py-2">{row.day}</td>
+                    <td className="px-3 py-2 font-mono tabular-nums">{row.prepared}</td>
+                    <td className="px-3 py-2 font-mono tabular-nums">{row.opened}</td>
+                    <td className="px-3 py-2 font-mono tabular-nums">{row.confirmed}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       ) : null}
 
@@ -132,31 +162,28 @@ export function DataPageContent({
               ആശങ്കകൾ — വ്യക്തിഗത വിവരമല്ലാത്തത് — aggregate ചെയ്യുന്നു.
             </p>
             <p className="mt-3">
-              <strong>എന്ത് എണ്ണുന്നില്ല:</strong> draft/verified മാത്രമായവ, ടെസ്റ്റ് വരികൾ, ഇമെയിൽ/ഫോൺ/വിലാസം/പിൻകോഡ്/IP.
-              സ്വീകർത്താവിന് മെയിൽ എത്തിയോ എന്ന് പരിശോധിക്കുന്നില്ല. നിരസിച്ച custom text /data-യിൽ വരില്ല.
+              <strong>എന്ത് എണ്ണുന്നില്ല:</strong> തയ്യാറാക്കി അയച്ചതായി സ്ഥിരീകരിക്കാത്ത രേഖകൾ, ടെസ്റ്റ് വരികൾ,
+              ഇമെയിൽ/ഫോൺ/വിലാസം/പിൻകോഡ്/IP. സ്വീകർത്താവിന് മെയിൽ എത്തിയോ എന്ന് പരിശോധിക്കുന്നില്ല.
             </p>
             <p className="mt-3">
-              <strong>confirmed vs opened:</strong> &quot;opened&quot; മെയിൽ ആപ്പ്/Gmail തുറന്നവർ (handoff_opened).
-              &quot;confirmed&quot; അയച്ചതായി സ്വയം സ്ഥിരീകരിച്ചവർ. പൊതു headline-ൽ confirmed മാത്രം — opened കൂടുതലായിരിക്കാം,
-              എല്ലാവരും &quot;ഞാൻ അയച്ചു&quot; അമർത്തണമെന്നില്ല.
+              <strong>confirmed vs opened:</strong> &quot;opened&quot; മെയിൽ ആപ്പ്/Gmail തുറന്നവർ.
+              &quot;confirmed&quot; അയച്ചതായി സ്വയം സ്ഥിരീകരിച്ചവർ. പൊതു headline-ൽ confirmed മാത്രം.
             </p>
           </>
         ) : (
           <>
             <p className="mt-3">
-              <strong>What is counted:</strong> Records where a citizen composed an objection on this site, verified
-              their email, and pressed &quot;I sent it&quot; (status <code>confirmed_sent</code> or{' '}
-              <code>server_sent</code>). Test/demo rows are excluded. District, constituency, and selected concerns
-              are aggregated — no personal identifiers in those tables.
+              <strong>What is counted:</strong> Records where a citizen composed an objection on this site and pressed
+              &quot;I sent it&quot;. Test/demo rows are excluded. District, constituency, and selected concerns are
+              aggregated — no personal identifiers in those tables.
             </p>
             <p className="mt-3">
-              <strong>What is not counted:</strong> Drafts and verified-only rows. We do not verify email delivery.
-              Email, phone, address, PIN, and IP never appear here. Rejected custom text is never shown.
+              <strong>What is not counted:</strong> Records that were only started or prepared. We do not verify email
+              delivery. Email, phone, address, PIN, personal comments, and IP never appear here.
             </p>
             <p className="mt-3">
-              <strong>Confirmed vs opened:</strong> &quot;Opened&quot; means the mail handoff was triggered
-              (handoff_opened). &quot;Confirmed&quot; means the citizen self-reported sending. The headline uses
-              confirmed only. Opened can be higher because not everyone returns to press &quot;I sent it&quot;.
+              <strong>Confirmed vs opened:</strong> &quot;Opened&quot; means a mail app or Gmail was opened from this
+              site. &quot;Confirmed&quot; means the citizen self-reported sending. The headline uses confirmed only.
             </p>
           </>
         )}

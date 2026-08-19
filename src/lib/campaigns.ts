@@ -31,10 +31,18 @@ function uniqueDistricts(rows: Pick<Constituency, 'district' | 'name_ml' | 'name
   return ordered.length > 0 ? [...ordered, ...extras] : KERALA_DISTRICTS
 }
 
+export function withCampaignClauses(campaign: Campaign, clauses: ObjectionClause[]): ObjectionClause[] {
+  return clauses.map((clause) => ({
+    ...clause,
+    campaign_id: clause.campaign_id || campaign.id,
+    full_text_ml: clause.full_text_ml ?? '',
+    full_text_en: clause.full_text_en ?? '',
+  }))
+}
+
 export function withForestClauses(campaign: Campaign, clauses: ObjectionClause[]): ObjectionClause[] {
-  const hasForestBill = clauses.some((clause) => clause.code === 'C1_OFFICER')
-  if (hasForestBill && clauses.length > 0) return clauses
-  return demoClauses.map((clause) => ({ ...clause, campaign_id: campaign.id }))
+  if (clauses.length > 0) return withCampaignClauses(campaign, clauses)
+  return []
 }
 
 async function loadDistricts(): Promise<DistrictOption[]> {

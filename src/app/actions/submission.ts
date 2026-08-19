@@ -5,7 +5,7 @@ import { headers } from 'next/headers'
 import { Resend } from 'resend'
 import { z } from 'zod'
 
-import { composeEmail, clausesForLetter } from '@/lib/compose'
+import { composeEmail, clausesForLetter, liveMailTargets, resolveMailTargets } from '@/lib/compose'
 import { getCampaignState, publicCampaign, readPreviewToken } from '@/lib/campaign'
 import { withForestClauses } from '@/lib/campaigns'
 import { demoCampaign, demoClauses } from '@/lib/demo-data'
@@ -170,7 +170,20 @@ async function storeCanonicalLetter(
     const slug = (bySlug.data?.slug as string | undefined) ?? (fallback?.data?.slug as string | undefined)
     if (!slug) return null
 
-    const { data: submissionId, error } = await supabase.rpc('create_submission', {
+    const targets = resolveMailTargets({
+      campaign: canonical.campaign,
+      mode: canonical.isTest ? 'preview' : 'live',
+      testerEmail: input.email,
+    })
+    const generatedTo = targets.to
+    const generatedCc = targets.cc
+    if (!canonical.isTest && generatedTo.length === 0) {
+      const live = liveMailTargets(canonical.campaign)
+      generatedTo.push(...live.to)
+      generatedCc.push(...live.cc)
+    }
+
+    const rpcArgs = {
       p_campaign_slug: slug,
       p_full_name: input.fullName,
       p_email: input.email,
@@ -178,7 +191,7 @@ async function storeCanonicalLetter(
       p_address: input.address,
       p_panchayat: input.panchayat || null,
       p_district: input.district,
-      p_pincode: input.pincode,
+      p_pincode: input.pincode || null,
       p_language: input.language,
       p_custom_text: input.customText || null,
       p_clause_codes: canonical.clauseCodes,
@@ -190,7 +203,24 @@ async function storeCanonicalLetter(
       p_constituency_id: input.constituencyId,
       p_cc_rep_ids: input.ccRepIds,
       p_is_test: canonical.isTest,
+    }
+
+    let { data: submissionId, error } = await supabase.rpc('create_submission', {
+      ...rpcArgs,
+      p_generated_to: generatedTo,
+      p_generated_cc: generatedCc,
     })
+    if (error) {
+      const retry = await supabase.rpc('create_submission', rpcArgs)
+      submissionId = retry.data
+      error = retry.error
+      if (!error && submissionId) {
+        await supabase
+          .from('submissions')
+          .update({ generated_to: generatedTo, generated_cc: generatedCc })
+          .eq('id', submissionId as string)
+      }
+    }
     if (error || !submissionId) return null
     return submissionId as string
   } catch {

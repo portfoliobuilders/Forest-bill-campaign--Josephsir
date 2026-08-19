@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "npx tsx --test src/lib/admin/admin-logic.test.ts"
   },
   "dependencies": {
     "@marsidev/react-turnstile": "^1.6.0",

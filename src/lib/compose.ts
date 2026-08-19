@@ -1,3 +1,4 @@
+import { defaultBodyTemplate, renderSafeTemplate, type EmailTemplateValues } from '@/lib/email-template'
 import type { Lang } from '@/lib/i18n'
 import type { WizardMode } from '@/lib/wizard-mode'
 import type { Campaign, ObjectionClause } from '@/types/database'
@@ -122,31 +123,32 @@ export function clausesForLetter(
   return sorted.filter((clause) => selected.has(clause.id))
 }
 
-function senderBlock(details: ComposeDetails, lang: Lang): string {
-  if (lang === 'en') {
-    return [
-      'Regards,',
-      '',
-      `Name: ${details.fullName}`,
-      `Address: ${details.addressLine}`,
-      `Panchayat / Municipality: ${details.panchayat}`,
-      `District: ${details.district}`,
-      `PIN: ${details.pincode}`,
-      `Phone: ${details.phone}`,
-      `Email: ${details.email}`,
-    ].join('\n')
+function senderValues(details: ComposeDetails, extra?: { constituency?: string }): Pick<
+  EmailTemplateValues,
+  'full_name' | 'email' | 'phone' | 'address' | 'panchayat' | 'district' | 'pincode' | 'constituency' | 'custom_text'
+> {
+  return {
+    full_name: details.fullName,
+    email: details.email,
+    phone: details.phone,
+    address: details.addressLine,
+    panchayat: details.panchayat,
+    district: details.district,
+    pincode: details.pincode,
+    constituency: extra?.constituency ?? '',
+    custom_text: (details.customText ?? '').trim(),
   }
-  return [
-    'ആദരപൂർവ്വം,',
-    '',
-    `പേര്: ${details.fullName}`,
-    `വിലാസം: ${details.addressLine}`,
-    `പഞ്ചായത്ത് / മുനിസിപ്പാലിറ്റി: ${details.panchayat}`,
-    `ജില്ല: ${details.district}`,
-    `പിൻകോഡ്: ${details.pincode}`,
-    `ഫോൺ: ${details.phone}`,
-    `ഇമെയിൽ: ${details.email}`,
-  ].join('\n')
+}
+
+function numberedConcerns(clauses: ObjectionClause[], extraConcerns: string[], lang: Lang): string {
+  const sorted = [...clauses].sort((a, b) => a.sort_order - b.sort_order)
+  const lines = sorted.map((clause, index) => `${index + 1}. ${pick(lang, clause.email_ml, clause.email_en)}`)
+  for (const extra of extraConcerns) {
+    const text = extra.replace(/\s+/g, ' ').trim()
+    if (!text) continue
+    lines.push(`${lines.length + 1}. ${text}`)
+  }
+  return lines.join('\n')
 }
 
 function assembleBody(
@@ -157,19 +159,16 @@ function assembleBody(
 ): string {
   const intro = pick(lang, campaign.intro_ml, campaign.intro_en)
   const closing = pick(lang, campaign.closing_ml, campaign.closing_en)
-  const sorted = [...clauses].sort((a, b) => a.sort_order - b.sort_order)
-  const clauseLines = sorted.map((clause, index) => `${index + 1}. ${pick(lang, clause.email_ml, clause.email_en)}`)
   const extras = (details.extraConcerns ?? []).map((item) => item.replace(/\s+/g, ' ').trim()).filter(Boolean)
-  for (const extra of extras) {
-    clauseLines.push(`${clauseLines.length + 1}. ${extra}`)
+  const stored = pick(lang, campaign.body_template_ml ?? '', campaign.body_template_en ?? '').trim()
+  const template = stored || defaultBodyTemplate(lang)
+  const values: EmailTemplateValues = {
+    intro,
+    closing,
+    concerns: numberedConcerns(clauses, extras, lang),
+    ...senderValues(details),
   }
-
-  const parts: string[] = ['Sir,', '', intro]
-  if (clauseLines.length > 0) parts.push('', clauseLines.join('\n'))
-  const personal = (details.customText ?? '').trim()
-  if (personal) parts.push('', personal)
-  parts.push('', closing, '', senderBlock(details, lang))
-  return parts.join('\n')
+  return renderSafeTemplate(template, values)
 }
 
 export function composeEmail({ campaign, clauses, details, lang }: ComposeEmailInput): ComposeEmailResult {

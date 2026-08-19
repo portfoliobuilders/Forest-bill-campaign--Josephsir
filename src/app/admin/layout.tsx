@@ -2,8 +2,10 @@ import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 
+import { AdminAppShell } from '@/components/admin/AdminAppShell'
 import { AdminForbidden } from '@/components/admin/AdminForbidden'
 import { getAdminAccess } from '@/lib/admin/auth'
+import { resolveAdminCampaign } from '@/lib/admin/context'
 import { isAdminPublicPath } from '@/lib/admin/paths'
 
 export const dynamic = 'force-dynamic'
@@ -27,7 +29,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     if (pathname === '/admin/login' && access.status === 'authorized') {
       redirect('/admin')
     }
-    return <div className="min-h-dvh bg-stone-100">{children}</div>
+    return <div className="min-h-dvh bg-[#f6f4ef]">{children}</div>
   }
 
   if (access.status === 'unauthenticated') {
@@ -36,11 +38,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   if (access.status === 'forbidden') {
     return (
-      <div className="min-h-dvh bg-stone-100">
+      <div className="min-h-dvh bg-[#f6f4ef]">
         <AdminForbidden email={access.email} />
       </div>
     )
   }
 
-  return <div className="min-h-dvh bg-stone-100">{children}</div>
+  const { campaigns, campaign } = await resolveAdminCampaign()
+
+  return (
+    <AdminAppShell email={access.email} campaigns={campaigns} selectedId={campaign?.id ?? null}>
+      {children}
+    </AdminAppShell>
+  )
 }

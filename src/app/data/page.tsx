@@ -28,14 +28,16 @@ export default async function DataPage() {
   let districtRows: { district: string; cnt: number }[] = []
   let constituencyRows: { name_ml: string; name_en: string; district: string; cnt: number }[] = []
   let supporters: { display_name: string; district: string }[] = []
+  let timeline: { day: string; prepared: number; opened: number; confirmed: number }[] = []
 
   if (supabase) {
-    const [statsRes, clauseRes, districtRes, constituencyRes, supportersRes] = await Promise.all([
+    const [statsRes, clauseRes, districtRes, constituencyRes, supportersRes, timelineRes] = await Promise.all([
       supabase.rpc('campaign_stats', { p_slug: slug }),
       supabase.rpc('clause_breakdown', { p_slug: slug }),
       supabase.rpc('district_breakdown', { p_slug: slug }),
       supabase.rpc('constituency_breakdown', { p_slug: slug }),
       supabase.rpc('public_supporters', { p_slug: slug }),
+      supabase.rpc('participation_timeline', { p_slug: slug }),
     ])
 
     if (statsRes.data?.[0]) {
@@ -67,6 +69,14 @@ export default async function DataPage() {
         district: typeof row.district === 'string' ? row.district : '',
       }))
       .filter((row: PublicName) => row.display_name.length > 0 && row.district.length > 0)
+    timeline = (timelineRes.data ?? [])
+      .map((row: { day?: unknown; prepared?: unknown; opened?: unknown; confirmed?: unknown }) => ({
+        day: typeof row.day === 'string' ? row.day : '',
+        prepared: Number(row.prepared ?? 0),
+        opened: Number(row.opened ?? 0),
+        confirmed: Number(row.confirmed ?? 0),
+      }))
+      .filter((row: { day: string }) => row.day.length > 0)
   }
 
   const maxClause = Math.max(1, ...clauses.map((c) => c.cnt))
@@ -79,6 +89,7 @@ export default async function DataPage() {
       districtRows={districtRows}
       constituencyRows={constituencyRows}
       supporters={supporters}
+      timeline={timeline}
     />
   )
 }
