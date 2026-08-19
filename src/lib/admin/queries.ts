@@ -115,6 +115,7 @@ export async function fetchAdminSubmissions(filters: AdminFilters): Promise<{
   const { count, error: countError } = await countQuery
   if (countError) throw countError
 
+  // Production is missing custom_text_public; selecting it 500s the whole page.
   let dataQuery = supabase
     .from('submissions')
     .select(
@@ -126,7 +127,6 @@ export async function fetchAdminSubmissions(filters: AdminFilters): Promise<{
       status,
       is_test,
       custom_text,
-      custom_text_public,
       constituency:constituencies(name_ml, name_en),
       submission_clauses(count)
     `,
@@ -158,7 +158,7 @@ export async function fetchAdminSubmissions(filters: AdminFilters): Promise<{
       is_test: Boolean(row.is_test),
       clause_count: clauseCountArr?.[0]?.count ?? 0,
       custom_text: (row.custom_text as string | null) ?? null,
-      custom_text_public: Boolean(row.custom_text_public),
+      custom_text_public: false,
     }
   })
 
@@ -176,7 +176,6 @@ export async function fetchSubmissionDetail(id: string): Promise<SubmissionDetai
       generated_body,
       send_method,
       custom_text,
-      custom_text_public,
       cc_representative_ids,
       submission_clauses(
         objection_clauses(code, title_ml, title_en)
@@ -214,7 +213,7 @@ export async function fetchSubmissionDetail(id: string): Promise<SubmissionDetai
     generated_body: (data.generated_body as string) ?? '',
     send_method: (data.send_method as string | null) ?? null,
     custom_text: (data.custom_text as string | null) ?? null,
-    custom_text_public: Boolean(data.custom_text_public),
+    custom_text_public: false,
     clauses,
     reps,
   }
@@ -329,7 +328,7 @@ export async function fetchDeletionRequests(): Promise<DeletionRequestRow[]> {
     .from('deletion_requests')
     .select('id, email, reason, handled_at, created_at')
     .order('created_at', { ascending: false })
-  if (error) throw error
+  if (error) return []
   return (data ?? []) as DeletionRequestRow[]
 }
 
@@ -339,7 +338,7 @@ export async function fetchNotifySignups(): Promise<NotifySignupRow[]> {
     .from('notify_signups')
     .select('id, email, created_at')
     .order('created_at', { ascending: false })
-  if (error) throw error
+  if (error) return []
   return (data ?? []) as NotifySignupRow[]
 }
 
