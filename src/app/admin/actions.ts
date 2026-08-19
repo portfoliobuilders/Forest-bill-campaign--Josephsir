@@ -65,10 +65,11 @@ export async function sendAdminMagicLink(
   }
 
   const supabase = await createServerSupabaseClient()
+  const origin = siteUrl.replace(/\/$/, '')
   const { error } = await supabase.auth.signInWithOtp({
-    email: email.trim(),
+    email: email.trim().toLowerCase(),
     options: {
-      emailRedirectTo: `${siteUrl}/admin/auth/callback`,
+      emailRedirectTo: `${origin}/auth/callback`,
     },
   })
 

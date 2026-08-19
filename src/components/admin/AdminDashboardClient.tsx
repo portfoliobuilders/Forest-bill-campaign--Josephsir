@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useState, useTransition } from 'react'
 
@@ -133,13 +134,30 @@ export function AdminDashboardClient({
     <div className="mx-auto w-full max-w-6xl px-4 py-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-stone-900">Admin</h1>
-          <p className="text-sm text-stone-600">{adminEmail}</p>
+          <p className="font-mono text-[11px] font-medium tracking-[0.16em] text-stone-500">Janashabdam Admin</p>
+          <h1 className="mt-1 text-2xl font-bold text-stone-900 [font-family:var(--font-gayathri),serif]">ജനശബ്ദം Admin</h1>
+          <p className="mt-1 text-sm text-stone-600">{adminEmail}</p>
         </div>
-        <AdminSignOut />
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/"
+            className={`inline-flex min-h-[44px] items-center rounded-md border border-stone-400 bg-white px-3 text-sm font-semibold text-stone-900 hover:bg-stone-100 ${focusRing}`}
+          >
+            Public site
+          </Link>
+          <AdminSignOut />
+        </div>
       </div>
 
-      <section className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <section className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <SummaryCard label="Draft" value={funnel.counts.draft} />
+        <SummaryCard label="Verified" value={funnel.counts.verified} />
+        <SummaryCard label="Handoff Opened" value={funnel.counts.handoffOpened} />
+        <SummaryCard label="Confirmed Sent" value={funnel.counts.confirmedSent} />
+        <SummaryCard label="Server Sent" value={funnel.counts.serverSent} />
+      </section>
+
+      <section className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <SummaryCard label="Confirmed" value={summary.confirmed} />
         <SummaryCard label="Handoff opened" value={summary.opened} />
         <SummaryCard label="Unique districts" value={summary.uniqueDistricts} />
@@ -244,7 +262,7 @@ export function AdminDashboardClient({
           <thead className="border-b border-stone-300 bg-stone-50 text-xs uppercase tracking-wide text-stone-600">
             <tr>
               <th className="px-3 py-2">
-                <SortButton label="Date" active={sort === 'created_at'} dir={dir} onClick={() => toggleSort('created_at')} />
+                <SortButton label="Date / Time" active={sort === 'created_at'} dir={dir} onClick={() => toggleSort('created_at')} />
               </th>
               <th className="px-3 py-2">Name</th>
               <th className="px-3 py-2">District</th>
@@ -252,8 +270,8 @@ export function AdminDashboardClient({
               <th className="px-3 py-2">
                 <SortButton label="Status" active={sort === 'status'} dir={dir} onClick={() => toggleSort('status')} />
               </th>
-              <th className="px-3 py-2">Test</th>
-              <th className="px-3 py-2">Clauses</th>
+              <th className="px-3 py-2">Test / Live</th>
+              <th className="px-3 py-2">Clause Count</th>
               <th className="px-3 py-2">Custom text</th>
             </tr>
           </thead>
@@ -271,12 +289,12 @@ export function AdminDashboardClient({
                   className="cursor-pointer border-b border-stone-200 hover:bg-stone-50"
                   onClick={() => void openDrawer(row.id)}
                 >
-                  <td className="px-3 py-2 whitespace-nowrap">{row.created_at.slice(0, 10)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{new Date(row.created_at).toLocaleString('en-IN')}</td>
                   <td className="px-3 py-2">{row.full_name ?? '—'}</td>
                   <td className="px-3 py-2">{row.district}</td>
                   <td className="px-3 py-2">{row.constituency_name ?? '—'}</td>
                   <td className="px-3 py-2">{row.status}</td>
-                  <td className="px-3 py-2">{row.is_test ? 'yes' : 'no'}</td>
+                  <td className="px-3 py-2">{row.is_test ? 'Test' : 'Live'}</td>
                   <td className="px-3 py-2 tabular-nums">{row.clause_count}</td>
                   <td className="max-w-[200px] truncate px-3 py-2 text-stone-600">
                     {row.custom_text ? (

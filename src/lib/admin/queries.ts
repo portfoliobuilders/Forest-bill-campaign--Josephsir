@@ -30,11 +30,22 @@ export type AdminSummary = {
   topClauses: { code: string; title_ml: string; title_en: string; cnt: number }[]
 }
 
+export type AdminStatusCounts = {
+  draft: number
+  verified: number
+  handoffOpened: number
+  confirmedSent: number
+  serverSent: number
+  failed: number
+}
+
 export type AdminFunnel = {
   draft: number
   verified: number
   handoffOpened: number
   confirmed: number
+  serverSent: number
+  counts: AdminStatusCounts
 }
 
 export type SubmissionDetail = {
@@ -62,7 +73,7 @@ export type NotifySignupRow = {
   created_at: string
 }
 
-const PAGE_SIZE = 50
+const PAGE_SIZE = 100
 
 export { PAGE_SIZE as ADMIN_PAGE_SIZE }
 
@@ -278,7 +289,21 @@ export async function fetchAdminFunnel(includeTests: boolean): Promise<AdminFunn
   const verified = verifiedOnly + handoffOnly + confirmed + failed
   const draft = draftOnly + verified
 
-  return { draft, verified, handoffOpened, confirmed }
+  return {
+    draft,
+    verified,
+    handoffOpened,
+    confirmed,
+    serverSent,
+    counts: {
+      draft: draftOnly,
+      verified: verifiedOnly,
+      handoffOpened: handoffOnly,
+      confirmedSent,
+      serverSent,
+      failed,
+    },
+  }
 }
 
 export async function fetchFilterOptions(): Promise<{
