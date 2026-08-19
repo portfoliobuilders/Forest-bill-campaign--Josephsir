@@ -1,0 +1,73 @@
+export type Lang = 'ml' | 'en'
+
+export const defaultLang: Lang = 'ml'
+
+export const dictionary = {
+  ml: {
+    siteName: 'ജനശബ്ദം',
+    tagline: 'നിങ്ങളുടെ വിലാസത്തിൽ നിന്നുള്ള വ്യക്തിഗത എതിർപ്പ്',
+    languageToggle: 'English',
+    ctaStart: 'എതിർപ്പ് തയ്യാറാക്കുക',
+    deadlineLabel: 'അവസാന തീയതി',
+    pickConcerns: 'നിങ്ങളുടെ ആശങ്കകൾ തിരഞ്ഞെടുക്കുക',
+    yourDetails: 'നിങ്ങളുടെ വിവരങ്ങൾ',
+    fullName: 'പൂർണ്ണ നാമം',
+    email: 'ഇമെയിൽ',
+    phone: 'ഫോൺ',
+    address: 'വിലാസം',
+    panchayat: 'പഞ്ചായത്ത്',
+    district: 'ജില്ല',
+    pincode: 'പിൻകോഡ്',
+    customText: 'നിങ്ങളുടെ അനുഭവം (ഐച്ഛികം)',
+    verify: 'ഇമെയിൽ സ്ഥിരീകരിക്കുക',
+    preview: 'കത്ത് കാണുക',
+    sendGmail: 'Gmail-ൽ തുറക്കുക',
+    sendMailto: 'മെയിൽ ആപ്പ് തുറക്കുക',
+    copyText: 'വാചകം പകർത്തുക',
+    printLetter: 'അച്ചടിക്കുക',
+    confirmSent: 'ഞാൻ അയച്ചു',
+    consentNotice: 'ഈ വിവരം ഈ കാമ്പെയ്‌നിന് മാത്രം ഉപയോഗിക്കും. പട്ടികയിലേക്കോ രാഷ്ട്രീയ പാർട്ടിക്കോ കൈമാറില്ല.',
+    counterLabel: 'ഈ സൈറ്റ് വഴി എതിർപ്പ് തയ്യാറാക്കി അയച്ചവർ',
+    methodology: 'എണ്ണം എങ്ങനെ കണക്കാക്കുന്നു',
+    notOfficial: 'ഇത് സർക്കാർ സ്ഥാപനമല്ല. സർക്കാരുമായി ബന്ധമില്ല.',
+    deleteData: 'എന്റെ വിവരം മായ്ക്കുക',
+    constituencyConfirm: 'നിങ്ങളുടെ നിയോജകമണ്ഡലം സ്ഥിരീകരിക്കുക',
+    ccRepresentative: 'എന്റെ എംഎൽഎയ്ക്ക് പകർപ്പ് അയയ്ക്കുക',
+  },
+  en: {
+    siteName: 'Janashabdam',
+    tagline: 'A personal objection from your own email address',
+    languageToggle: 'മലയാളം',
+    ctaStart: 'Prepare an objection',
+    deadlineLabel: 'Deadline',
+    pickConcerns: 'Pick your concerns',
+    yourDetails: 'Your details',
+    fullName: 'Full name',
+    email: 'Email',
+    phone: 'Phone',
+    address: 'Address',
+    panchayat: 'Panchayat',
+    district: 'District',
+    pincode: 'PIN code',
+    customText: 'Your own experience (optional)',
+    verify: 'Verify email',
+    preview: 'Preview the letter',
+    sendGmail: 'Open in Gmail',
+    sendMailto: 'Open mail app',
+    copyText: 'Copy text',
+    printLetter: 'Print letter',
+    confirmSent: 'I sent it',
+    consentNotice:
+      'This information is used only for this campaign. It is not shared with a mailing list or a political party.',
+    counterLabel: 'People who generated and sent an objection through this site',
+    methodology: 'How we count',
+    notOfficial: 'This is not a government body and is not affiliated with any government entity.',
+    deleteData: 'Delete my data',
+    constituencyConfirm: 'Confirm your constituency',
+    ccRepresentative: 'CC my MLA',
+  },
+} as const
+
+export function t(lang: Lang, key: keyof (typeof dictionary)['ml']): string {
+  return dictionary[lang][key]
+}
