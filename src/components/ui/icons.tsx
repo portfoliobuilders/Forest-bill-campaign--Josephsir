@@ -10,6 +10,16 @@ const stroke = {
   strokeLinejoin: 'round' as const,
 }
 
+export function IconWarning({ className = 'size-4' }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <path {...stroke} d="M12 3.5 2.8 19.5h18.4L12 3.5Z" />
+      <path {...stroke} d="M12 9.5v5" />
+      <path {...stroke} d="M12 17.2h.01" />
+    </svg>
+  )
+}
+
 export function IconPencil({ className = 'size-4' }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden="true">

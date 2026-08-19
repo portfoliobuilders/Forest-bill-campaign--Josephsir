@@ -40,6 +40,12 @@ function inConsultationWindow(campaign: Campaign, now: Date): boolean {
 export function publicCampaign(row: Campaign & { preview_token?: string | null }): Campaign {
   const campaign = { ...row }
   delete (campaign as { preview_token?: string | null }).preview_token
+  if (!Array.isArray(campaign.recipient_emails) || campaign.recipient_emails.length === 0) {
+    campaign.recipient_emails = campaign.recipient_email ? [campaign.recipient_email] : []
+  }
+  if (!Array.isArray(campaign.cc_emails)) {
+    campaign.cc_emails = []
+  }
   return campaign
 }
 

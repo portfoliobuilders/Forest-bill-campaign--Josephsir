@@ -158,15 +158,14 @@ export function Step2_DetailsForm({
         <TextAreaField
           id="customText"
           name="customText"
-          label={t('ml', 'customTextInvite')}
+          label={t(lang, 'customText')}
           value={details.customText}
           maxLength={MAX_CUSTOM_CHARS}
           rows={5}
           onChange={(event) => onChange({ customText: event.target.value })}
-          hint={`${details.customText.length}/${MAX_CUSTOM_CHARS} ${t(lang, 'charsUsed')}`}
+          hint={`${details.customText.length}/${MAX_CUSTOM_CHARS} ${t(lang, 'charsUsed')} — ${t(lang, 'customTextInvite')}`}
           error={errors.customText}
         />
-        {lang === 'en' ? <p className="mt-2 text-sm text-muted">{t('en', 'customTextInvite')}</p> : null}
       </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">

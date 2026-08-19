@@ -6,12 +6,15 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createDraft, sendOtp, verifyOtp } from '@/app/actions/submission'
 import { useLang } from '@/components/LanguageProvider'
 import { cx } from '@/lib/cx'
+import type { LetterMode } from '@/lib/compose'
 import type { DetailsFields } from '@/lib/details-schema'
 import { t } from '@/lib/i18n'
 import { normalizeIndianPhone } from '@/lib/phone'
 import { btnPrimary, focusRing, inputClass, labelClass } from '@/lib/ui'
 import type { WizardMode } from '@/lib/wizard-mode'
 import type { WizardRouting } from '@/types/database'
+
+import type { CanonicalLetter } from '@/components/wizard/Step4_Preview'
 
 const RESEND_COOLDOWN_SEC = 60
 
@@ -76,6 +79,8 @@ function errorI18nKey(key: VerifyErrorKey): keyof (typeof import('@/lib/i18n').d
 export function Step3_Verify({
   campaignSlug,
   clauseCodes,
+  extraConcerns,
+  letterMode,
   details,
   routing,
   mode,
@@ -86,12 +91,14 @@ export function Step3_Verify({
 }: {
   campaignSlug: string
   clauseCodes: string[]
+  extraConcerns: string[]
+  letterMode: LetterMode
   details: DetailsFields
   routing: WizardRouting
   mode: WizardMode
   initialSubmissionId: string | null
   initiallyVerified: boolean
-  onVerified: (submissionId: string) => void
+  onVerified: (submissionId: string, letter: CanonicalLetter) => void
   onContinue: () => void
 }) {
   const { lang } = useLang()
@@ -100,6 +107,7 @@ export function Step3_Verify({
     initiallyVerified ? 'verified' : 'turnstile',
   )
   const [submissionId, setSubmissionId] = useState<string | null>(initialSubmissionId)
+  const [letter, setLetter] = useState<CanonicalLetter | null>(null)
   const [otp, setOtp] = useState('')
   const [busy, setBusy] = useState(false)
   const [errorKey, setErrorKey] = useState<VerifyErrorKey | null>(null)
@@ -149,7 +157,9 @@ export function Step3_Verify({
       pincode: details.pincode,
       language: lang,
       customText: details.customText,
+      extraConcerns,
       clauseCodes,
+      letterMode,
       constituencyId: routing.constituencyId,
       ccRepIds: routing.ccRepresentativeIds,
     })
@@ -162,6 +172,7 @@ export function Step3_Verify({
     }
 
     setSubmissionId(result.data.id)
+    setLetter({ subject: result.data.subject, body: result.data.body })
     setPhase('otp')
     await dispatchOtp(result.data.id)
     setBusy(false)
@@ -181,7 +192,7 @@ export function Step3_Verify({
     }
 
     setPhase('verified')
-    onVerified(submissionId)
+    if (letter) onVerified(submissionId, letter)
     setBusy(false)
   }
 

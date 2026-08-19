@@ -2,14 +2,21 @@
 
 import { useReducer } from 'react'
 
+import { prepareDemoLetter } from '@/app/actions/submission'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { IconChevronRight } from '@/components/ui/icons'
 import { Progress } from '@/components/wizard/Progress'
-import { MAX_SELECTED_CLAUSES, Step1_ClauseSelector } from '@/components/wizard/Step1_ClauseSelector'
+import {
+  flattenCustomConcerns,
+  MAX_SELECTED_CLAUSES,
+  selectedConcernCount,
+  Step1_ClauseSelector,
+} from '@/components/wizard/Step1_ClauseSelector'
 import { emptyRouting, Step2_DetailsForm } from '@/components/wizard/Step2_DetailsForm'
 import { Step3_Verify } from '@/components/wizard/Step3_Verify'
-import { Step4_Preview } from '@/components/wizard/Step4_Preview'
+import { Step4_Preview, type CanonicalLetter } from '@/components/wizard/Step4_Preview'
 import { useLang } from '@/components/LanguageProvider'
+import { clausesForLetter, composeEmail, type LetterMode } from '@/lib/compose'
 import { cx } from '@/lib/cx'
 import { FOREST_BILL_SOURCE_URL, FOREST_BILL_VOLUNTEER_URL, type DistrictOption } from '@/lib/demo-data'
 import {
@@ -21,33 +28,46 @@ import {
 import { t } from '@/lib/i18n'
 import { normalizeIndianPhone } from '@/lib/phone'
 import { btnGhost, btnPrimary, focusRing } from '@/lib/ui'
-import type { WizardMode } from '@/lib/wizard-mode'
+import { skipsVerification, type WizardMode } from '@/lib/wizard-mode'
 import type { Campaign, ObjectionClause, WizardRouting } from '@/types/database'
 
 type Step = 1 | 2 | 3 | 4
 
 type WizardState = {
   step: Step
+  letterMode: LetterMode
   selectedClauseIds: string[]
+  customConcerns: string[]
   details: DetailsFields
   routing: WizardRouting
   submissionId: string | null
   verified: boolean
   detailsErrors: FieldErrors
   clauseError: boolean
+  canonicalLetter: CanonicalLetter | null
 }
 
 type WizardAction =
   | { type: 'toggle_clause'; id: string }
+  | { type: 'set_letter_mode'; mode: LetterMode }
   | { type: 'set_details'; details: Partial<DetailsFields> }
+  | { type: 'set_custom_concern'; index: number; text: string }
+  | { type: 'add_custom_concern' }
+  | { type: 'remove_custom_concern'; index: number }
   | { type: 'set_routing'; routing: WizardRouting }
-  | { type: 'submit_details'; details: DetailsFields }
+  | {
+      type: 'submit_details'
+      details: DetailsFields
+      nextStep: Step
+      letter?: CanonicalLetter | null
+      submissionId?: string | null
+    }
   | { type: 'details_invalid'; errors: FieldErrors }
   | { type: 'next' }
   | { type: 'clause_error' }
-  | { type: 'set_verified'; submissionId: string }
+  | { type: 'set_verified'; submissionId: string; letter: CanonicalLetter }
   | { type: 'goto'; step: Step }
-  | { type: 'back' }
+  | { type: 'back'; skipVerify?: boolean }
 
 const emptyDetails: DetailsFields = {
   fullName: '',
@@ -60,8 +80,21 @@ const emptyDetails: DetailsFields = {
   customText: '',
 }
 
+function withCustomConcerns(state: WizardState, customConcerns: string[]): WizardState {
+  const detailsErrors = { ...state.detailsErrors }
+  delete detailsErrors.customText
+  return {
+    ...state,
+    clauseError: false,
+    customConcerns,
+    detailsErrors,
+  }
+}
+
 function reducer(state: WizardState, action: WizardAction): WizardState {
   switch (action.type) {
+    case 'set_letter_mode':
+      return { ...state, letterMode: action.mode, clauseError: false }
     case 'toggle_clause': {
       const selected = state.selectedClauseIds.includes(action.id)
       if (selected) {
@@ -71,7 +104,7 @@ function reducer(state: WizardState, action: WizardAction): WizardState {
           selectedClauseIds: state.selectedClauseIds.filter((id) => id !== action.id),
         }
       }
-      if (state.selectedClauseIds.length >= MAX_SELECTED_CLAUSES) {
+      if (selectedConcernCount(state.selectedClauseIds, state.customConcerns) >= MAX_SELECTED_CLAUSES) {
         return state
       }
       return {
@@ -85,7 +118,38 @@ function reducer(state: WizardState, action: WizardAction): WizardState {
       for (const key of Object.keys(action.details) as Array<keyof DetailsFields>) {
         delete detailsErrors[key]
       }
-      return { ...state, details: { ...state.details, ...action.details }, detailsErrors }
+      return {
+        ...state,
+        details: { ...state.details, ...action.details },
+        detailsErrors,
+      }
+    }
+    case 'set_custom_concern': {
+      const next = [...state.customConcerns]
+      const text = action.text.slice(0, 300)
+      const wasEmpty = (next[action.index] ?? '').trim().length === 0
+      if (
+        wasEmpty &&
+        text.trim().length > 0 &&
+        selectedConcernCount(state.selectedClauseIds, state.customConcerns) >= MAX_SELECTED_CLAUSES
+      ) {
+        return state
+      }
+      next[action.index] = text
+      return withCustomConcerns(state, next)
+    }
+    case 'add_custom_concern': {
+      if (selectedConcernCount(state.selectedClauseIds, state.customConcerns) >= MAX_SELECTED_CLAUSES) {
+        return state
+      }
+      if (state.customConcerns.length >= MAX_SELECTED_CLAUSES) {
+        return state
+      }
+      return { ...state, customConcerns: [...state.customConcerns, ''] }
+    }
+    case 'remove_custom_concern': {
+      const next = state.customConcerns.filter((_, index) => index !== action.index)
+      return withCustomConcerns(state, next.length > 0 ? next : [''])
     }
     case 'set_routing':
       return { ...state, routing: action.routing }
@@ -94,7 +158,10 @@ function reducer(state: WizardState, action: WizardAction): WizardState {
         ...state,
         details: action.details,
         detailsErrors: {},
-        step: state.step < 4 ? ((state.step + 1) as Step) : state.step,
+        step: action.nextStep,
+        verified: action.nextStep === 4 ? true : state.verified,
+        canonicalLetter: action.letter === undefined ? state.canonicalLetter : action.letter,
+        submissionId: action.submissionId === undefined ? state.submissionId : action.submissionId,
       }
     case 'details_invalid':
       return { ...state, detailsErrors: action.errors }
@@ -103,11 +170,15 @@ function reducer(state: WizardState, action: WizardAction): WizardState {
     case 'next':
       return { ...state, step: state.step < 4 ? ((state.step + 1) as Step) : state.step }
     case 'set_verified':
-      return { ...state, submissionId: action.submissionId, verified: true }
+      return { ...state, submissionId: action.submissionId, verified: true, canonicalLetter: action.letter }
     case 'goto':
       return { ...state, step: action.step }
-    case 'back':
+    case 'back': {
+      if (action.skipVerify && state.step === 4) {
+        return { ...state, step: 2 }
+      }
       return { ...state, step: state.step > 1 ? ((state.step - 1) as Step) : state.step }
+    }
     default:
       return state
   }
@@ -129,28 +200,34 @@ export function Wizard({
   const { lang } = useLang()
   const [state, dispatch] = useReducer(reducer, {
     step: 1,
+    letterMode: 'selected',
     selectedClauseIds: [],
+    customConcerns: [''],
     details: emptyDetails,
     routing: emptyRouting,
     submissionId: null,
     verified: false,
     detailsErrors: {},
     clauseError: false,
+    canonicalLetter: null,
   })
 
-  const selectedClauses = clauses
-    .filter((clause) => state.selectedClauseIds.includes(clause.id))
-    .sort((a, b) => a.sort_order - b.sort_order)
+  const skipVerify = skipsVerification(mode)
+  const extraConcerns = flattenCustomConcerns(state.customConcerns)
+    .split('\n')
+    .map((item) => item.trim())
+    .filter(Boolean)
+  const selectedClauses = clausesForLetter(clauses, state.selectedClauseIds, state.letterMode)
 
   function goNextFromStep1() {
-    if (state.selectedClauseIds.length < 1) {
+    if (state.letterMode === 'selected' && selectedConcernCount(state.selectedClauseIds, state.customConcerns) < 1) {
       dispatch({ type: 'clause_error' })
       return
     }
     dispatch({ type: 'next' })
   }
 
-  function goNextFromStep2() {
+  async function goNextFromStep2() {
     const parsed = createDetailsSchema(
       lang,
       districts.map((d) => d.value),
@@ -160,11 +237,71 @@ export function Wizard({
       return
     }
     const phone = normalizeIndianPhone(parsed.data.phone) ?? parsed.data.phone
-    dispatch({ type: 'submit_details', details: { ...parsed.data, phone } })
+    const details = { ...parsed.data, phone }
+    if (!skipVerify) {
+      dispatch({ type: 'submit_details', details, nextStep: 3 })
+      return
+    }
+
+    try {
+      const prepared = await prepareDemoLetter({
+        campaignSlug: campaign.slug,
+        fullName: details.fullName,
+        email: details.email,
+        phone,
+        address: details.addressLine,
+        panchayat: details.panchayat,
+        district: details.district,
+        pincode: details.pincode,
+        language: lang,
+        customText: details.customText,
+        extraConcerns,
+        clauseCodes: selectedClauses.map((clause) => clause.code),
+        letterMode: state.letterMode,
+        constituencyId: state.routing.constituencyId,
+        ccRepIds: state.routing.ccRepresentativeIds,
+      })
+      if (prepared.ok) {
+        dispatch({
+          type: 'submit_details',
+          details,
+          nextStep: 4,
+          letter: { subject: prepared.data.subject, body: prepared.data.body },
+          submissionId: prepared.data.id,
+        })
+        return
+      }
+    } catch {
+      // Bundled demo still works if the database is unreachable.
+    }
+
+    const local = composeEmail({
+      campaign,
+      clauses: selectedClauses,
+      details: {
+        fullName: details.fullName,
+        addressLine: details.addressLine,
+        panchayat: details.panchayat,
+        district: details.district,
+        pincode: details.pincode,
+        phone,
+        email: details.email,
+        customText: details.customText,
+        extraConcerns,
+      },
+      lang,
+    })
+    dispatch({
+      type: 'submit_details',
+      details,
+      nextStep: 4,
+      letter: { subject: local.subject, body: local.body },
+      submissionId: null,
+    })
   }
 
-  const showStep4 = state.step === 4 && state.verified && Boolean(state.submissionId)
-  const showStep3 = state.step === 3 || (state.step === 4 && !showStep4)
+  const showStep4 = state.step === 4 && (skipVerify || (state.verified && Boolean(state.submissionId)))
+  const showStep3 = !skipVerify && (state.step === 3 || (state.step === 4 && !showStep4))
 
   return (
     <PageContainer>
@@ -190,13 +327,20 @@ export function Wizard({
         </p>
       ) : null}
 
-      <Progress step={showStep4 ? 4 : showStep3 ? 3 : state.step} />
+      <Progress step={showStep4 ? 4 : showStep3 ? 3 : state.step} omitVerify={skipVerify} />
 
       {state.step === 1 ? (
         <Step1_ClauseSelector
           clauses={clauses}
           selectedIds={state.selectedClauseIds}
+          customConcerns={state.customConcerns}
+          customError={state.detailsErrors.customText}
+          letterMode={state.letterMode}
+          onLetterMode={(letterMode) => dispatch({ type: 'set_letter_mode', mode: letterMode })}
           onToggle={(id) => dispatch({ type: 'toggle_clause', id })}
+          onCustomChange={(index, text) => dispatch({ type: 'set_custom_concern', index, text })}
+          onAddCustom={() => dispatch({ type: 'add_custom_concern' })}
+          onRemoveCustom={(index) => dispatch({ type: 'remove_custom_concern', index })}
         />
       ) : null}
 
@@ -216,12 +360,14 @@ export function Wizard({
         <Step3_Verify
           campaignSlug={campaign.slug}
           clauseCodes={selectedClauses.map((c) => c.code)}
+          extraConcerns={extraConcerns}
+          letterMode={state.letterMode}
           details={state.details}
           routing={state.routing}
           mode={mode}
           initialSubmissionId={state.submissionId}
           initiallyVerified={state.verified}
-          onVerified={(id) => dispatch({ type: 'set_verified', submissionId: id })}
+          onVerified={(id, letter) => dispatch({ type: 'set_verified', submissionId: id, letter })}
           onContinue={() => dispatch({ type: 'next' })}
         />
       ) : null}
@@ -235,7 +381,10 @@ export function Wizard({
           submissionId={state.submissionId}
           mode={mode}
           testerEmail={testerEmail}
+          canonicalLetter={state.canonicalLetter}
+          extraConcerns={extraConcerns}
           onEditDetails={() => dispatch({ type: 'goto', step: 2 })}
+          onEditObjections={() => dispatch({ type: 'goto', step: 1 })}
         />
       ) : null}
 
@@ -256,10 +405,14 @@ export function Wizard({
 
       {state.step === 2 ? (
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          <button type="button" onClick={() => dispatch({ type: 'back' })} className={cx(btnGhost, 'w-full sm:w-auto')}>
+          <button
+            type="button"
+            onClick={() => dispatch({ type: 'back', skipVerify })}
+            className={cx(btnGhost, 'w-full sm:w-auto')}
+          >
             {t(lang, 'back')}
           </button>
-          <button type="button" onClick={goNextFromStep2} className={cx(btnPrimary, 'w-full sm:flex-1')}>
+          <button type="button" onClick={() => void goNextFromStep2()} className={cx(btnPrimary, 'w-full sm:flex-1')}>
             {t(lang, 'continueToLetter')}
             <IconChevronRight className="size-4 shrink-0" />
           </button>
@@ -268,7 +421,7 @@ export function Wizard({
 
       {state.step > 2 ? (
         <div className="mt-8 flex justify-center">
-          <button type="button" onClick={() => dispatch({ type: 'back' })} className={btnGhost}>
+          <button type="button" onClick={() => dispatch({ type: 'back', skipVerify })} className={btnGhost}>
             {t(lang, 'back')}
           </button>
         </div>
