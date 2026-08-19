@@ -1,7 +1,9 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
 
+import { markHandoff } from '@/app/actions/submission'
 import { useLang } from '@/components/LanguageProvider'
 import {
   composeEmail,
@@ -16,6 +18,7 @@ import { cx } from '@/lib/cx'
 import type { DetailsFields } from '@/lib/details-schema'
 import { t } from '@/lib/i18n'
 import { normalizeIndianPhone } from '@/lib/phone'
+import type { WizardMode } from '@/lib/wizard-mode'
 import type { Campaign, ObjectionClause, WizardRouting } from '@/types/database'
 
 const focusRing =
@@ -23,8 +26,9 @@ const focusRing =
 
 const btnBase = `inline-flex min-h-[44px] min-w-[44px] flex-1 items-center justify-center rounded-md px-3 text-center text-base font-semibold transition-colors duration-150 ${focusRing}`
 
-function downloadPdf(): null {
-  return null
+function downloadPdf(submissionId: string | null): void {
+  if (!submissionId) return
+  window.open(`/api/pdf?id=${submissionId}`, '_blank', 'noopener,noreferrer')
 }
 
 export function Step4_Preview({
@@ -32,13 +36,20 @@ export function Step4_Preview({
   clauses,
   details,
   routing,
+  submissionId,
+  mode,
+  testerEmail,
 }: {
   campaign: Campaign
   clauses: ObjectionClause[]
   details: DetailsFields
   routing: WizardRouting
+  submissionId: string | null
+  mode: WizardMode
+  testerEmail: string | null
 }) {
   const { lang } = useLang()
+  const router = useRouter()
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
 
   const composed = useMemo(() => {
@@ -82,11 +93,37 @@ export function Step4_Preview({
   const tooLong = composed.error === 'too_long'
   const overAmber = composed.charCount > 1300
   const atLimit = composed.charCount >= MAX_BODY_CHARS
+  const isPreview = mode === 'preview'
+  const dryRunTo = (testerEmail ?? details.email).trim()
+  const dryRunParams = {
+    to: dryRunTo,
+    cc: [] as string[],
+    subject: composed.subject,
+    body: composed.body,
+  }
+  const dryRunHref = mailtoUrl(dryRunParams)
+  const sendDisabled = mode !== 'live' || tooLong
+
+  async function openHandoff(method: 'gmail_web' | 'mailto' | 'copy', href?: string) {
+    if (submissionId) {
+      await markHandoff(submissionId, method)
+      router.push(`/sent?id=${submissionId}`)
+    }
+    if (!href) return
+    if (method === 'gmail_web') {
+      window.open(href, '_blank', 'noopener,noreferrer')
+      return
+    }
+    if (method === 'mailto') {
+      window.location.href = href
+    }
+  }
 
   async function copyBody() {
     try {
       await navigator.clipboard.writeText(composed.body)
       setCopyState('copied')
+      await openHandoff('copy')
     } catch {
       setCopyState('failed')
     }
@@ -128,49 +165,95 @@ export function Step4_Preview({
       {urlTooLong ? <p className="mt-2 text-sm text-amber-800">{t(lang, 'urlTooLong')}</p> : null}
 
       <div className="mt-5 grid grid-cols-2 gap-3">
-        {tooLong ? (
-          <button type="button" disabled className={cx(btnBase, 'bg-stone-300 text-stone-500')}>
-            {t(lang, 'sendGmail')}
-          </button>
-        ) : (
-          <a
-            href={gmailHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={cx(btnBase, 'bg-emerald-800 text-white hover:bg-emerald-900')}
+        <span className="flex" title={sendDisabled ? t(lang, 'sendDisabledTooltip') : undefined}>
+          <button
+            type="button"
+            disabled={sendDisabled}
+            onClick={() => void openHandoff('gmail_web', gmailHref)}
+            className={cx(
+              btnBase,
+              'w-full',
+              sendDisabled ? 'cursor-not-allowed bg-stone-300 text-stone-500' : 'bg-emerald-800 text-white hover:bg-emerald-900',
+            )}
           >
             {t(lang, 'sendGmail')}
-          </a>
-        )}
+          </button>
+        </span>
 
-        {tooLong ? (
-          <button type="button" disabled className={cx(btnBase, 'bg-stone-300 text-stone-500')}>
+        <span className="flex" title={sendDisabled ? t(lang, 'sendDisabledTooltip') : undefined}>
+          <button
+            type="button"
+            disabled={sendDisabled}
+            onClick={() => void openHandoff('mailto', mailtoHref)}
+            className={cx(
+              btnBase,
+              'w-full',
+              sendDisabled
+                ? 'cursor-not-allowed bg-stone-300 text-stone-500'
+                : 'border border-emerald-800 bg-white text-emerald-900 hover:bg-emerald-50',
+            )}
+          >
             {t(lang, 'sendMailto')}
           </button>
-        ) : (
-          <a href={mailtoHref} className={cx(btnBase, 'border border-emerald-800 bg-white text-emerald-900 hover:bg-emerald-50')}>
-            {t(lang, 'sendMailto')}
-          </a>
-        )}
+        </span>
+
+        <span className="flex" title={isPreview ? t(lang, 'sendDisabledTooltip') : undefined}>
+          <button
+            type="button"
+            disabled={isPreview}
+            onClick={() => void copyBody()}
+            className={cx(
+              btnBase,
+              'w-full',
+              isPreview
+                ? 'cursor-not-allowed bg-stone-300 text-stone-500'
+                : 'border border-stone-400 bg-white text-stone-900 hover:bg-stone-100',
+            )}
+          >
+            {copyState === 'copied' ? t(lang, 'copied') : t(lang, 'copyText')}
+          </button>
+        </span>
 
         <button
           type="button"
-          onClick={() => void copyBody()}
-          className={cx(btnBase, 'border border-stone-400 bg-white text-stone-900 hover:bg-stone-100')}
-        >
-          {copyState === 'copied' ? t(lang, 'copied') : t(lang, 'copyText')}
-        </button>
-
-        <button
-          type="button"
-          disabled
-          onClick={() => downloadPdf()}
-          title={t(lang, 'pdfUnavailable')}
-          className={cx(btnBase, 'cursor-not-allowed bg-stone-200 text-stone-500')}
+          disabled={!submissionId || isPreview}
+          onClick={() => downloadPdf(submissionId)}
+          title={
+            isPreview
+              ? t(lang, 'sendDisabledTooltip')
+              : submissionId
+                ? undefined
+                : t(lang, 'pdfUnavailable')
+          }
+          className={cx(
+            btnBase,
+            submissionId && !isPreview
+              ? 'border border-stone-400 bg-white text-stone-900 hover:bg-stone-100'
+              : 'cursor-not-allowed bg-stone-200 text-stone-500',
+          )}
         >
           {t(lang, 'downloadPdf')}
         </button>
       </div>
+
+      {isPreview ? (
+        <button
+          type="button"
+          disabled={!dryRunTo || tooLong}
+          onClick={() => {
+            window.location.href = dryRunHref
+          }}
+          className={cx(
+            btnBase,
+            'mt-3 w-full',
+            !dryRunTo || tooLong
+              ? 'cursor-not-allowed bg-stone-300 text-stone-500'
+              : 'bg-emerald-800 text-white hover:bg-emerald-900',
+          )}
+        >
+          {t(lang, 'dryRun')}
+        </button>
+      ) : null}
       {copyState === 'failed' ? <p className="mt-2 text-sm text-red-700">{t(lang, 'copyFailed')}</p> : null}
     </div>
   )

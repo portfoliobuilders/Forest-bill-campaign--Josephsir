@@ -18,6 +18,7 @@ import {
 } from '@/lib/details-schema'
 import { t } from '@/lib/i18n'
 import { normalizeIndianPhone } from '@/lib/phone'
+import type { WizardMode } from '@/lib/wizard-mode'
 import type { Campaign, ObjectionClause, WizardRouting } from '@/types/database'
 
 const focusRing =
@@ -30,6 +31,8 @@ type WizardState = {
   selectedClauseIds: string[]
   details: DetailsFields
   routing: WizardRouting
+  submissionId: string | null
+  verified: boolean
 }
 
 type WizardAction =
@@ -38,6 +41,7 @@ type WizardAction =
   | { type: 'set_routing'; routing: WizardRouting }
   | { type: 'submit_details'; details: DetailsFields }
   | { type: 'next' }
+  | { type: 'set_verified'; submissionId: string }
   | { type: 'back' }
 
 const emptyDetails: DetailsFields = {
@@ -78,6 +82,8 @@ function reducer(state: WizardState, action: WizardAction): WizardState {
       }
     case 'next':
       return { ...state, step: state.step < 4 ? ((state.step + 1) as Step) : state.step }
+    case 'set_verified':
+      return { ...state, submissionId: action.submissionId, verified: true }
     case 'back':
       return { ...state, step: state.step > 1 ? ((state.step - 1) as Step) : state.step }
     default:
@@ -89,12 +95,14 @@ export function Wizard({
   campaign,
   clauses,
   districts,
-  isLive,
+  mode,
+  testerEmail,
 }: {
   campaign: Campaign
   clauses: ObjectionClause[]
   districts: DistrictOption[]
-  isLive: boolean
+  mode: WizardMode
+  testerEmail: string | null
 }) {
   const { lang } = useLang()
   const [state, dispatch] = useReducer(reducer, {
@@ -102,6 +110,8 @@ export function Wizard({
     selectedClauseIds: [],
     details: emptyDetails,
     routing: emptyRouting,
+    submissionId: null,
+    verified: false,
   })
   const [detailsErrors, setDetailsErrors] = useState<FieldErrors>({})
   const [clauseError, setClauseError] = useState(false)
@@ -135,12 +145,6 @@ export function Wizard({
 
   return (
     <main className="mx-auto w-full max-w-[640px] px-4 py-6">
-      {!isLive ? (
-        <p className="mb-4 rounded-md border border-amber-700 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-          {t(lang, 'demoBanner')}
-        </p>
-      ) : null}
-
       <h1 className="mb-4 text-2xl font-bold text-stone-900">
         {lang === 'en' ? campaign.title_en : campaign.title_ml}
       </h1>
@@ -178,7 +182,19 @@ export function Wizard({
         />
       ) : null}
 
-      {state.step === 3 ? <Step3_Verify onContinue={() => dispatch({ type: 'next' })} /> : null}
+      {state.step === 3 ? (
+        <Step3_Verify
+          campaignSlug={campaign.slug}
+          clauseCodes={selectedClauses.map((c) => c.code)}
+          details={state.details}
+          routing={state.routing}
+          mode={mode}
+          initialSubmissionId={state.submissionId}
+          initiallyVerified={state.verified}
+          onVerified={(id) => dispatch({ type: 'set_verified', submissionId: id })}
+          onContinue={() => dispatch({ type: 'next' })}
+        />
+      ) : null}
 
       {state.step === 4 ? (
         <Step4_Preview
@@ -186,6 +202,9 @@ export function Wizard({
           clauses={selectedClauses}
           details={state.details}
           routing={state.routing}
+          submissionId={state.submissionId}
+          mode={mode}
+          testerEmail={testerEmail}
         />
       ) : null}
 

@@ -1,27 +1,17 @@
 import 'server-only'
 
-import { createClient } from '@supabase/supabase-js'
-
-import { demoCampaign, demoClauses, KERALA_DISTRICTS, type DistrictOption } from '@/lib/demo-data'
+import { getDefaultCampaignSlug, type CampaignState } from '@/lib/campaign'
+import { KERALA_DISTRICTS, type DistrictOption } from '@/lib/demo-data'
+import { createServiceClient } from '@/lib/supabase/server'
 import type { Campaign, Constituency, ObjectionClause } from '@/types/database'
+
+export type WizardMode = 'live' | 'preview'
 
 export type ObjectionPageData = {
   campaign: Campaign
   clauses: ObjectionClause[]
   districts: DistrictOption[]
-  isLive: boolean
-}
-
-function publicServerClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (!url || !anon) return null
-  return createClient(url, anon, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  })
+  mode: WizardMode
 }
 
 function uniqueDistricts(rows: Pick<Constituency, 'district' | 'name_ml' | 'name_en'>[]): DistrictOption[] {
@@ -42,55 +32,36 @@ function uniqueDistricts(rows: Pick<Constituency, 'district' | 'name_ml' | 'name
   return ordered.length > 0 ? [...ordered, ...extras] : KERALA_DISTRICTS
 }
 
-export async function loadObjectionData(): Promise<ObjectionPageData | null> {
+export async function loadObjectionData(state: CampaignState): Promise<ObjectionPageData | null> {
+  if (state.state === 'dormant') return null
+
+  const campaign = state.campaign
+  let clauses: ObjectionClause[] = []
+  let districts = KERALA_DISTRICTS
+
   try {
-    const supabase = publicServerClient()
+    const supabase = createServiceClient()
+    const [{ data: clauseRows }, { data: constituencyRows }] = await Promise.all([
+      supabase
+        .from('objection_clauses')
+        .select('*')
+        .eq('campaign_id', campaign.id)
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true }),
+      supabase.from('constituencies').select('district, name_ml, name_en').eq('is_active', true).order('district'),
+    ])
 
-    if (supabase) {
-      const [{ data: campaign }, { data: constituencyRows }] = await Promise.all([
-        supabase
-          .from('campaigns')
-          .select('*')
-          .eq('is_active', true)
-          .order('deadline_at', { ascending: true })
-          .limit(1)
-          .maybeSingle(),
-        supabase.from('constituencies').select('district, name_ml, name_en').eq('is_active', true).order('district'),
-      ])
-
-      const districts =
-        constituencyRows && constituencyRows.length > 0
-          ? uniqueDistricts(constituencyRows as Pick<Constituency, 'district' | 'name_ml' | 'name_en'>[])
-          : KERALA_DISTRICTS
-
-      if (campaign) {
-        const { data: clauses } = await supabase
-          .from('objection_clauses')
-          .select('*')
-          .eq('campaign_id', (campaign as Campaign).id)
-          .eq('is_active', true)
-          .order('sort_order', { ascending: true })
-
-        return {
-          campaign: campaign as Campaign,
-          clauses: (clauses ?? []) as ObjectionClause[],
-          districts,
-          isLive: true,
-        }
-      }
+    clauses = (clauseRows ?? []) as ObjectionClause[]
+    if (constituencyRows && constituencyRows.length > 0) {
+      districts = uniqueDistricts(constituencyRows as Pick<Constituency, 'district' | 'name_ml' | 'name_en'>[])
     }
   } catch {
-    // Missing env, network, or schema — fall through to empty / demo.
+    return { campaign, clauses, districts, mode: state.state }
   }
 
-  if (process.env.NODE_ENV !== 'production') {
-    return {
-      campaign: demoCampaign,
-      clauses: demoClauses,
-      districts: KERALA_DISTRICTS,
-      isLive: false,
-    }
-  }
+  return { campaign, clauses, districts, mode: state.state }
+}
 
-  return null
+export function publicCampaignSlug(): string {
+  return getDefaultCampaignSlug()
 }

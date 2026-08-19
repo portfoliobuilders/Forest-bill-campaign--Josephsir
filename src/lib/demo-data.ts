@@ -52,6 +52,22 @@ export const demoCampaign: Campaign = {
   opens_at: '2024-11-01T00:00:00+05:30',
   deadline_at: '2024-12-31T23:59:59+05:30',
   is_active: false,
+  explainer_ml: [
+    'വാച്ചർമാരെ ഫോറസ്റ്റ് ഓഫീസറാക്കി നിയമാധികാരം നൽകും.',
+    'വീടിനടുത്തുള്ള പുഴകളെ വനപുഴയായി കാണാം.',
+    'സംശയം മാത്രം മതി, വനത്തിന് പുറത്ത് വീട് പരിശോധിക്കാം.',
+    'താഴെത്തട്ടിലുള്ള ഉദ്യോഗസ്ഥർക്ക് വാഹനം തടയാനുള്ള അധികാരം കൂടും.',
+    'വാറന്റില്ലാതെ അറസ്റ്റ് വനത്തിന് പുറത്തും നടക്കാം.',
+    'അറസ്റ്റ് ചെയ്ത ആളെ ഫോറസ്റ്റ് സ്റ്റേഷനിൽ നിർത്താം.',
+  ],
+  explainer_en: [
+    'Watchers would be treated as Forest Officers with legal powers.',
+    'Rivers near homes could be labelled forest rivers.',
+    'Homes outside the forest could be searched on mere suspicion.',
+    'Junior staff would get wider power to stop vehicles.',
+    'Warrantless arrest could happen anywhere, not only in forest.',
+    'Arrested people could be held at a forest station.',
+  ],
   created_at: '2024-11-01T00:00:00+05:30',
 }
 

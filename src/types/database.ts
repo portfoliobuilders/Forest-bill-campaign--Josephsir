@@ -29,6 +29,8 @@ export type Campaign = {
   opens_at: string
   deadline_at: string
   is_active: boolean
+  explainer_ml: string[]
+  explainer_en: string[]
   created_at: string
 }
 
@@ -66,6 +68,7 @@ export type Submission = {
   send_method: SendMethod | null
   status: SubmissionStatus
   show_name_public: boolean
+  custom_text_public: boolean
   verified_at: string | null
   handoff_at: string | null
   confirmed_at: string | null
