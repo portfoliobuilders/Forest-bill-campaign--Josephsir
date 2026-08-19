@@ -32,11 +32,6 @@ function tokensMatch(stored: string | null | undefined, provided: string | null 
   return timingSafeEqual(a, b)
 }
 
-function inConsultationWindow(campaign: Campaign, now: Date): boolean {
-  const t = now.getTime()
-  return t >= new Date(campaign.opens_at).getTime() && t <= new Date(campaign.deadline_at).getTime()
-}
-
 export function publicCampaign(row: Campaign & { preview_token?: string | null }): Campaign {
   const campaign = { ...row }
   delete (campaign as { preview_token?: string | null }).preview_token
@@ -87,14 +82,13 @@ async function getCampaignStateFromService(
     ? null
     : await supabase.from('campaigns').select('*').order('created_at', { ascending: false }).limit(1).maybeSingle()
   const row = (bySlug.data ?? fallback?.data ?? null) as CampaignRow | null
-  const now = new Date()
 
   if (row) {
     const campaign = publicCampaign(row)
-    if (row.is_active && inConsultationWindow(campaign, now)) {
+    if (row.is_active) {
       return { state: 'live', campaign }
     }
-    if (!row.is_active && tokensMatch(row.preview_token, previewToken)) {
+    if (tokensMatch(row.preview_token, previewToken)) {
       return { state: 'preview', campaign }
     }
   }

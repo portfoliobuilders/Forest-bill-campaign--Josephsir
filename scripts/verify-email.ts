@@ -74,6 +74,16 @@ assert.equal(dry.dryRun, true)
 assert.deepEqual(dry.liveTo, targets.to)
 assert.deepEqual(dry.liveCc, targets.cc)
 
+const live = resolveMailTargets({
+  campaign: demoCampaign,
+  mode: 'live',
+  testerEmail: details.email,
+})
+assert.deepEqual(live.to, ['esz-mef@nic.in', 'prlsecy.forest@kerala.gov.in'])
+assert.deepEqual(live.cc, ['emailkifa@gmail.com'])
+assert.equal(live.dryRun, false)
+assert.doesNotMatch(live.to.join(','), /test@example\.com/)
+
 const gmail = gmailComposeUrl({
   to: targets.to,
   cc: targets.cc,

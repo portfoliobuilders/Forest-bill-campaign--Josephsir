@@ -40,9 +40,9 @@ export const demoCampaign: Campaign = {
   title_ml: 'കേരള ഫോറസ്റ്റ് (ഭേദഗതി) ബിൽ 2024',
   title_en: 'Kerala Forest (Amendment) Bill, 2024',
   summary_ml:
-    '2024 നവംബർ 1-ലെ ഗസറ്റ് ബിൽ 228. പൊതുജന അഭിപ്രായത്തിന് 2024 ഡിസംബർ 31 വരെ സമയമുണ്ടായിരുന്നു. ആ കൂടിയാലോചന അവസാനിച്ചു; കാബിനറ്റ് ബിൽ പിൻവലിച്ചു. പുതിയ ഔദ്യോഗിക കൂടിയാലോചന വരുന്നതുവരെ ഇത് സജീവമല്ല.',
+    '2024 നവംബർ 1-ലെ ഗസറ്റ് ബിൽ 228. പൊതുജന അഭിപ്രായത്തിന് 2024 ഡിസംബർ 31 വരെ സമയമുണ്ടായിരുന്നു. ആ കൂടിയാലോചന അവസാനിച്ചു; കാബിനറ്റ് ബിൽ പിൻവലിച്ചു. നിങ്ങളുടെ സ്വന്തം ഇമെയിലിൽ നിന്ന് ലിസ്റ്റ് ചെയ്ത ഓഫീസുകളിലേക്ക് എതിർപ്പ് അയയ്ക്കാം.',
   summary_en:
-    'Gazette Bill 228 of 1 November 2024. Public comments closed on 31 December 2024. The Cabinet later dropped the Bill. This campaign stays inactive until a new official consultation is verified.',
+    'Gazette Bill 228 of 1 November 2024. Public comments closed on 31 December 2024. The Cabinet later dropped the Bill. You can still send a personal objection from your own email to the listed offices.',
   recipient_email: 'esz-mef@nic.in',
   recipient_emails: ['esz-mef@nic.in', 'prlsecy.forest@kerala.gov.in'],
   cc_emails: ['emailkifa@gmail.com'],
@@ -57,7 +57,7 @@ export const demoCampaign: Campaign = {
   closing_en: 'Please consider these concerns and withdraw the Bill. Thank you.',
   opens_at: '2024-11-01T00:00:00+05:30',
   deadline_at: '2024-12-31T23:59:59+05:30',
-  is_active: false,
+  is_active: true,
   explainer_ml: [
     'വാച്ചർമാരെ ഫോറസ്റ്റ് ഓഫീസറാക്കി നിയമാധികാരം നൽകും.',
     'വീടിനടുത്തുള്ള പുഴകളെ വനപുഴയായി കാണാം.',

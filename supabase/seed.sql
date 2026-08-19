@@ -1,6 +1,6 @@
 -- Kerala Forest (Amendment) Bill 2024.
--- Stays inactive: public comments closed 31 Dec 2024; Cabinet dropped the Bill in Jan 2025.
--- Primary source: Kerala Gazette Extraordinary No. 3488, 1 Nov 2024 (Bill No. 228).
+-- Live compose: Gmail/mailto TO and CC use the listed offices; this site does not send.
+-- Gazette dates stay historical (comments closed 31 Dec 2024). Primary source: Gazette Extraordinary No. 3488.
 insert into campaigns (
   slug,
   title_ml,
@@ -27,8 +27,8 @@ insert into campaigns (
   'kerala-forest-amendment-2024',
   'കേരള ഫോറസ്റ്റ് (ഭേദഗതി) ബിൽ 2024',
   'Kerala Forest (Amendment) Bill, 2024',
-  '2024 നവംബർ 1-ലെ ഗസറ്റ് ബിൽ 228. പൊതുജന അഭിപ്രായത്തിന് 2024 ഡിസംബർ 31 വരെ സമയമുണ്ടായിരുന്നു. ആ കൂടിയാലോചന അവസാനിച്ചു; കാബിനറ്റ് ബിൽ പിൻവലിച്ചു. പുതിയ ഔദ്യോഗിക കൂടിയാലോചന വരുന്നതുവരെ ഇത് സജീവമല്ല.',
-  'Gazette Bill 228 of 1 November 2024. Public comments closed on 31 December 2024. The Cabinet later dropped the Bill. This campaign stays inactive until a new official consultation is verified.',
+  '2024 നവംബർ 1-ലെ ഗസറ്റ് ബിൽ 228. പൊതുജന അഭിപ്രായത്തിന് 2024 ഡിസംബർ 31 വരെ സമയമുണ്ടായിരുന്നു. ആ കൂടിയാലോചന അവസാനിച്ചു; കാബിനറ്റ് ബിൽ പിൻവലിച്ചു. നിങ്ങളുടെ സ്വന്തം ഇമെയിലിൽ നിന്ന് ലിസ്റ്റ് ചെയ്ത ഓഫീസുകളിലേക്ക് എതിർപ്പ് അയയ്ക്കാം.',
+  'Gazette Bill 228 of 1 November 2024. Public comments closed on 31 December 2024. The Cabinet later dropped the Bill. You can still send a personal objection from your own email to the listed offices.',
   'esz-mef@nic.in',
   array['esz-mef@nic.in', 'prlsecy.forest@kerala.gov.in'],
   array['emailkifa@gmail.com'],
@@ -41,7 +41,7 @@ insert into campaigns (
   'https://prsindia.org/files/bills_acts/bills_states/kerala/2024/Bills228of2024KL.pdf',
   timestamptz '2024-11-01 00:00:00+05:30',
   timestamptz '2024-12-31 23:59:59+05:30',
-  false,
+  true,
   encode(gen_random_bytes(24), 'hex'),
   array[
     'വാച്ചർമാരെ ഫോറസ്റ്റ് ഓഫീസറാക്കി നിയമാധികാരം നൽകും.',
