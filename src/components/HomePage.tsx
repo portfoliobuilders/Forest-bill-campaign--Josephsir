@@ -7,6 +7,7 @@ import { NotifySignup } from '@/components/NotifySignup'
 import { SiteFooter } from '@/components/SiteFooter'
 import { useLang } from '@/components/LanguageProvider'
 import { cx } from '@/lib/cx'
+import { demoCampaign } from '@/lib/demo-data'
 import { t, tReplace } from '@/lib/i18n'
 import type { Campaign } from '@/types/database'
 
@@ -26,22 +27,12 @@ export function HomePage({
 }) {
   const { lang } = useLang()
 
-  if (mode === 'dormant' || !campaign) {
-    return (
-      <main className="mx-auto w-full max-w-[640px] px-4 py-10">
-        <h1 className="text-2xl font-bold text-stone-900">{t(lang, 'siteName')}</h1>
-        <h2 className="mt-6 text-xl font-bold text-stone-900">{t(lang, 'dormantTitle')}</h2>
-        <p className="mt-3 text-base leading-relaxed text-stone-700">{t(lang, 'dormantBody')}</p>
-        <NotifySignup />
-        <SiteFooter />
-      </main>
-    )
-  }
-
-  const title = lang === 'en' ? campaign.title_en : campaign.title_ml
-  const stake = lang === 'en' ? campaign.summary_en : campaign.summary_ml
-  const bullets = (lang === 'en' ? campaign.explainer_en : campaign.explainer_ml) ?? []
-  const ctaLabel = mode === 'preview' ? t(lang, 'ctaPreview') : t(lang, 'ctaStart')
+  const shown = campaign ?? demoCampaign
+  const isDemoHome = mode === 'dormant' || !campaign
+  const title = lang === 'en' ? shown.title_en : shown.title_ml
+  const stake = lang === 'en' ? shown.summary_en : shown.summary_ml
+  const bullets = (lang === 'en' ? shown.explainer_en : shown.explainer_ml) ?? []
+  const ctaLabel = isDemoHome || mode === 'preview' ? t(lang, 'ctaPreview') : t(lang, 'ctaStart')
   const ctaHref = '/objection'
 
   return (
@@ -49,9 +40,13 @@ export function HomePage({
       <section className="min-h-[calc(100dvh-7rem)]">
         <h1 className="text-2xl font-bold leading-snug text-stone-900">{title}</h1>
         <p className="mt-3 text-base leading-relaxed text-stone-800">{stake}</p>
-        <p className="mt-3 text-base font-semibold text-emerald-900">
-          {tReplace(lang, 'daysRemaining', { n: String(daysLeft) })}
-        </p>
+        {isDemoHome ? (
+          <p className="mt-3 text-base leading-relaxed text-stone-800">{t(lang, 'demoClosedNote')}</p>
+        ) : (
+          <p className="mt-3 text-base font-semibold text-emerald-900">
+            {tReplace(lang, 'daysRemaining', { n: String(daysLeft) })}
+          </p>
+        )}
         <Link
           href={ctaHref}
           className={cx(
@@ -74,7 +69,7 @@ export function HomePage({
         </section>
       ) : null}
 
-      <LiveCounter count={confirmedCount} />
+      {isDemoHome ? null : <LiveCounter count={confirmedCount} />}
 
       <section className="pt-8">
         <h2 className="text-xl font-bold text-stone-900">{t(lang, 'howItWorks')}</h2>
@@ -85,6 +80,8 @@ export function HomePage({
         </ol>
         <p className="mt-4 text-base font-medium leading-relaxed text-stone-900">{t(lang, 'howEmphasis')}</p>
       </section>
+
+      {isDemoHome ? <NotifySignup /> : null}
 
       <SiteFooter />
     </main>

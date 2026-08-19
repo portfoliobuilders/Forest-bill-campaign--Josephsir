@@ -38,8 +38,7 @@ export const dictionary = {
     ccRepresentative: 'എന്റെ എംഎൽഎയ്ക്ക് പകർപ്പ് അയയ്ക്കുക',
     ccMlaNamed: 'എന്റെ എംഎൽഎയ്ക്കും ഒരു പകർപ്പ് അയയ്ക്കുക: {name} ({constituency})',
     noLiveTitle: 'ഇപ്പോൾ തത്സമയ കൂടിയാലോചനയില്ല',
-    noLiveBody:
-      'ഒരു ഔദ്യോഗിക കൂടിയാലോചന സ്ഥിരീകരിക്കുമ്പോൾ ഈ പേജ് തുറക്കും. വാട്ട്‌സ്ആപ്പ് ഫോർവേഡ് മാത്രം മതിയാകില്ല.',
+    noLiveBody: 'ജനശബ്ദം കേരളത്തിലെ ഔദ്യോഗിക കൂടിയാലോചനകളോട് നിങ്ങളുടെ സ്വന്തം ഇമെയിൽ വിലാസത്തിൽ നിന്ന് വ്യക്തിഗത എതിർപ്പ് തയ്യാറാക്കാൻ സഹായിക്കുന്നു.',
     demoBanner: 'ഡെമോ — ഇത് തത്സമയ കൂടിയാലോചനയല്ല. ഒരു സർക്കാർ ഓഫീസിലേക്കും ഒന്നും അയയ്ക്കില്ല.',
     step1: 'ആശങ്കകൾ',
     step2: 'വിവരങ്ങൾ',
@@ -117,7 +116,7 @@ export const dictionary = {
     sampleHint: 'ഡെമോയ്ക്ക് മാത്രം. ഇത് യഥാർത്ഥ വ്യക്തിയല്ല.',
     dormantTitle: 'ഇപ്പോൾ തുറന്ന കൂടിയാലോചനയില്ല',
     dormantBody:
-      'ജനശബ്ദം കേരളത്തിലെ ഔദ്യോഗിക കൂടിയാലോചനകളോട് നിങ്ങളുടെ സ്വന്തം ഇമെയിൽ വിലാസത്തിൽ നിന്ന് വ്യക്തിഗത എതിർപ്പ് തയ്യാറാക്കാൻ സഹായിക്കുന്നു. വാട്ട്‌സ്ആപ്പ് ഫോർവേഡ് മാത്രം മതിയാകില്ല. ഒരു ഗസറ്റോ വകുപ്പ് സർക്കുലറോ സ്ഥിരീകരിക്കുമ്പോൾ ഈ പേജ് തുറക്കും.',
+      'ജനശബ്ദം കേരളത്തിലെ ഔദ്യോഗിക കൂടിയാലോചനകളോട് നിങ്ങളുടെ സ്വന്തം ഇമെയിൽ വിലാസത്തിൽ നിന്ന് വ്യക്തിഗത എതിർപ്പ് തയ്യാറാക്കാൻ സഹായിക്കുന്നു.',
     notifyLabel: 'തുറക്കുമ്പോൾ അറിയിക്കുക',
     notifyPlaceholder: 'നിങ്ങളുടെ ഇമെയിൽ',
     notifySubmit: 'അറിയിപ്പ് രേഖപ്പെടുത്തുക',
@@ -127,8 +126,10 @@ export const dictionary = {
     notifyFailed: 'രേഖപ്പെടുത്താൻ കഴിഞ്ഞില്ല. വീണ്ടും ശ്രമിക്കുക.',
     sendDisabledTooltip: 'ഇത് ഡെമോ ആണ്. സർക്കാർ ഓഫീസിലേക്ക് അയയ്ക്കില്ല.',
     dryRun: 'ഡ്രൈ റൺ — എന്റെ ഇമെയിലിലേക്ക് തുറക്കുക',
+    dryRunButton: 'ഡ്രൈ റൺ',
     demoLetterHint:
-      'സർക്കാർ വിലാസത്തിലേക്കുള്ള ബട്ടണുകൾ അടച്ചിരിക്കുന്നു. ഡ്രൈ റൺ നിങ്ങളുടെ സ്വന്തം ഇമെയിലിലേക്ക് മാത്രം തുറക്കും.',
+      'ഡ്രൈ റൺ — കത്ത് നിങ്ങളുടെ സ്വന്തം ഇമെയിലിലേക്ക് മാത്രം തുറക്കും. സർക്കാർ ഓഫീസിലേക്ക് അയയ്ക്കില്ല.',
+    verifyPreviewNote: 'ഇത് ഡ്രൈ റൺ ആണ്. ഇമെയിൽ സ്ഥിരീകരണം വേണം. സർക്കാരിലേക്ക് ഒന്നും അയയ്ക്കില്ല.',
     volunteerLetter: 'യഥാർത്ഥ കത്ത്',
     gazetteBill: 'ഗസറ്റ് ബിൽ 228',
     verifyPreviewHint: 'ഡെമോയിൽ ഇമെയിൽ സ്ഥിരീകരണം വേണ്ട. കത്ത് കാണാം. സർക്കാരിലേക്ക് അയയ്ക്കില്ല.',
@@ -177,7 +178,7 @@ export const dictionary = {
     ccMlaNamed: 'Also send a copy to my MLA: {name} ({constituency})',
     noLiveTitle: 'No live consultation right now',
     noLiveBody:
-      'This page opens when an official consultation is verified from a primary source. A WhatsApp forward is not enough.',
+      'Janashabdam helps people in Kerala write a personal objection to an official consultation from their own email address.',
     demoBanner:
       'DEMO — this is not a live consultation. Nothing will be sent to any government office.',
     step1: 'Concerns',
@@ -256,7 +257,7 @@ export const dictionary = {
     sampleHint: 'For the demo only. This is not a real person.',
     dormantTitle: 'No consultation is open right now',
     dormantBody:
-      'Janashabdam helps people in Kerala write a personal objection to an official consultation from their own email address. A WhatsApp forward is not enough. This page opens when a gazette or department circular is verified.',
+      'Janashabdam helps people in Kerala write a personal objection to an official consultation from their own email address.',
     notifyLabel: 'Notify me when one opens',
     notifyPlaceholder: 'Your email',
     notifySubmit: 'Save my email',
@@ -266,8 +267,10 @@ export const dictionary = {
     notifyFailed: 'Could not save. Try again.',
     sendDisabledTooltip: 'This is a demo. Nothing is sent to a government office.',
     dryRun: 'Dry run — open to my email',
+    dryRunButton: 'DRY RUN',
     demoLetterHint:
-      'Buttons to the government address stay off. Dry run opens the letter to your own email only.',
+      'Dry run — this opens only to your own email. Nothing is sent to a government office.',
+    verifyPreviewNote: 'This is a dry run. You still need to verify your email. Nothing goes to government.',
     volunteerLetter: 'Original letter',
     gazetteBill: 'Gazette Bill 228',
     verifyPreviewHint: 'Preview mode skips email verification. You can read the letter. Nothing goes to government.',
