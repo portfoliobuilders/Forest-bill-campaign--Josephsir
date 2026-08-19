@@ -225,6 +225,59 @@ export function mailtoUrlTooLong(params: MailComposeParams): boolean {
   return mailtoUrl(params).length > MAILTO_URL_WARN
 }
 
+const GMAIL_ANDROID_PACKAGE = 'com.google.android.gm'
+
+function utf8Base64(text: string): string {
+  const bytes = new TextEncoder().encode(text)
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary)
+}
+
+function encodeRfc2047(text: string): string {
+  if (/^[\x20-\x7E]*$/.test(text)) return text
+  return `=?UTF-8?B?${utf8Base64(text)}?=`
+}
+
+function crlf(text: string): string {
+  return text.replace(/\r\n/g, '\n').replace(/\n/g, '\r\n')
+}
+
+/** Unsent RFC 822 draft. Opens in Outlook/Apple Mail/Thunderbird with the full body — no URL length cap. */
+export function formatUnsentEml(params: MailComposeParams): string {
+  const headers = [
+    'X-Unsent: 1',
+    `To: ${uniqueEmails(params.to).join(', ')}`,
+  ]
+  const cc = uniqueEmails(params.cc)
+  if (cc.length > 0) headers.push(`Cc: ${cc.join(', ')}`)
+  headers.push(
+    `Subject: ${encodeRfc2047(params.subject)}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset=UTF-8',
+    'Content-Transfer-Encoding: 8bit',
+    '',
+  )
+  return crlf(`${headers.join('\n')}\n${params.body}\n`)
+}
+
+/** Chrome Android intent that puts the full Unicode body in EXTRA_TEXT instead of a mailto URL. */
+export function androidSendIntent(
+  params: MailComposeParams,
+  options?: { gmailOnly?: boolean; fallbackUrl?: string },
+): string {
+  const extras = ['action=android.intent.action.SEND', 'type=message/rfc822']
+  if (options?.gmailOnly) extras.push(`package=${GMAIL_ANDROID_PACKAGE}`)
+  extras.push(`S.android.intent.extra.EMAIL=${encodeURIComponent(toHeader(params.to))}`)
+  const cc = ccHeader(params.cc)
+  if (cc) extras.push(`S.android.intent.extra.CC=${encodeURIComponent(cc)}`)
+  extras.push(`S.android.intent.extra.SUBJECT=${encodeURIComponent(params.subject)}`)
+  extras.push(`S.android.intent.extra.TEXT=${encodeURIComponent(params.body)}`)
+  if (options?.fallbackUrl) extras.push(`S.browser_fallback_url=${encodeURIComponent(options.fallbackUrl)}`)
+  extras.push('end')
+  return `intent://send/#Intent;${extras.join(';')}`
+}
+
 export function formatCompleteEmailCopy(params: MailComposeParams): string {
   const to = uniqueEmails(params.to)
   const cc = uniqueEmails(params.cc)

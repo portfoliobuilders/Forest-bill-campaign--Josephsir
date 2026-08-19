@@ -579,6 +579,7 @@ export async function fetchAdminSubmissions(
   const { count, error: countError } = await countQuery
   if (countError) throw countError
 
+  // Production is missing custom_text_public; selecting it 500s the whole page.
   let dataQuery = supabase
     .from('submissions')
     .select(
@@ -839,7 +840,7 @@ export async function fetchNotifySignups(): Promise<NotifySignupRow[]> {
     .from('notify_signups')
     .select('id, email, created_at')
     .order('created_at', { ascending: false })
-  if (error) throw error
+  if (error) return []
   return (data ?? []) as NotifySignupRow[]
 }
 

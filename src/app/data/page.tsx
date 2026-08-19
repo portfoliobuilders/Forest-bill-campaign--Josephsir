@@ -1,15 +1,7 @@
-import { createClient } from '@supabase/supabase-js'
-
 import { resolveCampaignState } from '@/lib/campaign'
 import { publicCampaignSlug } from '@/lib/campaigns'
 import { DataPageContent } from '@/components/DataPageContent'
-
-function publicClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (!url || !anon) return null
-  return createClient(url, anon, { auth: { persistSession: false, autoRefreshToken: false } })
-}
+import { createServiceClientOrNull } from '@/lib/supabase/server'
 
 export async function generateMetadata() {
   return {
@@ -21,7 +13,7 @@ export async function generateMetadata() {
 export default async function DataPage() {
   await resolveCampaignState()
   const slug = publicCampaignSlug()
-  const supabase = publicClient()
+  const supabase = createServiceClientOrNull()
 
   let stats = { confirmed: 0, opened: 0, districts: 0 }
   let clauses: { code: string; title_ml: string; title_en: string; cnt: number }[] = []

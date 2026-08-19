@@ -27,7 +27,7 @@ export default async function Home({ searchParams }: Props) {
   const state = await resolveCampaignState(params.preview)
   const campaign = state.state === 'dormant' ? null : state.campaign
   const slug = campaign?.slug ?? publicCampaignSlug()
-  const count = state.state === 'dormant' ? 0 : await confirmedCount(slug)
+  const count = await publicPreparedCount(slug)
   const daysLeft = campaign ? daysRemaining(campaign.deadline_at) : 0
 
   return <HomePage mode={state.state} campaign={campaign} daysLeft={daysLeft} confirmedCount={count} />

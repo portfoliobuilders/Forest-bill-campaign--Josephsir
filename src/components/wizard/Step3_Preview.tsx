@@ -7,8 +7,10 @@ import { markHandoff } from '@/app/actions/submission'
 import { IconCopy, IconEnvelope, IconGmail } from '@/components/ui/icons'
 import { useLang } from '@/components/LanguageProvider'
 import {
+  androidSendIntent,
   composeEmail,
   formatCompleteEmailCopy,
+  formatUnsentEml,
   gmailComposeUrl,
   gmailUrlTooLong,
   mailtoUrl,
@@ -33,6 +35,49 @@ export type CanonicalLetter = {
 
 const mailBtn = 'min-h-12 w-full'
 
+function clientPlatform(): 'android' | 'ios' | 'other' {
+  const ua = navigator.userAgent
+  if (/Android/i.test(ua)) return 'android'
+  if (/iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1)) {
+    return 'ios'
+  }
+  return 'other'
+}
+
+async function copyPlainText(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text)
+    return
+  } catch {
+    const field = document.createElement('textarea')
+    field.value = text
+    field.setAttribute('readonly', '')
+    field.style.position = 'fixed'
+    field.style.top = '0'
+    field.style.left = '0'
+    field.style.opacity = '0'
+    document.body.appendChild(field)
+    field.focus()
+    field.select()
+    const ok = document.execCommand('copy')
+    document.body.removeChild(field)
+    if (!ok) throw new Error('copy failed')
+  }
+}
+
+function downloadUnsentEml(content: string) {
+  const blob = new Blob([content], { type: 'message/rfc822' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'janashabdam-objection.eml'
+  link.rel = 'noopener'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 2000)
+}
+
 function hasIdentity(details: DetailsFields): boolean {
   return Boolean(
     details.fullName.trim() &&
@@ -43,7 +88,7 @@ function hasIdentity(details: DetailsFields): boolean {
   )
 }
 
-export function Step4_Preview({
+export function Step3_Preview({
   campaign,
   clauses,
   details,
@@ -72,6 +117,7 @@ export function Step4_Preview({
   const router = useRouter()
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
   const [pasteHint, setPasteHint] = useState(false)
+  const [emlHint, setEmlHint] = useState(false)
 
   const local = useMemo(() => {
     return composeEmail({
@@ -129,46 +175,96 @@ export function Step4_Preview({
   const gmailHref = gmailComposeUrl(mailParams)
   const gmailHeadersOnly = gmailComposeUrl(mailParams, { includeBody: false })
   const mailtoHref = mailtoUrl(mailParams)
+  const mailtoHeadersOnly = mailtoUrl(mailParams, { includeBody: false })
   const completeCopy = formatCompleteEmailCopy(mailParams)
 
-  async function openHandoff(method: 'gmail_web' | 'mailto' | 'copy', href?: string) {
-    if (href && method === 'gmail_web') {
-      window.open(href, '_blank', 'noopener,noreferrer')
-    } else if (href && method === 'mailto') {
-      window.location.href = href
-    }
-
-    if (submissionId) {
-      await markHandoff(submissionId, method)
-      if (method !== 'mailto') {
-        router.push(`/sent?id=${submissionId}`)
-      }
-    }
+  async function recordHandoff(method: 'gmail_web' | 'mailto' | 'copy', goSent: boolean) {
+    if (!submissionId) return
+    await markHandoff(submissionId, method)
+    if (goSent) router.push(`/sent?id=${submissionId}`)
   }
 
-  async function copyText(text: string, copiedFeedback = true) {
-    await navigator.clipboard.writeText(text)
-    if (copiedFeedback) setCopyState('copied')
+  async function copyBodyQuiet(): Promise<boolean> {
+    try {
+      await copyPlainText(body)
+      setCopyState('copied')
+      return true
+    } catch {
+      setCopyState('failed')
+      return false
+    }
   }
 
   async function copyComplete() {
     try {
-      await copyText(completeCopy)
-      await openHandoff('copy')
+      await copyPlainText(completeCopy)
+      setCopyState('copied')
+      await recordHandoff('copy', true)
     } catch {
       setCopyState('failed')
     }
   }
 
-  async function copyBodyAndOpenGmail() {
-    try {
-      await copyText(body, false)
-      setCopyState('copied')
-      setPasteHint(true)
-      await openHandoff('gmail_web', gmailHeadersOnly)
-    } catch {
-      setCopyState('failed')
+  async function openGmail() {
+    setEmlHint(false)
+    setPasteHint(false)
+    const platform = clientPlatform()
+
+    if (platform === 'android') {
+      const copied = copyBodyQuiet()
+      window.location.href = androidSendIntent(mailParams, {
+        gmailOnly: true,
+        fallbackUrl: gmailHeadersOnly,
+      })
+      await copied
+      await recordHandoff('gmail_web', false)
+      return
     }
+
+    if (gmailTooLong) {
+      const copied = copyBodyQuiet()
+      window.open(gmailHeadersOnly, '_blank', 'noopener,noreferrer')
+      if (await copied) setPasteHint(true)
+      await recordHandoff('gmail_web', false)
+      return
+    }
+
+    window.open(gmailHref, '_blank', 'noopener,noreferrer')
+    await recordHandoff('gmail_web', true)
+  }
+
+  async function openMailApp() {
+    setEmlHint(false)
+    setPasteHint(false)
+    const platform = clientPlatform()
+
+    if (platform === 'android') {
+      const copied = copyBodyQuiet()
+      window.location.href = androidSendIntent(mailParams, { fallbackUrl: mailtoHeadersOnly })
+      await copied
+      await recordHandoff('mailto', false)
+      return
+    }
+
+    if (platform === 'other') {
+      const copied = copyBodyQuiet()
+      downloadUnsentEml(formatUnsentEml(mailParams))
+      setEmlHint(true)
+      await copied
+      await recordHandoff('mailto', false)
+      return
+    }
+
+    if (mailtoTooLong) {
+      const copied = copyBodyQuiet()
+      window.location.href = mailtoHeadersOnly
+      if (await copied) setPasteHint(true)
+      await recordHandoff('mailto', false)
+      return
+    }
+
+    window.location.href = mailtoHref
+    await recordHandoff('mailto', false)
   }
 
   return (
@@ -233,39 +329,23 @@ export function Step4_Preview({
         {body}
       </pre>
 
-      {gmailTooLong || mailtoTooLong ? (
-        <p className="mt-3 text-sm leading-relaxed text-amber-900">{t(lang, 'urlTooLongFull')}</p>
-      ) : null}
-
       <p className="mt-5 text-sm leading-relaxed text-muted">{t(lang, 'trustLine')}</p>
 
       <div className="mt-4 flex flex-col gap-3">
-        {gmailTooLong ? (
-          <button
-            type="button"
-            disabled={sendDisabled}
-            onClick={() => void copyBodyAndOpenGmail()}
-            className={cx(btnPrimary, mailBtn)}
-          >
-            <IconGmail className="size-5 shrink-0" />
-            {t(lang, 'copyAndOpenGmail')}
-          </button>
-        ) : (
-          <button
-            type="button"
-            disabled={sendDisabled}
-            onClick={() => void openHandoff('gmail_web', gmailHref)}
-            className={cx(btnPrimary, mailBtn)}
-          >
-            <IconGmail className="size-5 shrink-0" />
-            {dryRun ? t(lang, 'dryRunGmail') : t(lang, 'sendGmail')}
-          </button>
-        )}
+        <button
+          type="button"
+          disabled={sendDisabled}
+          onClick={() => void openGmail()}
+          className={cx(btnPrimary, mailBtn)}
+        >
+          <IconGmail className="size-5 shrink-0" />
+          {dryRun ? t(lang, 'dryRunGmail') : t(lang, 'sendGmail')}
+        </button>
 
         <button
           type="button"
-          disabled={sendDisabled || mailtoTooLong}
-          onClick={() => void openHandoff('mailto', mailtoHref)}
+          disabled={sendDisabled}
+          onClick={() => void openMailApp()}
           className={cx(btnSecondary, mailBtn)}
         >
           <IconEnvelope className="size-4 shrink-0" />
@@ -281,6 +361,11 @@ export function Step4_Preview({
       {pasteHint ? (
         <p className="mt-3 text-sm leading-relaxed text-ink" role="status">
           {t(lang, 'pasteHint')}
+        </p>
+      ) : null}
+      {emlHint ? (
+        <p className="mt-3 text-sm leading-relaxed text-ink" role="status">
+          {t(lang, 'emlHint')}
         </p>
       ) : null}
       <p className="sr-only" aria-live="polite">

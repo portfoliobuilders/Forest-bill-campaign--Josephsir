@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Gayathri, IBM_Plex_Mono, Instrument_Serif, Inter, Manjari } from 'next/font/google'
 import { cookies, headers } from 'next/headers'
 
+import { AuthErrorCatcher } from '@/components/AuthErrorCatcher'
 import { DemoBannerGate } from '@/components/DemoBanner'
 import { Header } from '@/components/Header'
 import { LanguageProvider } from '@/components/LanguageProvider'

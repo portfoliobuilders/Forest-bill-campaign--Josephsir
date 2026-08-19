@@ -6,6 +6,7 @@ import {
   isAdminPath,
   isAdminPublicPath,
 } from '@/lib/admin/paths'
+import { ADMIN_PASSWORD_COOKIE } from '@/lib/admin/password-cookie'
 import { PREVIEW_COOKIE } from '@/lib/preview-cookie'
 
 function persistPreviewCookie(request: NextRequest, response: NextResponse): void {
@@ -31,9 +32,27 @@ function nextWithPathname(request: NextRequest): NextResponse {
   return response
 }
 
+function redirectAuthParamsToCallback(request: NextRequest): NextResponse | null {
+  const pathname = request.nextUrl.pathname
+  if (pathname === '/auth/callback' || pathname.startsWith('/admin/auth/')) return null
+
+  const params = request.nextUrl.searchParams
+  const hasHandoff = params.has('code') || params.has('token_hash')
+  if (!hasHandoff) return null
+
+  const url = request.nextUrl.clone()
+  url.pathname = '/auth/callback'
+  const redirected = NextResponse.redirect(url)
+  persistPreviewCookie(request, redirected)
+  return redirected
+}
+
 export async function middleware(request: NextRequest) {
   // Next.js 15.5.23 (>= 15.2.3) patches CVE-2025-29927. Admin routes still
   // verify the session and ADMIN_EMAILS allowlist in the server layout.
+  const authHandoff = redirectAuthParamsToCallback(request)
+  if (authHandoff) return authHandoff
+
   const canonical = canonicalizeAdminPathname(request.nextUrl.pathname)
   if (canonical) {
     const url = request.nextUrl.clone()
@@ -58,6 +77,9 @@ export async function middleware(request: NextRequest) {
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !anon) {
+    if (request.cookies.get(ADMIN_PASSWORD_COOKIE)?.value) {
+      return nextWithPathname(request)
+    }
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = '/admin/login'
     const redirected = NextResponse.redirect(loginUrl)
@@ -88,6 +110,9 @@ export async function middleware(request: NextRequest) {
   // Convenience layer only: send anonymous visitors to login.
   // Allowlisted vs not-allowlisted is decided in src/app/admin/layout.tsx.
   if (!user) {
+    if (request.cookies.get(ADMIN_PASSWORD_COOKIE)?.value) {
+      return response
+    }
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = '/admin/login'
     if (pathname !== '/admin/login') {
