@@ -1,11 +1,8 @@
 import 'server-only'
 
-import { createAnonServerClient } from '@/lib/supabase/anon-server'
 import { createServiceClientOrNull } from '@/lib/supabase/server'
 
 const COUNTABLE_STATUSES = ['draft', 'verified', 'handoff_opened', 'confirmed_sent', 'server_sent'] as const
-
-type StatsRow = { prepared?: number; confirmed?: number }
 
 function distinctPrepared(rows: Array<{ email_normalized?: string | null }> | null): number {
   return new Set(
@@ -38,22 +35,8 @@ async function preparedCountFromService(slug: string): Promise<number | null> {
   }
 }
 
-async function preparedCountFromRpc(slug: string): Promise<number> {
-  const supabase = createAnonServerClient()
-  if (!supabase) return 0
-  try {
-    const { data, error } = await supabase.rpc('campaign_stats', { p_slug: slug })
-    if (error || !data || !Array.isArray(data) || data.length === 0) return 0
-    const row = data[0] as StatsRow
-    if (row.prepared != null) return Number(row.prepared)
-    return Number(row.confirmed ?? 0)
-  } catch {
-    return 0
-  }
-}
-
 export async function publicPreparedCount(slug: string): Promise<number> {
   const fromService = await preparedCountFromService(slug)
   if (fromService !== null) return fromService
-  return preparedCountFromRpc(slug)
+  return 0
 }
