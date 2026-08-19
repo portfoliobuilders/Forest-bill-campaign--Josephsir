@@ -56,7 +56,6 @@ export async function sendAdminMagicLink(
     const { isAdminEmail } = await import('@/lib/admin/auth')
     const { emailAdminMagicLink } = await import('@/lib/admin/magic-link')
     const { resolvePublicOrigin } = await import('@/lib/site-url')
-    const { createServerSupabaseClient } = await import('@/lib/supabase/ssr')
 
     const normalized = email.trim().toLowerCase()
     if (!isAdminEmail(normalized)) {
@@ -70,36 +69,42 @@ export async function sendAdminMagicLink(
 
     const mailed = await emailAdminMagicLink(normalized, origin)
     if (mailed.ok) return mailed
+    if (mailed.error === 'mailer_missing') return { ok: false, error: 'config' }
+    return mailed
+  } catch {
+    return { ok: false, error: 'config' }
+  }
+}
+
+export async function verifyAdminLoginCode(
+  email: string,
+  token: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const { isAdminEmail } = await import('@/lib/admin/auth')
+    const { createServerSupabaseClient } = await import('@/lib/supabase/ssr')
+
+    const normalized = email.trim().toLowerCase()
+    const code = token.replace(/\s/g, '')
+    if (!isAdminEmail(normalized)) {
+      return { ok: false, error: 'not_allowed' }
+    }
+    if (!/^\d{6,8}$/.test(code)) {
+      return { ok: false, error: 'invalid_code' }
+    }
 
     const supabase = await createServerSupabaseClient()
-    const { error } = await supabase.auth.signInWithOtp({
-      email: normalized,
-      options: {
-        shouldCreateUser: true,
-        emailRedirectTo: `${origin}/auth/callback`,
-      },
-    })
-
-    if (!error) return { ok: true }
-
-    const fallbackKind = error.message.toLowerCase()
-    if (fallbackKind.includes('rate') || fallbackKind.includes('too many') || fallbackKind.includes('second')) {
-      return { ok: false, error: 'rate_limit' }
-    }
-
-    if (fallbackKind.includes('redirect') || fallbackKind.includes('whitelist') || fallbackKind.includes('allow list')) {
-      const retry = await supabase.auth.signInWithOtp({
+    for (const type of ['email', 'magiclink'] as const) {
+      const { error } = await supabase.auth.verifyOtp({
         email: normalized,
-        options: { shouldCreateUser: true },
+        token: code,
+        type,
       })
-      if (!retry.error) return { ok: true }
-      if (retry.error.message.toLowerCase().includes('rate') || retry.error.message.toLowerCase().includes('second')) {
-        return { ok: false, error: 'rate_limit' }
-      }
+      if (!error) return { ok: true }
+      const message = error.message.toLowerCase()
+      if (message.includes('expired')) return { ok: false, error: 'expired' }
     }
-
-    if (mailed.error === 'rate_limit') return mailed
-    return { ok: false, error: 'send_failed' }
+    return { ok: false, error: 'invalid_code' }
   } catch {
     return { ok: false, error: 'config' }
   }

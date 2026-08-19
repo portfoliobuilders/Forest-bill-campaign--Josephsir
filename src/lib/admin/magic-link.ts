@@ -15,27 +15,33 @@ function classifySendError(message: string): 'rate_limit' | 'redirect' | 'send_f
   return 'send_failed'
 }
 
-function loginEmail(link: string): { subject: string; text: string } {
+function loginEmail(link: string, code: string | null): { subject: string; text: string } {
+  const lines = [
+    'Use this link to sign in to the Janashabdam admin console.',
+    'അഡ്മിൻ പ്രവേശന ലിങ്ക്:',
+    '',
+    link,
+  ]
+  if (code) {
+    lines.push('', `Or enter this code on the login page: ${code}`, `അല്ലെങ്കിൽ ഈ കോഡ് നൽകുക: ${code}`)
+  }
+  lines.push(
+    '',
+    'This expires shortly and can be used once. Do not open localhost.',
+    'ഈ ലിങ്ക് ഉടൻ കാലഹരണപ്പെടും. ഒരു തവണ മാത്രമേ ഉപയോഗിക്കാവൂ.',
+  )
   return {
     subject: 'ജനശബ്ദം admin sign-in',
-    text: [
-      'Use this link to sign in to the Janashabdam admin console.',
-      'അഡ്മിൻ പ്രവേശന ലിങ്ക്:',
-      '',
-      link,
-      '',
-      'This link expires shortly and can be used once. Do not open localhost.',
-      'ഈ ലിങ്ക് ഉടൻ കാലഹരണപ്പെടും. ഒരു തവണ മാത്രമേ ഉപയോഗിക്കാവൂ.',
-    ].join('\n'),
+    text: lines.join('\n'),
   }
 }
 
-async function sendLinkEmail(to: string, link: string): Promise<boolean> {
+async function sendLinkEmail(to: string, link: string, code: string | null): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY?.trim()
   const fromEmail = process.env.RESEND_FROM_EMAIL?.trim()
   if (!apiKey || !fromEmail) return false
 
-  const mail = loginEmail(link)
+  const mail = loginEmail(link, code)
   const resend = new Resend(apiKey)
   const { error } = await resend.emails.send({
     from: fromEmail,
@@ -81,6 +87,7 @@ export async function emailAdminMagicLink(
 
   const hashedToken = data.properties?.hashed_token
   const verificationType = data.properties?.verification_type || 'magiclink'
+  const emailOtp = data.properties?.email_otp?.trim() || null
   if (!hashedToken) {
     return { ok: false, error: 'send_failed' }
   }
@@ -90,7 +97,7 @@ export async function emailAdminMagicLink(
   callback.searchParams.set('type', verificationType)
   callback.searchParams.set('next', '/admin')
 
-  const sent = await sendLinkEmail(email, callback.toString())
+  const sent = await sendLinkEmail(email, callback.toString(), emailOtp)
   if (!sent) return { ok: false, error: 'mailer_missing' }
   return { ok: true }
 }
