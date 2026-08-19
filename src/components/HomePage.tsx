@@ -76,9 +76,9 @@ export function HomePage({
                 <p className="mt-2 text-sm font-semibold text-accent">
                   {tReplace(lang, 'daysRemaining', { n: String(daysLeft) })}
                 </p>
-              ) : (
+              ) : !isLive ? (
                 <p className="mt-2 text-sm text-body">{t(lang, 'campaignInactive')}</p>
-              )}
+              ) : null}
             </div>
           </div>
         </section>

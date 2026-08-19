@@ -2,9 +2,11 @@ import type { Metadata } from 'next'
 import { Gayathri, IBM_Plex_Mono, Instrument_Serif, Inter, Manjari } from 'next/font/google'
 import { cookies } from 'next/headers'
 
+import { DemoBannerGate } from '@/components/DemoBanner'
 import { Header } from '@/components/Header'
 import { LanguageProvider } from '@/components/LanguageProvider'
 import { SiteFooterGate } from '@/components/SiteFooter'
+import { resolveCampaignState } from '@/lib/campaign'
 import { parseLang } from '@/lib/lang'
 
 import './globals.css'
@@ -73,6 +75,7 @@ export default async function RootLayout({
 }>) {
   const cookieStore = await cookies()
   const lang = parseLang(cookieStore.get('lang')?.value)
+  const campaignState = await resolveCampaignState()
 
   return (
     <html
@@ -81,6 +84,7 @@ export default async function RootLayout({
     >
       <body className="flex min-h-dvh flex-col bg-surface text-base text-ink antialiased">
         <LanguageProvider initialLang={lang}>
+          <DemoBannerGate active={campaignState.state !== 'live'} />
           <Header />
           <div className="flex-1">{children}</div>
           <SiteFooterGate />

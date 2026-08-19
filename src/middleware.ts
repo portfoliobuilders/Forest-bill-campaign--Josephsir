@@ -14,8 +14,9 @@ function persistPreviewCookie(request: NextRequest, response: NextResponse): voi
   response.cookies.set(PREVIEW_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    secure: request.nextUrl.protocol === 'https:' || request.headers.get('x-forwarded-proto') === 'https',
     path: '/',
+    maxAge: 60 * 60 * 12,
   })
 }
 

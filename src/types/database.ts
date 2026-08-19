@@ -18,6 +18,7 @@ export type Campaign = {
   summary_ml: string
   summary_en: string
   recipient_email: string
+  recipient_emails: string[]
   cc_emails: string[]
   subject_ml: string
   subject_en: string
