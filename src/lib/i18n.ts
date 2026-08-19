@@ -92,7 +92,8 @@ export const dictionary = {
     urlTooLongFull: 'പൂർണ്ണ കത്ത് ചില ഇമെയിൽ ആപ്പുകളിലേക്ക് നേരിട്ട് കൈമാറാൻ വിശ്വസനീയമായി വളരെ നീളമുള്ളതാണ്.',
     copyAndOpenGmail: 'പൂർണ്ണ കത്ത് കോപ്പി ചെയ്ത് Gmail തുറക്കുക',
     pasteHint:
-      'പൂർണ്ണ കത്ത് കോപ്പി ചെയ്തിട്ടുണ്ട്. Gmail-ൽ മുഴുവൻ എഴുത്തും വന്നിട്ടില്ലെങ്കിൽ സന്ദേശ ഭാഗത്ത് അമർത്തി Paste ചെയ്യുക.',
+      'പൂർണ്ണ കത്ത് കോപ്പി ചെയ്തിട്ടുണ്ട്. സന്ദേശ ഭാഗത്ത് അമർത്തി Paste ചെയ്താൽ മുഴുവൻ കത്തും വരും.',
+    emlHint: 'പൂർണ്ണ കത്ത് ഒരു ഇമെയിൽ ഫയലായി ഡൗൺലോഡ് ചെയ്തു. ആ ഫയൽ മെയിൽ ആപ്പിൽ തുറന്ന് അയയ്ക്കുക.',
     copied: 'പകർത്തി',
     copyFailed: 'പകർത്താൻ കഴിഞ്ഞില്ല',
     pdfUnavailable:
@@ -298,8 +299,8 @@ export const dictionary = {
     urlTooLong: 'The mail link is very long. If Gmail does not open, copy the text instead.',
     urlTooLongFull: 'Full letter is too long for reliable direct transfer to some email apps.',
     copyAndOpenGmail: 'Copy Full Letter & Open Gmail',
-    pasteHint:
-      'The complete letter has been copied. If Gmail did not insert the full body automatically, tap the message area and Paste.',
+    pasteHint: 'The full letter is copied. Click the message box and press Ctrl+V (or Paste) to insert all of it.',
+    emlHint: 'The full letter was downloaded as an email file. Open that file in your mail app and send it.',
     copied: 'Copied',
     copyFailed: 'Could not copy',
     pdfUnavailable:

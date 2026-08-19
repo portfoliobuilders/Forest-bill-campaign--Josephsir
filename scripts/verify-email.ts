@@ -4,6 +4,8 @@ import { demoCampaign, demoClauses } from '../src/lib/demo-data'
 import {
   composeEmail,
   formatCompleteEmailCopy,
+  androidSendIntent,
+  formatUnsentEml,
   gmailComposeUrl,
   liveMailTargets,
   mailtoUrl,
@@ -117,7 +119,40 @@ assert.match(copied, /To:\nesz-mef@nic\.in\nprlsecy\.forest@kerala\.gov\.in/)
 assert.match(copied, /CC:\nemailkifa@gmail\.com/)
 assert.ok(copied.includes(`Subject: ${full.subject}`))
 
+const eml = formatUnsentEml({
+  to: targets.to,
+  cc: targets.cc,
+  subject: full.subject,
+  body: full.body,
+})
+assert.match(eml, /^X-Unsent: 1\r\n/)
+assert.match(eml, /To: esz-mef@nic\.in, prlsecy\.forest@kerala\.gov\.in/)
+assert.match(eml, /Cc: emailkifa@gmail\.com/)
+assert.match(eml, new RegExp(`Subject: ${full.subject.replace(/[()]/g, '\\$&')}`))
+assert.ok(eml.includes(full.body.replace(/\n/g, '\r\n')))
+for (let i = 1; i <= 12; i += 1) {
+  assert.match(eml, new RegExp(`^${i}\\. `, 'm'))
+}
+
+const intent = androidSendIntent(
+  { to: targets.to, cc: targets.cc, subject: full.subject, body: full.body },
+  { gmailOnly: true, fallbackUrl: 'https://mail.google.com/mail/?view=cm&fs=1' },
+)
+assert.match(intent, /^intent:\/\/send\/#Intent;/)
+assert.match(intent, /package=com\.google\.android\.gm/)
+assert.ok(intent.includes(encodeURIComponent(full.body)))
+assert.ok(intent.includes(encodeURIComponent(full.subject)))
+assert.doesNotMatch(intent, /undefined/)
+
+const headersOnly = gmailComposeUrl(
+  { to: targets.to, cc: targets.cc, subject: full.subject, body: full.body },
+  { includeBody: false },
+)
+assert.doesNotMatch(headersOnly, /[?&]body=/)
+
 console.log('compose checks passed')
 console.log(`full body chars: ${full.charCount}`)
 console.log(`gmail selected url length: ${gmail.length}`)
 console.log(`mailto selected url length: ${mail.length}`)
+console.log(`unsent eml chars: ${eml.length}`)
+console.log(`android intent chars: ${intent.length}`)
