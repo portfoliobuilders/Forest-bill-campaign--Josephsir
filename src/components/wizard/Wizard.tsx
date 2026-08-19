@@ -9,7 +9,7 @@ import { Step3_Verify } from '@/components/wizard/Step3_Verify'
 import { Step4_Preview } from '@/components/wizard/Step4_Preview'
 import { useLang } from '@/components/LanguageProvider'
 import { cx } from '@/lib/cx'
-import type { DistrictOption } from '@/lib/demo-data'
+import { FOREST_BILL_SOURCE_URL, FOREST_BILL_VOLUNTEER_URL, type DistrictOption } from '@/lib/demo-data'
 import {
   createDetailsSchema,
   fieldErrorsFromZod,
@@ -148,6 +148,27 @@ export function Wizard({
       <h1 className="mb-2 text-2xl font-bold text-stone-900">
         {lang === 'en' ? campaign.title_en : campaign.title_ml}
       </h1>
+      {mode !== 'live' ? (
+        <p className="mb-4 text-sm leading-relaxed text-stone-600">
+          <a
+            href={FOREST_BILL_SOURCE_URL}
+            className={`font-medium text-emerald-900 underline ${focusRing}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {t(lang, 'gazetteBill')}
+          </a>
+          {' · '}
+          <a
+            href={FOREST_BILL_VOLUNTEER_URL}
+            className={`font-medium text-emerald-900 underline ${focusRing}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {t(lang, 'volunteerLetter')}
+          </a>
+        </p>
+      ) : null}
 
       <Progress step={state.step} />
 

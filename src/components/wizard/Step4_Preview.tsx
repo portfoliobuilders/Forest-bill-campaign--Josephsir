@@ -102,7 +102,7 @@ export function Step4_Preview({
     body: composed.body,
   }
   const dryRunHref = mailtoUrl(dryRunParams)
-  const sendDisabled = isDemo || tooLong
+  const sendDisabled = tooLong
 
   async function openHandoff(method: 'gmail_web' | 'mailto' | 'copy', href?: string) {
     if (submissionId) {

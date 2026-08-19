@@ -1,5 +1,7 @@
 'use client'
 
+import { usePathname } from 'next/navigation'
+
 import { useLang } from '@/components/LanguageProvider'
 import { t } from '@/lib/i18n'
 
@@ -14,4 +16,10 @@ export function DemoBanner() {
       {t(lang, 'demoBanner')}
     </div>
   )
+}
+
+export function DemoBannerGate({ active }: { active: boolean }) {
+  const pathname = usePathname()
+  if (!active && pathname !== '/objection' && pathname !== '/demo') return null
+  return <DemoBanner />
 }
