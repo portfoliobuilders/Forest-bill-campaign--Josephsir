@@ -93,7 +93,7 @@ export function Step4_Preview({
   const tooLong = composed.error === 'too_long'
   const overAmber = composed.charCount > 1300
   const atLimit = composed.charCount >= MAX_BODY_CHARS
-  const isPreview = mode === 'preview'
+  const isDemo = mode !== 'live'
   const dryRunTo = (testerEmail ?? details.email).trim()
   const dryRunParams = {
     to: dryRunTo,
@@ -102,7 +102,7 @@ export function Step4_Preview({
     body: composed.body,
   }
   const dryRunHref = mailtoUrl(dryRunParams)
-  const sendDisabled = mode !== 'live' || tooLong
+  const sendDisabled = isDemo || tooLong
 
   async function openHandoff(method: 'gmail_web' | 'mailto' | 'copy', href?: string) {
     if (submissionId) {
@@ -132,6 +132,7 @@ export function Step4_Preview({
   return (
     <div>
       <h2 className="text-xl font-bold text-stone-900">{t(lang, 'preview')}</h2>
+      {isDemo ? <p className="mt-2 text-base leading-relaxed text-amber-900">{t(lang, 'demoLetterHint')}</p> : null}
 
       <div className="mt-4 space-y-1 text-base">
         <p>
@@ -197,37 +198,24 @@ export function Step4_Preview({
           </button>
         </span>
 
-        <span className="flex" title={isPreview ? t(lang, 'sendDisabledTooltip') : undefined}>
-          <button
-            type="button"
-            disabled={isPreview}
-            onClick={() => void copyBody()}
-            className={cx(
-              btnBase,
-              'w-full',
-              isPreview
-                ? 'cursor-not-allowed bg-stone-300 text-stone-500'
-                : 'border border-stone-400 bg-white text-stone-900 hover:bg-stone-100',
-            )}
-          >
-            {copyState === 'copied' ? t(lang, 'copied') : t(lang, 'copyText')}
-          </button>
-        </span>
+        <button
+          type="button"
+          onClick={() => void copyBody()}
+          className={cx(btnBase, 'w-full border border-stone-400 bg-white text-stone-900 hover:bg-stone-100')}
+        >
+          {copyState === 'copied' ? t(lang, 'copied') : t(lang, 'copyText')}
+        </button>
 
         <button
           type="button"
-          disabled={!submissionId || isPreview}
+          disabled={!submissionId || isDemo}
           onClick={() => downloadPdf(submissionId)}
           title={
-            isPreview
-              ? t(lang, 'sendDisabledTooltip')
-              : submissionId
-                ? undefined
-                : t(lang, 'pdfUnavailable')
+            isDemo ? t(lang, 'sendDisabledTooltip') : submissionId ? undefined : t(lang, 'pdfUnavailable')
           }
           className={cx(
             btnBase,
-            submissionId && !isPreview
+            submissionId && !isDemo
               ? 'border border-stone-400 bg-white text-stone-900 hover:bg-stone-100'
               : 'cursor-not-allowed bg-stone-200 text-stone-500',
           )}
@@ -236,7 +224,7 @@ export function Step4_Preview({
         </button>
       </div>
 
-      {isPreview ? (
+      {isDemo ? (
         <button
           type="button"
           disabled={!dryRunTo || tooLong}

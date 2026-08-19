@@ -111,6 +111,11 @@ export const dictionary = {
       'ഇമെയിൽ വരുന്നത് പൗരന്റെ സ്വന്തം വിലാസത്തിൽ നിന്നാണ്. ഈ സൈറ്റ് ചോദിക്കാതെ നിങ്ങളുടെ പേരിൽ അയയ്ക്കില്ല.',
     daysRemaining: '{n} ദിവസം ബാക്കി',
     ctaPreview: 'ഡെമോയിൽ എതിർപ്പ് തയ്യാറാക്കുക',
+    demoClosedNote:
+      'ഇത് 2024-ലെ ഫോറസ്റ്റ് ബിൽ ഉപയോഗിച്ചുള്ള ഒരു ഡെമോ ആണ്. തത്സമയ കൂടിയാലോചനയല്ല. സർക്കാർ ഓഫീസിലേക്ക് ഒന്നും അയയ്ക്കില്ല.',
+    tryDemo: 'ഡെമോ പരീക്ഷിക്കുക',
+    fillSample: 'മാതൃകാ വിവരം നിറയ്ക്കുക',
+    sampleHint: 'ഡെമോയ്ക്ക് മാത്രം. ഇത് യഥാർത്ഥ വ്യക്തിയല്ല.',
     dormantTitle: 'ഇപ്പോൾ തുറന്ന കൂടിയാലോചനയില്ല',
     dormantBody:
       'ജനശബ്ദം കേരളത്തിലെ ഔദ്യോഗിക കൂടിയാലോചനകളോട് നിങ്ങളുടെ സ്വന്തം ഇമെയിൽ വിലാസത്തിൽ നിന്ന് വ്യക്തിഗത എതിർപ്പ് തയ്യാറാക്കാൻ സഹായിക്കുന്നു. വാട്ട്‌സ്ആപ്പ് ഫോർവേഡ് മാത്രം മതിയാകില്ല. ഒരു ഗസറ്റോ വകുപ്പ് സർക്കുലറോ സ്ഥിരീകരിക്കുമ്പോൾ ഈ പേജ് തുറക്കും.',
@@ -123,6 +128,8 @@ export const dictionary = {
     notifyFailed: 'രേഖപ്പെടുത്താൻ കഴിഞ്ഞില്ല. വീണ്ടും ശ്രമിക്കുക.',
     sendDisabledTooltip: 'ഇത് ഡെമോ ആണ്. സർക്കാർ ഓഫീസിലേക്ക് അയയ്ക്കില്ല.',
     dryRun: 'ഡ്രൈ റൺ — എന്റെ ഇമെയിലിലേക്ക് തുറക്കുക',
+    demoLetterHint:
+      'സർക്കാർ വിലാസത്തിലേക്കുള്ള ബട്ടണുകൾ അടച്ചിരിക്കുന്നു. വാചകം പകർത്തുക, അല്ലെങ്കിൽ നിങ്ങളുടെ സ്വന്തം ഇമെയിലിലേക്ക് തുറക്കുക.',
     verifyPreviewHint: 'ഡെമോയിൽ ഇമെയിൽ സ്ഥിരീകരണം വേണ്ട. കത്ത് കാണാം. സർക്കാരിലേക്ക് അയയ്ക്കില്ല.',
     footerData: 'പൊതു വിവരം',
     footerPrivacy: 'സ്വകാര്യത',
@@ -241,6 +248,11 @@ export const dictionary = {
       'The email comes from the citizen’s own address. This site never sends on your behalf without asking.',
     daysRemaining: '{n} days remaining',
     ctaPreview: 'Try the demo objection',
+    demoClosedNote:
+      'This walkthrough uses the 2024 Forest Bill so you can see how Janashabdam works. It is not a live consultation. Nothing is sent to a government office.',
+    tryDemo: 'Try the demo',
+    fillSample: 'Fill sample details',
+    sampleHint: 'For the demo only. This is not a real person.',
     dormantTitle: 'No consultation is open right now',
     dormantBody:
       'Janashabdam helps people in Kerala write a personal objection to an official consultation from their own email address. A WhatsApp forward is not enough. This page opens when a gazette or department circular is verified.',
@@ -253,6 +265,8 @@ export const dictionary = {
     notifyFailed: 'Could not save. Try again.',
     sendDisabledTooltip: 'This is a demo. Nothing is sent to a government office.',
     dryRun: 'Dry run — open to my email',
+    demoLetterHint:
+      'Buttons to the government address stay off. Copy the text, or open it to your own email.',
     verifyPreviewHint: 'Preview mode skips email verification. You can read the letter. Nothing goes to government.',
     footerData: 'Public data',
     footerPrivacy: 'Privacy',

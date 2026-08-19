@@ -1,3 +1,5 @@
+import type { DetailsFields } from '@/lib/details-schema'
+import type { Lang } from '@/lib/i18n'
 import type { Campaign, ObjectionClause } from '@/types/database'
 
 export type DistrictOption = {
@@ -299,3 +301,31 @@ export const demoClauses: ObjectionClause[] = [
     is_active: true,
   },
 ]
+
+/** Clearly fake details so a stakeholder can walk the form without typing. */
+export function sampleDemoDetails(lang: Lang): DetailsFields {
+  if (lang === 'en') {
+    return {
+      fullName: 'Demo farmer',
+      addressLine: 'Example house, Ward 7',
+      panchayat: 'Example panchayat',
+      district: 'Idukki',
+      pincode: '685531',
+      phone: '9876543210',
+      email: 'demo@example.com',
+      customText:
+        'Wildlife came onto our cardamom plot last year. A search on mere suspicion would frighten the whole ward.',
+    }
+  }
+
+  return {
+    fullName: 'മാതൃകാ കർഷകൻ',
+    addressLine: 'മാതൃകാ വീട്, വാർഡ് 7',
+    panchayat: 'മാതൃകാ പഞ്ചായത്ത്',
+    district: 'Idukki',
+    pincode: '685531',
+    phone: '9876543210',
+    email: 'demo@example.com',
+    customText: 'കഴിഞ്ഞ വർഷം ഞങ്ങളുടെ ഏലത്തോട്ടത്തിലേക്ക് വന്യമൃഗം വന്നു. സംശയം മാത്രം മതിയെങ്കിൽ വാർഡ് മുഴുവൻ ഭയക്കും.',
+  }
+}

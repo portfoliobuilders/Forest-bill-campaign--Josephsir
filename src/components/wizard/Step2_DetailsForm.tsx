@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { useLang } from '@/components/LanguageProvider'
 import { cx } from '@/lib/cx'
-import type { DistrictOption } from '@/lib/demo-data'
+import { sampleDemoDetails, type DistrictOption } from '@/lib/demo-data'
 import { MAX_CUSTOM_CHARS, type DetailsFields, type FieldErrors } from '@/lib/details-schema'
 import { t } from '@/lib/i18n'
 import type { ConstituencyMatch, WizardRouting } from '@/types/database'
@@ -58,6 +58,7 @@ export function Step2_DetailsForm({
   districts,
   errors,
   routing,
+  allowSample,
   onChange,
   onRoutingChange,
 }: {
@@ -65,6 +66,7 @@ export function Step2_DetailsForm({
   districts: DistrictOption[]
   errors: FieldErrors
   routing: WizardRouting
+  allowSample?: boolean
   onChange: (patch: Partial<DetailsFields>) => void
   onRoutingChange: (routing: WizardRouting) => void
 }) {
@@ -154,6 +156,21 @@ export function Step2_DetailsForm({
     <div>
       <h2 className="text-xl font-bold text-stone-900">{t(lang, 'yourDetails')}</h2>
       <p className="mt-2 text-sm text-stone-600">{t(lang, 'consentNotice')}</p>
+      {allowSample ? (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => onChange(sampleDemoDetails(lang))}
+            className={cx(
+              'inline-flex min-h-[44px] items-center justify-center rounded-md border border-stone-400 bg-white px-4 text-base font-semibold text-stone-900 hover:bg-stone-100',
+              focusRing,
+            )}
+          >
+            {t(lang, 'fillSample')}
+          </button>
+          <p className="mt-1 text-sm text-stone-600">{t(lang, 'sampleHint')}</p>
+        </div>
+      ) : null}
 
       <div className="mt-5 rounded-md border-2 border-emerald-800 bg-emerald-50 p-4">
         <label htmlFor="customText" className="block text-lg font-bold text-emerald-950">

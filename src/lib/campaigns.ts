@@ -1,11 +1,12 @@
 import 'server-only'
 
-import { getDefaultCampaignSlug, type CampaignState } from '@/lib/campaign'
-import { KERALA_DISTRICTS, type DistrictOption } from '@/lib/demo-data'
+import { getDefaultCampaignSlug, publicCampaign, type CampaignState } from '@/lib/campaign'
+import { demoCampaign, demoClauses, KERALA_DISTRICTS, type DistrictOption } from '@/lib/demo-data'
 import { createServiceClient } from '@/lib/supabase/server'
+import type { WizardMode } from '@/lib/wizard-mode'
 import type { Campaign, Constituency, ObjectionClause } from '@/types/database'
 
-export type WizardMode = 'live' | 'preview'
+export type { WizardMode }
 
 export type ObjectionPageData = {
   campaign: Campaign
@@ -32,10 +33,17 @@ function uniqueDistricts(rows: Pick<Constituency, 'district' | 'name_ml' | 'name
   return ordered.length > 0 ? [...ordered, ...extras] : KERALA_DISTRICTS
 }
 
-export async function loadObjectionData(state: CampaignState): Promise<ObjectionPageData | null> {
-  if (state.state === 'dormant') return null
+const bundledDemo: ObjectionPageData = {
+  campaign: demoCampaign,
+  clauses: demoClauses,
+  districts: KERALA_DISTRICTS,
+  mode: 'compose',
+}
 
-  const campaign = state.campaign
+async function loadCampaignBundle(
+  campaign: Campaign,
+  mode: WizardMode,
+): Promise<ObjectionPageData> {
   let clauses: ObjectionClause[] = []
   let districts = KERALA_DISTRICTS
 
@@ -56,10 +64,45 @@ export async function loadObjectionData(state: CampaignState): Promise<Objection
       districts = uniqueDistricts(constituencyRows as Pick<Constituency, 'district' | 'name_ml' | 'name_en'>[])
     }
   } catch {
-    return { campaign, clauses, districts, mode: state.state }
+    if (mode === 'live') {
+      return { campaign, clauses, districts, mode }
+    }
+    return clauses.length > 0 ? { campaign, clauses, districts, mode } : bundledDemo
   }
 
-  return { campaign, clauses, districts, mode: state.state }
+  if (clauses.length === 0 && mode !== 'live') {
+    return { ...bundledDemo, districts }
+  }
+
+  return { campaign, clauses, districts, mode }
+}
+
+/** Public walkthrough. Never live, never writes a submission. */
+export async function loadComposeData(): Promise<ObjectionPageData> {
+  try {
+    const supabase = createServiceClient()
+    const slug = getDefaultCampaignSlug()
+    const bySlug = await supabase.from('campaigns').select('*').eq('slug', slug).maybeSingle()
+    const fallback = bySlug.data
+      ? null
+      : await supabase.from('campaigns').select('*').order('created_at', { ascending: false }).limit(1).maybeSingle()
+    const row = (bySlug.data ?? fallback?.data ?? null) as (Campaign & { preview_token?: string | null }) | null
+    if (row) {
+      return loadCampaignBundle(publicCampaign(row), 'compose')
+    }
+  } catch {
+    return bundledDemo
+  }
+
+  return bundledDemo
+}
+
+export async function loadObjectionData(state: CampaignState): Promise<ObjectionPageData | null> {
+  if (state.state === 'dormant') {
+    return loadComposeData()
+  }
+
+  return loadCampaignBundle(state.campaign, state.state)
 }
 
 export function publicCampaignSlug(): string {

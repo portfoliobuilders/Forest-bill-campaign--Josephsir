@@ -12,6 +12,7 @@ export const DEFAULT_CAMPAIGN_SLUG = 'kerala-forest-amendment-2024'
 export type CampaignState =
   | { state: 'live'; campaign: Campaign }
   | { state: 'preview'; campaign: Campaign }
+  | { state: 'compose'; campaign: Campaign }
   | { state: 'dormant' }
 
 type CampaignRow = Campaign & { preview_token: string | null }
@@ -36,8 +37,9 @@ function inConsultationWindow(campaign: Campaign, now: Date): boolean {
   return t >= new Date(campaign.opens_at).getTime() && t <= new Date(campaign.deadline_at).getTime()
 }
 
-function withoutPreviewToken(row: CampaignRow): Campaign {
-  const { preview_token: _token, ...campaign } = row
+export function publicCampaign(row: Campaign & { preview_token?: string | null }): Campaign {
+  const campaign = { ...row }
+  delete (campaign as { preview_token?: string | null }).preview_token
   return campaign
 }
 
@@ -61,38 +63,39 @@ export async function getCampaignState(
   slug: string,
   previewToken: string | null | undefined,
 ): Promise<CampaignState> {
-  let row: CampaignRow
   try {
     const supabase = createServiceClient()
     const bySlug = await supabase.from('campaigns').select('*').eq('slug', slug).maybeSingle()
-    const rowData = bySlug.data
-      ? bySlug.data
-      : (
-          await supabase
-            .from('campaigns')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle()
-        ).data
-    if (bySlug.error || !rowData) return { state: 'dormant' }
-    row = rowData as CampaignRow
+    const fallback = bySlug.data
+      ? null
+      : await supabase.from('campaigns').select('*').order('created_at', { ascending: false }).limit(1).maybeSingle()
+    const row = (bySlug.data ?? fallback?.data ?? null) as CampaignRow | null
+    const now = new Date()
+
+    if (row) {
+      const campaign = publicCampaign(row)
+      if (row.is_active && inConsultationWindow(campaign, now)) {
+        return { state: 'live', campaign }
+      }
+      if (!row.is_active && tokensMatch(row.preview_token, previewToken)) {
+        return { state: 'preview', campaign }
+      }
+      return { state: 'compose', campaign }
+    }
+
+    if (previewToken) {
+      const { data: candidates } = await supabase.from('campaigns').select('*').not('preview_token', 'is', null)
+      for (const candidate of (candidates ?? []) as CampaignRow[]) {
+        if (!candidate.is_active && tokensMatch(candidate.preview_token, previewToken)) {
+          return { state: 'preview', campaign: publicCampaign(candidate) }
+        }
+      }
+    }
+
+    return { state: 'dormant' }
   } catch {
     return { state: 'dormant' }
   }
-
-  const campaign = withoutPreviewToken(row)
-  const now = new Date()
-
-  if (row.is_active && inConsultationWindow(campaign, now)) {
-    return { state: 'live', campaign }
-  }
-
-  if (!row.is_active && tokensMatch(row.preview_token, previewToken)) {
-    return { state: 'preview', campaign }
-  }
-
-  return { state: 'dormant' }
 }
 
 export async function resolveCampaignState(searchPreview?: string | null): Promise<CampaignState> {

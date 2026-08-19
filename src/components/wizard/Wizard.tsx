@@ -168,6 +168,7 @@ export function Wizard({
           districts={districts}
           errors={detailsErrors}
           routing={state.routing}
+          allowSample={mode !== 'live'}
           onChange={(patch) => {
             setDetailsErrors((current) => {
               const next = { ...current }
