@@ -52,29 +52,57 @@ export async function markDeletionHandled(
 export async function sendAdminMagicLink(
   email: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { createServerSupabaseClient } = await import('@/lib/supabase/ssr')
-  const { isAdminEmail } = await import('@/lib/admin/auth')
+  try {
+    const { isAdminEmail } = await import('@/lib/admin/auth')
+    const { emailAdminMagicLink } = await import('@/lib/admin/magic-link')
+    const { resolvePublicOrigin } = await import('@/lib/site-url')
+    const { createServerSupabaseClient } = await import('@/lib/supabase/ssr')
 
-  if (!isAdminEmail(email)) {
-    return { ok: false, error: 'not_allowed' }
-  }
+    const normalized = email.trim().toLowerCase()
+    if (!isAdminEmail(normalized)) {
+      return { ok: false, error: 'not_allowed' }
+    }
 
-  const { resolvePublicOrigin } = await import('@/lib/site-url')
-  const origin = await resolvePublicOrigin()
-  if (!origin) {
+    const origin = await resolvePublicOrigin()
+    if (!origin) {
+      return { ok: false, error: 'config' }
+    }
+
+    const mailed = await emailAdminMagicLink(normalized, origin)
+    if (mailed.ok) return mailed
+
+    const supabase = await createServerSupabaseClient()
+    const { error } = await supabase.auth.signInWithOtp({
+      email: normalized,
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: `${origin}/auth/callback`,
+      },
+    })
+
+    if (!error) return { ok: true }
+
+    const fallbackKind = error.message.toLowerCase()
+    if (fallbackKind.includes('rate') || fallbackKind.includes('too many') || fallbackKind.includes('second')) {
+      return { ok: false, error: 'rate_limit' }
+    }
+
+    if (fallbackKind.includes('redirect') || fallbackKind.includes('whitelist') || fallbackKind.includes('allow list')) {
+      const retry = await supabase.auth.signInWithOtp({
+        email: normalized,
+        options: { shouldCreateUser: true },
+      })
+      if (!retry.error) return { ok: true }
+      if (retry.error.message.toLowerCase().includes('rate') || retry.error.message.toLowerCase().includes('second')) {
+        return { ok: false, error: 'rate_limit' }
+      }
+    }
+
+    if (mailed.error === 'rate_limit') return mailed
+    return { ok: false, error: 'send_failed' }
+  } catch {
     return { ok: false, error: 'config' }
   }
-
-  const supabase = await createServerSupabaseClient()
-  const { error } = await supabase.auth.signInWithOtp({
-    email: email.trim().toLowerCase(),
-    options: {
-      emailRedirectTo: `${origin}/auth/callback`,
-    },
-  })
-
-  if (error) return { ok: false, error: 'send_failed' }
-  return { ok: true }
 }
 
 export async function adminSignOut(): Promise<void> {

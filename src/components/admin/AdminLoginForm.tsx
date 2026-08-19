@@ -106,9 +106,17 @@ export function AdminLoginForm({ errorCode }: { errorCode: string | null }) {
             ? lang === 'ml'
               ? 'ഈ ഇമെയിൽ അഡ്മിൻ ലിസ്റ്റിൽ ഇല്ല.'
               : 'This email is not on the admin allowlist.'
-            : lang === 'ml'
-              ? 'ലിങ്ക് അയയ്ക്കാനായില്ല.'
-              : 'Could not send link.'}
+            : failReason === 'rate_limit'
+              ? lang === 'ml'
+                ? 'വളരെയധികം ശ്രമങ്ങൾ. കുറച്ച് മിനിറ്റ് കഴിഞ്ഞ് വീണ്ടും ശ്രമിക്കുക.'
+                : 'Too many attempts. Wait a few minutes, then request a new link.'
+              : failReason === 'config'
+                ? lang === 'ml'
+                  ? 'സൈറ്റ് ക്രമീകരണം അപൂർണമാണ്. പിന്നീട് വീണ്ടും ശ്രമിക്കുക.'
+                  : 'The site is missing a required setting. Try again after the next deploy.'
+                : lang === 'ml'
+                  ? 'ലിങ്ക് അയയ്ക്കാനായില്ല. സ്പാം പരിശോധിക്കുക, പിന്നെ വീണ്ടും ശ്രമിക്കുക.'
+                  : 'Could not send link. Check spam, then try again.'}
         </p>
       ) : null}
     </div>

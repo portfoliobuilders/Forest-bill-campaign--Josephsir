@@ -31,9 +31,27 @@ function nextWithPathname(request: NextRequest): NextResponse {
   return response
 }
 
+function redirectAuthParamsToCallback(request: NextRequest): NextResponse | null {
+  const pathname = request.nextUrl.pathname
+  if (pathname === '/auth/callback' || pathname.startsWith('/admin/auth/')) return null
+
+  const params = request.nextUrl.searchParams
+  const hasHandoff = params.has('code') || params.has('token_hash')
+  if (!hasHandoff) return null
+
+  const url = request.nextUrl.clone()
+  url.pathname = '/auth/callback'
+  const redirected = NextResponse.redirect(url)
+  persistPreviewCookie(request, redirected)
+  return redirected
+}
+
 export async function middleware(request: NextRequest) {
   // Next.js 15.5.23 (>= 15.2.3) patches CVE-2025-29927. Admin routes still
   // verify the session and ADMIN_EMAILS allowlist in the server layout.
+  const authHandoff = redirectAuthParamsToCallback(request)
+  if (authHandoff) return authHandoff
+
   const canonical = canonicalizeAdminPathname(request.nextUrl.pathname)
   if (canonical) {
     const url = request.nextUrl.clone()
