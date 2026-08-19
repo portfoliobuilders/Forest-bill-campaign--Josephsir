@@ -64,7 +64,7 @@ async function composeCanonicalLetter(input: LetterFields): Promise<ActionResult
   let campaign: Campaign
   let sourceClauses: ObjectionClause[]
   let persistSlug: string | null = null
-  let isTest = campaignState.state === 'preview'
+  const isTest = campaignState.state === 'preview'
 
   if (campaignState.state === 'dormant') {
     campaign = demoCampaign
