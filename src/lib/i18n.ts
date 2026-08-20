@@ -40,7 +40,6 @@ export const dictionary = {
     ccMlaNamed: 'എന്റെ എംഎൽഎയ്ക്കും ഒരു പകർപ്പ് അയയ്ക്കുക: {name} ({constituency})',
     noLiveTitle: 'ഇപ്പോൾ തത്സമയ കൂടിയാലോചനയില്ല',
     noLiveBody: 'ജനശബ്ദം കേരളത്തിലെ ഔദ്യോഗിക കൂടിയാലോചനകളോട് നിങ്ങളുടെ സ്വന്തം ഇമെയിൽ വിലാസത്തിൽ നിന്ന് വ്യക്തിഗത എതിർപ്പ് തയ്യാറാക്കാൻ സഹായിക്കുന്നു.',
-    demoBanner: 'ഡെമോ — ഇത് തത്സമയ കൂടിയാലോചനയല്ല. ഒരു സർക്കാർ ഓഫീസിലേക്കും ഒന്നും അയയ്ക്കില്ല.',
     step1: 'ആശങ്കകൾ',
     step2: 'വിവരങ്ങൾ',
     step3: 'കത്ത്',
@@ -220,7 +219,6 @@ export const dictionary = {
     noLiveTitle: 'No live consultation right now',
     noLiveBody:
       'Janashabdam helps people in Kerala write a personal objection to an official consultation from their own email address.',
-    demoBanner: 'DEMO — this is not a live consultation. Nothing will be sent to any government office.',
     step1: 'Concerns',
     step2: 'Details',
     step3: 'Letter',

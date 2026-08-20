@@ -3,13 +3,11 @@ import { Gayathri, IBM_Plex_Mono, Instrument_Serif, Inter, Manjari } from 'next/
 import { cookies, headers } from 'next/headers'
 
 import { AuthErrorCatcher } from '@/components/AuthErrorCatcher'
-import { DemoBannerGate } from '@/components/DemoBanner'
 import { Header } from '@/components/Header'
 import { LanguageProvider } from '@/components/LanguageProvider'
 import { SiteFooterGate } from '@/components/SiteFooter'
 import { isAdminPath } from '@/lib/admin/paths'
 import { fetchSiteSettings } from '@/lib/admin/queries'
-import { resolveCampaignState } from '@/lib/campaign'
 import { parseLang } from '@/lib/lang'
 
 import './globals.css'
@@ -91,7 +89,6 @@ export default async function RootLayout({
   const lang = parseLang(cookieStore.get('lang')?.value)
   const pathname = (await headers()).get('x-pathname') ?? ''
   const admin = isAdminPath(pathname)
-  const campaignState = admin ? { state: 'live' as const } : await resolveCampaignState()
   const settings = admin ? null : await loadPublicSiteSettings()
 
   return (
@@ -102,7 +99,6 @@ export default async function RootLayout({
       <body className="flex min-h-dvh flex-col bg-surface text-base text-ink antialiased">
         <LanguageProvider initialLang={lang}>
           <AuthErrorCatcher />
-          {admin ? null : <DemoBannerGate active={campaignState.state !== 'live'} />}
           {admin ? null : (
             <Header titleMl={settings?.site_title_ml} titleEn={settings?.site_title_en} />
           )}
