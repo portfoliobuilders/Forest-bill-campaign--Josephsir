@@ -20,6 +20,7 @@ import {
 } from '@/lib/concern-selection'
 import { composeEmail } from '@/lib/compose'
 import { cx } from '@/lib/cx'
+import type { DistrictOption } from '@/lib/kerala-districts'
 import {
   createDetailsSchema,
   fieldErrorsFromZod,
@@ -27,7 +28,6 @@ import {
   type FieldErrors,
 } from '@/lib/details-schema'
 import { t } from '@/lib/i18n'
-import type { DistrictOption } from '@/lib/kerala-districts'
 import { normalizeIndianPhone } from '@/lib/phone'
 import { btnGhost, btnPrimary, focusRing } from '@/lib/ui'
 import type { WizardMode } from '@/lib/wizard-mode'
@@ -231,7 +231,6 @@ export function Wizard({
         customText: details.customText,
         extraConcerns: config.allowCustomConcern ? extraConcerns : [],
         clauseCodes: selectedClauses.map((clause) => clause.code),
-        letterMode: 'selected',
         constituencyId: state.routing.constituencyId,
         ccRepIds: state.routing.ccRepresentativeIds,
       })
@@ -333,6 +332,7 @@ export function Wizard({
           districts={districts}
           errors={state.detailsErrors}
           routing={state.routing}
+          allowSample={mode !== 'live'}
           onChange={(patch) => dispatch({ type: 'set_details', details: patch })}
           onRoutingChange={(routing) => dispatch({ type: 'set_routing', routing })}
         />

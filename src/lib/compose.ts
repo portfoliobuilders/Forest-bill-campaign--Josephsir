@@ -144,7 +144,7 @@ export function clausesForLetter(clauses: ObjectionClause[], selectedIds: string
 
 function senderValues(
   details: ComposeDetails,
-  identity: string,
+  lang: Lang,
 ): Pick<
   EmailTemplateValues,
   | 'full_name'
@@ -176,20 +176,31 @@ function senderValues(
     post_office: details.postOffice ?? '',
     state: details.state ?? '',
     postal_region: details.postalRegion ?? '',
-    identity_block: identity,
+    identity_block: identityBlock(
+      {
+        fullName: details.fullName,
+        pincode: details.pincode,
+        phone: details.phone,
+        addressLine: details.addressLine,
+        postOffice: details.postOffice,
+        district: details.district,
+        state: details.state,
+        postalRegion: details.postalRegion,
+        taluk: details.taluk,
+      },
+      lang,
+    ),
   }
 }
 
 export function composeSubject(campaign: Campaign, clauses: ObjectionClause[], lang: Lang): string {
-  const fromCampaign = pick(lang, campaign.subject_ml, campaign.subject_en).trim()
-  if (fromCampaign) return fromCampaign
   if (clauses.length === 1) {
     const custom = pick(lang, clauses[0].email_subject_ml ?? '', clauses[0].email_subject_en ?? '').trim()
     if (custom) return custom
     const title = concernTitle(clauses[0], lang)
     if (title) return title
   }
-  return pick(lang, campaign.title_ml, campaign.title_en)
+  return pick(lang, campaign.subject_ml, campaign.subject_en)
 }
 
 function assembleBody(
@@ -241,7 +252,6 @@ function assembleBody(
   return renderSafeTemplate(template, values)
 }
 
-/** Composed from campaign intro, selected concerns, and the citizen's details. Campaign sources/references are never included. */
 export function composeEmail({ campaign, clauses, details, lang }: ComposeEmailInput): ComposeEmailResult {
   const subject = composeSubject(campaign, clauses, lang)
   const body = assembleBody(campaign, clauses, details, lang)

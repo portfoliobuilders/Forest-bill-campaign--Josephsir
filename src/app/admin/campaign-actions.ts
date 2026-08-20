@@ -23,6 +23,8 @@ import { DEFAULT_BODY_TEMPLATE_EN, DEFAULT_BODY_TEMPLATE_ML } from '@/lib/email-
 import { DEFAULT_FEATURE_SETTINGS, parseFeatureSettings } from '@/lib/campaign-features'
 import { improveCampaignConcern } from '@/lib/ai/improve'
 import { DEFAULT_FORM_FIELDS } from '@/lib/form-fields'
+import { parseFeatureSettings } from '@/lib/campaign-features'
+import { improveCampaignConcern } from '@/lib/ai/improve'
 import { invalidEmails, parseEmailList, rowsFromLists } from '@/lib/recipients'
 import { createServiceClient } from '@/lib/supabase/server'
 
@@ -226,6 +228,7 @@ export type StudioSaveInput = {
   custom_concern_label_ml?: string
   custom_concern_placeholder_en?: string
   custom_concern_placeholder_ml?: string
+  feature_settings?: Record<string, unknown>
   subject_en: string
   subject_ml: string
   intro_en: string
@@ -306,6 +309,7 @@ export async function saveCampaignStudio(input: StudioSaveInput): Promise<Action
     custom_concern_label_ml: input.custom_concern_label_ml?.trim() || null,
     custom_concern_placeholder_en: input.custom_concern_placeholder_en?.trim() || null,
     custom_concern_placeholder_ml: input.custom_concern_placeholder_ml?.trim() || null,
+    feature_settings: parseFeatureSettings(input.feature_settings),
     subject_en: input.subject_en.trim() || input.title_en.trim(),
     subject_ml: input.subject_ml.trim() || input.title_ml.trim(),
     intro_en: input.intro_en.trim(),
@@ -673,32 +677,74 @@ export async function saveConcernStudio(input: {
   return { ok: true, id: data.id as string }
 }
 
-export async function deleteConcernStudio(id: string): Promise<ActionResult> {
-  const session = await requireAdminSession()
-  const supabase = createServiceClient()
-  const { count } = await supabase.from('submission_clauses').select('submission_id', { count: 'exact', head: true }).eq('clause_id', id)
-  if ((count ?? 0) > 0) {
-    const { error } = await supabase.from('objection_clauses').update({ is_active: false }).eq('id', id)
-    if (error) return { ok: false, error: 'Could not deactivate concern.' }
+export async function deleteConcernStudio(
+  id: string,
+): Promise<ActionResult & { deactivated?: boolean }> {
+  try {
+    const session = await requireAdminSession()
+    const supabase = createServiceClient()
+    const usage = await supabase
+      .from('submission_clauses')
+      .select('submission_id', { count: 'exact', head: true })
+      .eq('clause_id', id)
+    if (usage.error) return { ok: false, error: 'Could not check whether this concern is already in use.' }
+    if ((usage.count ?? 0) > 0) {
+      const { error } = await supabase.from('objection_clauses').update({ is_active: false }).eq('id', id)
+      if (error) return { ok: false, error: 'Could not turn this concern off.' }
+      await writeAdminAudit({
+        adminEmail: session.email,
+        action: 'concern_disabled',
+        entityType: 'concern',
+        entityId: id,
+      })
+      revalidateAfterCmsSave()
+      return { ok: true, id, deactivated: true }
+    }
+    const { error, count } = await supabase.from('objection_clauses').delete({ count: 'exact' }).eq('id', id)
+    if (error) {
+      const inUse = error.code === '23503' || /foreign key|violates/i.test(error.message)
+      return {
+        ok: false,
+        error: inUse
+          ? 'This concern is used in submitted letters, so it cannot be permanently deleted. Turn it off instead.'
+          : 'Could not delete concern.',
+      }
+    }
+    if ((count ?? 0) === 0) return { ok: false, error: 'Concern was not found. Reload and try again.' }
     await writeAdminAudit({
       adminEmail: session.email,
-      action: 'concern_disabled',
+      action: 'concern_deleted',
       entityType: 'concern',
       entityId: id,
     })
     revalidateAfterCmsSave()
     return { ok: true, id }
+  } catch {
+    return { ok: false, error: 'Could not delete concern. Sign in again, then retry.' }
   }
-  const { error } = await supabase.from('objection_clauses').delete().eq('id', id)
-  if (error) return { ok: false, error: 'Could not delete concern.' }
-  await writeAdminAudit({
-    adminEmail: session.email,
-    action: 'concern_deleted',
-    entityType: 'concern',
-    entityId: id,
+}
+
+export async function generateAiConcernDraft(
+  campaignId: string,
+  concernId: string,
+  language: 'ml' | 'en',
+): Promise<ActionResult & { body?: string }> {
+  await requireAdminSession()
+  const result = await improveCampaignConcern({
+    campaignId,
+    concernId,
+    language,
+    forceLive: true,
   })
+  if (!result.ok) return { ok: false, error: 'AI draft is unavailable. The original concern is unchanged.' }
+  const supabase = createServiceClient()
+  const patch =
+    language === 'en'
+      ? { ai_body_en: result.body, ai_body_en_status: 'draft' }
+      : { ai_body_ml: result.body, ai_body_ml_status: 'draft' }
+  await supabase.from('objection_clauses').update(patch).eq('id', concernId)
   revalidateAfterCmsSave()
-  return { ok: true, id }
+  return { ok: true, id: concernId, body: result.body }
 }
 
 export async function previewPathFor(campaignId: string): Promise<ActionResult & { url?: string }> {

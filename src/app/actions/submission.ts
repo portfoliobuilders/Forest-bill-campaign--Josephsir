@@ -24,10 +24,7 @@ import type { ActionResult } from '@/lib/submission-types'
 const uuidSchema = z.uuid()
 const langSchema = z.enum(['ml', 'en'])
 const sendMethodSchema = z.enum(['gmail_web', 'mailto', 'copy', 'server', 'print'])
-const optionalEmail = z
-  .string()
-  .trim()
-  .refine((value) => !value || z.email().safeParse(value).success, 'invalid_email')
+const letterModeSchema = z.enum(['selected', 'all'])
 
 const letterModeSchema = z.enum(['selected', 'all'])
 
@@ -88,12 +85,15 @@ async function composeCanonicalLetter(input: LetterFields): Promise<ActionResult
   let sourceClauses: ObjectionClause[] = []
   try {
     const supabase = createServiceClient()
-    const { data } = await supabase
+    let query = supabase
       .from('objection_clauses')
       .select('*')
       .eq('campaign_id', campaign.id)
       .eq('is_active', true)
-      .in('code', input.clauseCodes)
+    if (input.letterMode === 'selected') {
+      query = query.in('code', input.clauseCodes)
+    }
+    const { data } = await query
     sourceClauses = withCampaignClauses(campaign, (data ?? []) as ObjectionClause[])
   } catch {
     sourceClauses = []
@@ -174,7 +174,10 @@ async function storeCanonicalLetter(
     const supabase = createServiceClient()
     const preferred = canonical.persistSlug
     const bySlug = await supabase.from('campaigns').select('slug').eq('slug', preferred).maybeSingle()
-    const slug = (bySlug.data?.slug as string | undefined) ?? null
+    const fallback = bySlug.data?.slug
+      ? null
+      : await supabase.from('campaigns').select('slug').order('created_at', { ascending: false }).limit(1).maybeSingle()
+    const slug = (bySlug.data?.slug as string | undefined) ?? (fallback?.data?.slug as string | undefined)
     if (!slug) return null
 
     const targets = resolveMailTargets({
@@ -192,13 +195,10 @@ async function storeCanonicalLetter(
       generatedBcc.push(...live.bcc)
     }
 
-    const persistEmail =
-      input.email.trim() || `unspecified-${crypto.randomUUID()}@invalid.janashabdam`
-
     const rpcArgs = {
       p_campaign_slug: slug,
-      p_full_name: input.fullName,
-      p_email: persistEmail,
+      p_full_name: input.fullName.trim() || 'Citizen',
+      p_email: input.email.trim() || `none+${crypto.randomUUID()}@invalid.local`,
       p_phone: phone,
       p_address: input.address,
       p_panchayat: input.panchayat || null,
