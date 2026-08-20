@@ -40,6 +40,7 @@ const letterInputSchema = z.object({
   customText: z.string().max(1000).optional().default(''),
   extraConcerns: z.array(z.string().max(1000)).max(12).default([]),
   clauseCodes: z.array(z.string().min(1)).max(50).default([]),
+  letterMode: letterModeSchema.default('selected'),
   constituencyId: z.uuid().nullable().optional().default(null),
   ccRepIds: z.array(z.uuid()).optional().default([]),
   privacyMode: z.boolean().optional().default(false),

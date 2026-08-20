@@ -1,30 +1,26 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, type HTMLAttributes } from 'react'
+import { useEffect, useMemo, useReducer, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-import { markHandoff, prepareDemoLetter } from '@/app/actions/submission'
+import { prepareDemoLetter, markHandoff } from '@/app/actions/submission'
+import { CampaignProgress } from '@/components/campaign/CampaignProgress'
 import { CampaignSources } from '@/components/campaign/CampaignSources'
-import { ReadAloudControls } from '@/components/campaign/ReadAloudControls'
-import { StatusRegion } from '@/components/campaign/StatusRegion'
-import { VoiceInputButton } from '@/components/campaign/VoiceInputButton'
 import { LanguageToggle } from '@/components/LanguageToggle'
 import { useLang } from '@/components/LanguageProvider'
 import { IconChevronRight, IconCopy, IconEnvelope, IconGmail } from '@/components/ui/icons'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { ConcernSelector } from '@/components/wizard/ConcernSelector'
 import { composeEmail, concernTitle, formatCompleteEmailCopy, resolveMailTargets, type MailComposeParams } from '@/lib/compose'
+import { applyGmailHandoff, clientPlatform, planGmailHandoff } from '@/lib/gmail-handoff'
 import { launchMailCompose } from '@/lib/open-mail'
 import {
   applyPredefinedConcernClick,
   campaignConcernConfig,
-  customConcernCopy,
   flattenCustomConcerns,
-  isMultiSelect,
   selectedClausesForLetter,
   validatePredefinedSelection,
 } from '@/lib/concern-selection'
-import { parseFeatureSettings } from '@/lib/campaign-features'
 import { cx } from '@/lib/cx'
 import {
   createDetailsSchema,
@@ -37,13 +33,9 @@ import {
 import { fieldByKey, isFieldEnabled, isFieldRequired } from '@/lib/form-fields'
 import { formatCampaignDate } from '@/lib/format-date'
 import { t, tReplace, type Lang } from '@/lib/i18n'
-import {
-  compactLocationLine,
-  isValidPincode,
-  locationFromLookup,
-  type PostalLookup,
-} from '@/lib/postal'
-import { btnGhost, btnPrimary, btnSecondary, focusRing, inputClass, labelClass } from '@/lib/ui'
+import type { DistrictOption } from '@/lib/kerala-districts'
+import { normalizeIndianPhone } from '@/lib/phone'
+import { btnGhost, btnPrimary, btnSecondary, inputClass, labelClass } from '@/lib/ui'
 import type { WizardMode } from '@/lib/wizard-mode'
 import { isDryRun } from '@/lib/wizard-mode'
 import type { Campaign, CampaignFormField, CampaignSource, ObjectionClause } from '@/types/database'
@@ -151,7 +143,6 @@ export function CampaignFlow({
   mode,
   view,
   sources = [],
-  aiConfigured = false,
 }: {
   campaign: Campaign
   clauses: ObjectionClause[]
@@ -165,125 +156,20 @@ export function CampaignFlow({
   const { lang } = useLang()
   const actionable = view === 'live' || view === 'preview'
   const config = campaignConcernConfig(campaign)
-  const features = parseFeatureSettings(campaign.feature_settings)
-  const multi = isMultiSelect(config.mode)
-  const customCopy = customConcernCopy(config, lang)
+  const [state, dispatch] = useReducer(reducer, {
+    step: 1 as Step,
+    selectedIds: [],
+    customConcerns: config.allowCustomConcern ? [''] : [],
+    details: emptyDetails(),
+    detailsErrors: {},
+    concernError: false,
+    maxError: false,
+    letter: null,
+    submissionId: null,
+  })
 
-  const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const [customConcern, setCustomConcern] = useState('')
-  const [details, setDetails] = useState<DetailsFields>(emptyDetails)
-  const [privacyMode, setPrivacyMode] = useState(false)
-  const [errors, setErrors] = useState<FieldErrors>({})
-  const [concernError, setConcernError] = useState(false)
-  const [lookup, setLookup] = useState<PostalLookup | null>(null)
-  const [lookupState, setLookupState] = useState<'idle' | 'loading' | 'done'>('idle')
-  const [officeName, setOfficeName] = useState('')
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [improved, setImproved] = useState<{ concernId: string; body: string } | null>(null)
-  const [improving, setImproving] = useState(false)
-  const [aiError, setAiError] = useState('')
-  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
-  const [pasteHint, setPasteHint] = useState(false)
-  const [status, setStatus] = useState('')
-  const [submissionId, setSubmissionId] = useState<string | null>(null)
-  const abortRef = useRef<AbortController | null>(null)
-  const aiAbort = useRef<AbortController | null>(null)
-
-  const privacyOn = privacyMode && features.allow_privacy_mode
-  const selected = selectedClausesForLetter(clauses, selectedIds)
-  const extras = useMemo(
-    () => (config.allowCustomConcern ? flattenCustomConcerns([customConcern]) : []),
-    [config.allowCustomConcern, customConcern],
-  )
-  const location = useMemo(
-    () => (privacyOn ? {} : locationFromLookup(lookup, officeName)),
-    [privacyOn, lookup, officeName],
-  )
-
-  const clausesForMail = useMemo(() => {
-    if (!improved) return selected
-    return selected.map((clause) =>
-      clause.id === improved.concernId
-        ? {
-            ...clause,
-            email_body_en: improved.body,
-            email_body_ml: improved.body,
-            email_en: improved.body,
-            email_ml: improved.body,
-            full_text_en: improved.body,
-            full_text_ml: improved.body,
-          }
-        : clause,
-    )
-  }, [selected, improved])
-
-  const letter = useMemo(() => {
-    if (selected.length === 0) return null
-    return composeEmail({
-      campaign,
-      clauses: clausesForMail,
-      details: {
-        ...details,
-        extraConcerns: extras,
-        customText: '',
-        postOffice: location.postOffice,
-        district: location.district || details.district,
-        state: location.state,
-        postalRegion: location.postalRegion,
-        taluk: location.taluk,
-        privacyMode: privacyOn,
-      },
-      lang,
-    })
-  }, [campaign, clausesForMail, details, extras, lang, location, privacyOn, selected.length])
-
-  useEffect(() => {
-    if (!features.enable_pin_lookup || privacyOn) return
-    const pin = details.pincode.trim()
-    if (!isValidPincode(pin)) {
-      setLookup(null)
-      setLookupState('idle')
-      setOfficeName('')
-      return
-    }
-    const cached = pinCache.get(pin)
-    if (cached) {
-      setLookup(cached)
-      setLookupState('done')
-      setOfficeName(cached.common.postOffice || '')
-      if (cached.common.district) {
-        setDetails((prev) => (prev.district === cached.common.district ? prev : { ...prev, district: cached.common.district || '' }))
-      }
-      setStatus(compactLocationLine(cached.common) || t(lang, 'locationStatus'))
-      return
-    }
-    abortRef.current?.abort()
-    const controller = new AbortController()
-    abortRef.current = controller
-    setLookupState('loading')
-    setStatus(t(lang, 'findingLocation'))
-    fetch(`/api/pincode/${pin}`, { signal: controller.signal })
-      .then((response) => response.json())
-      .then((data: PostalLookup) => {
-        pinCache.set(pin, data)
-        setLookup(data)
-        setLookupState('done')
-        setOfficeName(data.common.postOffice || '')
-        if (data.common.district) {
-          setDetails((prev) => ({ ...prev, district: data.common.district || prev.district }))
-        }
-        if (data.found) setStatus(compactLocationLine(data.common) || t(lang, 'locationStatus'))
-        else setStatus(t(lang, 'pinNotFound'))
-      })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === 'AbortError') return
-        setLookupState('done')
-        setLookup(null)
-        setStatus(t(lang, 'pinNotFound'))
-      })
-    return () => controller.abort()
-  }, [details.pincode, features.enable_pin_lookup, lang, privacyOn])
-
+  const selected = selectedClausesForLetter(clauses, state.selectedIds)
+  const extraConcerns = config.allowCustomConcern ? flattenCustomConcerns(state.customConcerns) : []
   const title = pick(lang, campaign.title_ml, campaign.title_en)
   const description = pick(lang, campaign.homepage_intro_ml || campaign.summary_ml, campaign.homepage_intro_en || campaign.summary_en)
   const deadline = formatCampaignDate(campaign.deadline_at, lang)
@@ -291,31 +177,50 @@ export function CampaignFlow({
     ? Math.max(0, Math.ceil((new Date(campaign.deadline_at).getTime() - Date.now()) / 86_400_000))
     : null
 
-  const showAi =
-    features.enable_ai_mail &&
-    selected.length === 1 &&
-    (aiConfigured || Boolean(selected[0] && approvedAiBody(selected[0], lang)))
-  const showVoice = features.enable_voice_input
-  const showRead = features.enable_mail_read_aloud && Boolean(letter?.body)
+  useEffect(() => {
+    const pin = state.details.pincode.trim()
+    if (!/^[1-9][0-9]{5}$/.test(pin)) return
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => {
+      const params = new URLSearchParams({ pincode: pin })
+      if (state.details.district.trim()) params.set('district', state.details.district.trim())
+      void fetch(`/api/constituency?${params.toString()}`, { signal: controller.signal })
+        .then(async (response) => {
+          if (!response.ok) return
+          const body = (await response.json()) as { candidates?: Array<{ constituency?: { district?: string } }> }
+          const district = body.candidates?.[0]?.constituency?.district
+          if (district && !state.details.district.trim()) {
+            dispatch({ type: 'set_details', details: { district } })
+          }
+        })
+        .catch(() => undefined)
+    }, 400)
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [state.details.pincode, state.details.district])
 
-  function patchDetails(next: Partial<DetailsFields>) {
-    setDetails((prev) => ({ ...prev, ...next }))
-    const nextErrors = { ...errors }
-    for (const key of Object.keys(next) as Array<keyof DetailsFields>) delete nextErrors[key]
-    setErrors(nextErrors)
+  function goConcern() {
+    if (!actionable) return
+    dispatch({ type: 'goto', step: 2 })
   }
 
-  function selectConcern(id: string) {
-    const next = applyPredefinedConcernClick({
+  function goDetails() {
+    const check = validatePredefinedSelection({
       mode: config.mode,
-      selectedIds,
-      id,
+      selectedIds: state.selectedIds,
       maxSelections: config.maxSelections,
     })
-    setSelectedIds(next.selectedIds)
-    setConcernError(false)
-    setImproved(null)
-    setAiError('')
+    if (check === 'required') {
+      dispatch({ type: 'concern_error' })
+      return
+    }
+    if (check === 'too_many') {
+      dispatch({ type: 'max_error' })
+      return
+    }
+    dispatch({ type: 'goto', step: 3 })
   }
 
   async function goReview() {
@@ -328,30 +233,26 @@ export function CampaignFlow({
       dispatch({ type: 'details_invalid', errors: fieldErrorsFromZod(parsed.error) })
       return
     }
-    setErrors({})
-    return true
-  }
-
-  async function copyPlainText(text: string) {
-    try {
-      await navigator.clipboard.writeText(text)
-    } catch {
-      const field = document.createElement('textarea')
-      field.value = text
-      field.setAttribute('readonly', '')
-      field.style.position = 'fixed'
-      field.style.opacity = '0'
-      document.body.appendChild(field)
-      field.select()
-      const ok = document.execCommand('copy')
-      document.body.removeChild(field)
-      if (!ok) throw new Error('copy failed')
-    }
-  }
-
-  async function persistAndHandoff(method: 'gmail_web' | 'mailto' | 'copy', goSent: boolean) {
-    if (!letter || selected.length === 0) return
-    let id = submissionId
+    const phone = parsed.data.phone.trim() ? (normalizeIndianPhone(parsed.data.phone) ?? parsed.data.phone) : ''
+    const details = { ...parsed.data, phone }
+    let letter = composeEmail({
+      campaign,
+      clauses: selected,
+      details: {
+        fullName: details.fullName,
+        addressLine: details.addressLine,
+        panchayat: details.panchayat,
+        village: details.village,
+        district: details.district,
+        pincode: details.pincode,
+        phone,
+        email: details.email,
+        customText: details.customText,
+        extraConcerns,
+      },
+      lang,
+    })
+    let submissionId: string | null = null
     try {
       const prepared = await prepareDemoLetter({
         campaignSlug: campaign.slug,
@@ -364,10 +265,9 @@ export function CampaignFlow({
         district: details.district,
         pincode: details.pincode,
         language: lang,
-        customText: '',
-        extraConcerns: extras,
+        customText: details.customText,
+        extraConcerns,
         clauseCodes: selected.map((clause) => clause.code),
-        letterMode: 'selected',
         constituencyId: null,
         ccRepIds: [],
       })
@@ -396,6 +296,7 @@ export function CampaignFlow({
             <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-accent">
               {t(lang, 'campaignStatus')}: {statusLabel(lang, view === 'live' ? 'live' : view === 'preview' ? 'preview' : view)}
             </p>
+            <LanguageToggle />
           </div>
           <h1 className="font-display mt-4 text-[1.85rem] text-ink sm:text-4xl">{title}</h1>
           <div className="mt-5 max-w-3xl space-y-4 text-base leading-relaxed text-body sm:text-lg">
@@ -426,112 +327,42 @@ export function CampaignFlow({
             </p>
           ) : null}
 
-      {view === 'inactive' ? (
-        <p className="mt-8 rounded-[8px] border border-rule bg-raised px-4 py-4 text-base text-ink">{t(lang, 'campaignInactivePublic')}</p>
-      ) : null}
-      {view === 'expired' ? (
-        <p className="mt-8 rounded-[8px] border border-rule bg-raised px-4 py-4 text-base text-ink">{t(lang, 'campaignExpiredThanks')}</p>
+          {actionable ? (
+            <button type="button" className={cx(btnPrimary, 'mt-8 w-full sm:w-auto')} onClick={goConcern}>
+              {t(lang, 'selectYourConcern')}
+              <IconChevronRight className="size-4 shrink-0" />
+            </button>
+          ) : null}
+          <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted">{t(lang, 'trustLine')}</p>
+          <CampaignSources sources={sources} />
+        </section>
       ) : null}
 
-      {actionable ? (
-        <form
-          className="mt-10 min-w-0 space-y-8"
-          lang={lang}
-          onSubmit={(event) => {
-            event.preventDefault()
-            void sendMailto()
-          }}
-        >
-          <fieldset>
-            <legend className="font-display text-2xl text-ink">{t(lang, 'chooseYourConcern')}</legend>
-            <p className="mt-2 text-base text-body">{multi ? t(lang, 'concernsLeadMultiple') : t(lang, 'concernsLead')}</p>
-            <ul className="mt-5 space-y-3">
-              {clauses.map((clause, index) => {
-                const on = selectedIds.includes(clause.id)
-                const expanded = expandedId === clause.id
-                const short = concernShort(clause, lang)
-                const full = concernBody(clause, lang)
-                const needsMore = full.length > short.length + 8
-                return (
-                  <li key={clause.id}>
-                    <label
-                      className={cx(
-                        'flex min-h-11 cursor-pointer gap-3 rounded-[10px] border p-4',
-                        on ? 'border-accent bg-accent-tint' : 'border-rule bg-raised',
-                      )}
-                    >
-                      <input
-                        type={multi ? 'checkbox' : 'radio'}
-                        name="campaign-concern"
-                        className="mt-1 size-6 shrink-0 accent-[var(--color-accent)]"
-                        checked={on}
-                        onChange={() => selectConcern(clause.id)}
-                      />
-                      <span className="min-w-0">
-                        <span className="flex flex-wrap items-center gap-2">
-                          <span className="font-mono text-xs font-semibold text-accent">{String(index + 1).padStart(2, '0')}</span>
-                          {on ? (
-                            <span className="inline-flex items-center gap-1 text-sm font-semibold text-accent">
-                              <IconCheck className="size-4" />
-                              {t(lang, 'selectedVisible')}
-                            </span>
-                          ) : null}
-                        </span>
-                        <span className="mt-1 block text-base font-semibold leading-snug text-ink sm:text-lg">
-                          {concernTitle(clause, lang)}
-                        </span>
-                        <span className="mt-2 block text-sm leading-relaxed text-body sm:text-base">{expanded ? full : short}</span>
-                        {needsMore ? (
-                          <button
-                            type="button"
-                            className={cx('mt-2 min-h-11 text-sm font-semibold text-accent', focusRing)}
-                            onClick={(event) => {
-                              event.preventDefault()
-                              setExpandedId(expanded ? null : clause.id)
-                            }}
-                          >
-                            {expanded ? t(lang, 'readLess') : t(lang, 'readMore')}
-                          </button>
-                        ) : null}
-                      </span>
-                    </label>
-                  </li>
-                )
-              })}
-            </ul>
-            {concernError ? (
-              <p className="mt-3 text-sm text-red-800" role="alert">
-                {multi ? t(lang, 'minClausesHintMultiple') : t(lang, 'minClausesHint')}
-              </p>
-            ) : null}
-          </fieldset>
-
-          {config.allowCustomConcern ? (
-            <div>
-              <div className="flex items-end justify-between gap-3">
-                <label htmlFor="custom-concern" className={labelClass}>
-                  {customCopy.label || t(lang, 'moreToSay')}
-                  <span className="font-normal text-muted"> ({t(lang, 'optional')})</span>
-                </label>
-                {showVoice ? (
-                  <VoiceInputButton
-                    lang={lang}
-                    fieldId="custom-concern"
-                    value={customConcern}
-                    onChange={setCustomConcern}
-                    onStatus={setStatus}
-                  />
-                ) : null}
-              </div>
-              <textarea
-                id="custom-concern"
-                className={`${inputClass} min-h-28 resize-y py-2`}
-                maxLength={MAX_CUSTOM_CHARS}
-                value={customConcern}
-                placeholder={customCopy.placeholder}
-                onChange={(event) => setCustomConcern(event.target.value)}
-              />
-            </div>
+      {state.step === 2 ? (
+        <section>
+          <ConcernSelector
+            campaign={campaign}
+            clauses={clauses}
+            selectedIds={state.selectedIds}
+            customConcerns={state.customConcerns}
+            customError={state.detailsErrors.customText}
+            maxError={state.maxError}
+            onSelect={(id) =>
+              dispatch({
+                type: 'select',
+                id,
+                multiple: config.mode === 'multiple',
+                maxSelections: config.maxSelections,
+              })
+            }
+            onCustomChange={(index, text) => dispatch({ type: 'set_custom', index, text })}
+            onAddCustom={() => dispatch({ type: 'add_custom' })}
+            onRemoveCustom={(index) => dispatch({ type: 'remove_custom', index })}
+          />
+          {state.concernError ? (
+            <p className="mt-3 text-sm text-red-800" role="alert">
+              {config.mode === 'single' ? t(lang, 'minClausesHint') : t(lang, 'minClausesHintMultiple')}
+            </p>
           ) : null}
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <button type="button" className={cx(btnGhost, 'w-full sm:w-auto')} onClick={() => dispatch({ type: 'goto', step: 1 })}>
@@ -861,9 +692,13 @@ function EmailStep({
 
   function openGmail() {
     setEmlHint(false)
-    const result = launchMailCompose(mailParams, 'gmail')
-    setEmlHint(result === 'eml')
-    void recordHandoff('gmail_web', result === 'gmail_tab')
+    const plan = planGmailHandoff(
+      mailParams,
+      clientPlatform(navigator.userAgent, navigator.maxTouchPoints),
+      navigator.userAgent,
+    )
+    applyGmailHandoff(plan)
+    void recordHandoff('gmail_web', plan.openInNewTab && plan.includeBody)
   }
 
   function openMailApp() {
@@ -920,7 +755,7 @@ export function NoActiveCampaign() {
       <div className="flex justify-end">
         <LanguageToggle />
       </div>
-      <h1 className="font-display mt-6 text-2xl text-ink sm:text-3xl">{t(lang, 'noLiveTitle')}</h1>
+      <h1 className="font-display mt-6 text-2xl text-ink sm:text-3xl">{t(lang, 'noActiveCampaignTitle')}</h1>
       <p className="mt-4 max-w-2xl text-base leading-relaxed text-body sm:text-lg">{t(lang, 'noActiveCampaign')}</p>
     </PageContainer>
   )

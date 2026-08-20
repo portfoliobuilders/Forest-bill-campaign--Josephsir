@@ -16,6 +16,7 @@ import {
 import { cx } from '@/lib/cx'
 import type { DetailsFields } from '@/lib/details-schema'
 import { t } from '@/lib/i18n'
+import { applyGmailHandoff, clientPlatform, planGmailHandoff } from '@/lib/gmail-handoff'
 import { launchMailCompose } from '@/lib/open-mail'
 import { PDF_LETTER_AVAILABLE } from '@/lib/pdf-available'
 import { normalizeIndianPhone } from '@/lib/phone'
@@ -163,9 +164,13 @@ export function Step3_Preview({
 
   function openGmail() {
     setEmlHint(false)
-    const result = launchMailCompose(mailParams, 'gmail')
-    setEmlHint(result === 'eml')
-    void recordHandoff('gmail_web', result === 'gmail_tab')
+    const plan = planGmailHandoff(
+      mailParams,
+      clientPlatform(navigator.userAgent, navigator.maxTouchPoints),
+      navigator.userAgent,
+    )
+    applyGmailHandoff(plan)
+    void recordHandoff('gmail_web', plan.openInNewTab && plan.includeBody)
   }
 
   function openMailApp() {
