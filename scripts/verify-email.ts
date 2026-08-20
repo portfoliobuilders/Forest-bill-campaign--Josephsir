@@ -63,7 +63,7 @@ const single = composeEmail({
   },
   lang: 'en',
 })
-assert.equal(single.subject, fixtureCampaign.subject_en)
+assert.equal(single.subject, fixtureClauses[2].title_en)
 assert.match(single.body, /Selected Concern:/)
 assert.match(single.body, /Additional Concern:/)
 assert.match(single.body, /My property has been excluded incorrectly/)

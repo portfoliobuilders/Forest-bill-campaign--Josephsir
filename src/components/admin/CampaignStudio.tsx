@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import {
@@ -11,17 +11,22 @@ import {
   saveConcernStudio,
   setCampaignStatus,
 } from '@/app/admin/campaign-actions'
-import { reorderConcerns } from '@/app/admin/cms-actions'
-import { AdminPageHeader, ConfirmDialog, SaveStatus, SuccessBanner } from '@/components/admin/AdminPrimitives'
+import { reorderConcerns, setConcernActive } from '@/app/admin/cms-actions'
+import { AdminPageHeader, ConfirmDialog, ErrorState, SaveStatus, SuccessBanner } from '@/components/admin/AdminPrimitives'
+import { CampaignFeaturesPanel } from '@/components/admin/CampaignFeaturesPanel'
 import { CampaignSourcesEditor } from '@/components/admin/CampaignSourcesEditor'
 import { adminBtnDanger, adminBtnPrimary, adminBtnSecondary, adminInput, adminLabel } from '@/components/admin/admin-ui'
-import { ConcernSelectionSettings } from '@/components/admin/ConcernSelectionSettings'
+import {
+  ConcernSelectionSettings,
+  draftFromCampaign,
+  type ConcernSelectionDraft,
+} from '@/components/admin/ConcernSelectionSettings'
 import { formatDatetimeLocal } from '@/lib/admin/format'
 import { CAMPAIGN_STATUS_LABEL, type CampaignStatus } from '@/lib/campaign-status'
 import { parseFeatureSettings, type CampaignFeatureSettings } from '@/lib/campaign-features'
 import { applyFieldMode, DEFAULT_FORM_FIELDS, type FieldMode } from '@/lib/form-fields'
 import { recipientsOfType } from '@/lib/recipients'
-import type { Campaign, CampaignFormField, CampaignRecipient, ConcernSelectionMode, ObjectionClause } from '@/types/database'
+import type { Campaign, CampaignFormField, CampaignRecipient, CampaignSource, ConcernSelectionMode, ObjectionClause } from '@/types/database'
 
 const TABS = [
   'Basic Details',
@@ -171,13 +176,22 @@ export function CampaignStudio({
   )
   const [clauseDrafts, setClauseDrafts] = useState<ConcernDraft[]>(concerns.map(fromClause))
   const [editing, setEditing] = useState<ConcernDraft | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<ConcernDraft | null>(null)
+  const [busyConcern, setBusyConcern] = useState<string | null>(null)
   const [aiBusy, setAiBusy] = useState<'en' | 'ml' | null>(null)
   const [features, setFeatures] = useState<CampaignFeatureSettings>(() => parseFeatureSettings(campaign.feature_settings))
   const [selection, setSelection] = useState<ConcernSelectionDraft>(() => draftFromCampaign(campaign))
+  const editorRef = useRef<HTMLDivElement>(null)
+  const concernSyncKey = concerns.map((clause) => `${clause.id}:${clause.is_active}:${clause.sort_order}:${clause.title_en}`).join('|')
+  const editingKey = editing ? (editing.id ?? 'new') : null
 
   useEffect(() => {
     setClauseDrafts(concerns.map(fromClause))
-  }, [concerns])
+  }, [concernSyncKey, concerns])
+
+  useEffect(() => {
+    if (editingKey) editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [editingKey])
 
   function patch(next: Partial<typeof form>) {
     setForm((prev) => ({ ...prev, ...next }))
@@ -231,17 +245,107 @@ export function CampaignStudio({
 
   async function saveConcern() {
     if (!editing) return
-    const result = await saveConcernStudio({
-      ...editing,
-      campaign_id: campaign.id,
-    })
-    if (!result.ok) {
-      setMessage(result.error)
-      return
+    try {
+      const result = await saveConcernStudio({
+        ...editing,
+        campaign_id: campaign.id,
+      })
+      if (!result.ok) {
+        setSaveState('error')
+        setMessage(result.error)
+        return
+      }
+      setEditing(null)
+      setSaveState('saved')
+      setMessage('Concern saved.')
+      router.refresh()
+    } catch {
+      setSaveState('error')
+      setMessage('Could not save concern. Sign in again, then retry.')
     }
-    setEditing(null)
-    setMessage('Concern saved.')
-    router.refresh()
+  }
+
+  async function moveConcern(index: number, dir: -1 | 1) {
+    const target = index + dir
+    if (target < 0 || target >= clauseDrafts.length) return
+    const previous = clauseDrafts
+    const next = [...clauseDrafts]
+    const current = next[index]
+    next[index] = next[target]
+    next[target] = current
+    setClauseDrafts(next)
+    const ids = next.map((item) => item.id).filter(Boolean) as string[]
+    try {
+      const result = await reorderConcerns(campaign.id, ids)
+      if (!result.ok) {
+        setClauseDrafts(previous)
+        setSaveState('error')
+        setMessage(result.error)
+        return
+      }
+      setSaveState('saved')
+      setMessage('Concern order saved.')
+      router.refresh()
+    } catch {
+      setClauseDrafts(previous)
+      setSaveState('error')
+      setMessage('Could not reorder concerns. Sign in again, then retry.')
+    }
+  }
+
+  async function toggleConcernActive(clause: ConcernDraft) {
+    if (!clause.id) return
+    const nextActive = !clause.is_active
+    setBusyConcern(clause.id)
+    setClauseDrafts((rows) => rows.map((row) => (row.id === clause.id ? { ...row, is_active: nextActive } : row)))
+    try {
+      const result = await setConcernActive(clause.id, nextActive)
+      if (!result.ok) {
+        setClauseDrafts((rows) => rows.map((row) => (row.id === clause.id ? { ...row, is_active: clause.is_active } : row)))
+        setSaveState('error')
+        setMessage(result.error)
+        return
+      }
+      setSaveState('saved')
+      setMessage(nextActive ? 'Concern is now active.' : 'Concern turned off. It will not appear on the public form.')
+      router.refresh()
+    } catch {
+      setClauseDrafts((rows) => rows.map((row) => (row.id === clause.id ? { ...row, is_active: clause.is_active } : row)))
+      setSaveState('error')
+      setMessage('Could not update this concern. Sign in again, then retry.')
+    } finally {
+      setBusyConcern(null)
+    }
+  }
+
+  async function confirmDeleteConcern() {
+    if (!deleteTarget?.id) return
+    const id = deleteTarget.id
+    setBusyConcern(id)
+    try {
+      const result = await deleteConcernStudio(id)
+      if (!result.ok) {
+        setSaveState('error')
+        setMessage(result.error)
+        return
+      }
+      if (result.deactivated) {
+        setClauseDrafts((rows) => rows.map((row) => (row.id === id ? { ...row, is_active: false } : row)))
+        setMessage('This concern is already in submitted letters, so it was turned off instead of deleted.')
+      } else {
+        setClauseDrafts((rows) => rows.filter((row) => row.id !== id))
+        if (editing?.id === id) setEditing(null)
+        setMessage('Concern deleted.')
+      }
+      setSaveState('saved')
+      setDeleteTarget(null)
+      router.refresh()
+    } catch {
+      setSaveState('error')
+      setMessage('Could not delete concern. Sign in again, then retry.')
+    } finally {
+      setBusyConcern(null)
+    }
   }
 
   async function generateAi(language: 'ml' | 'en') {
@@ -305,7 +409,13 @@ export function CampaignStudio({
         }
       />
       <SaveStatus state={saveState} />
-      {message ? <SuccessBanner>{message}</SuccessBanner> : null}
+      {message ? (
+        saveState === 'error' ? (
+          <ErrorState title="Could not save that change" body={message} />
+        ) : (
+          <SuccessBanner>{message}</SuccessBanner>
+        )
+      ) : null}
 
       <div className="flex flex-wrap gap-1">
         {TABS.map((label, index) => (
@@ -390,66 +500,8 @@ export function CampaignStudio({
           >
             Add concern
           </button>
-          <ul className="space-y-2">
-            {clauseDrafts.map((clause, index) => (
-              <li key={clause.id ?? `new-${index}`} className="rounded-md border border-stone-200 bg-white p-3">
-                <p className="font-medium text-stone-900">
-                  {String(index + 1).padStart(2, '0')} {clause.code ? `${clause.code} · ` : ''}
-                  {clause.title_en}
-                </p>
-                <p className="text-sm text-stone-600">{clause.title_ml}</p>
-                <p className="mt-1 text-xs text-stone-500">{clause.is_active ? 'Active' : 'Inactive'}</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <button type="button" className={adminBtnSecondary} onClick={() => setEditing(clause)}>
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className={adminBtnSecondary}
-                    onClick={() => {
-                      const next = [...clauseDrafts]
-                      if (index === 0) return
-                      ;[next[index - 1], next[index]] = [next[index], next[index - 1]]
-                      setClauseDrafts(next)
-                      const ids = next.map((item) => item.id).filter(Boolean) as string[]
-                      void reorderConcerns(campaign.id, ids)
-                    }}
-                  >
-                    Move up
-                  </button>
-                  <button
-                    type="button"
-                    className={adminBtnSecondary}
-                    onClick={() =>
-                      void saveConcernStudio({
-                        ...clause,
-                        campaign_id: campaign.id,
-                        is_active: !clause.is_active,
-                      }).then(() => router.refresh())
-                    }
-                  >
-                    {clause.is_active ? 'Deactivate' : 'Activate'}
-                  </button>
-                  {clause.id ? (
-                    <button
-                      type="button"
-                      className={adminBtnDanger}
-                      onClick={() =>
-                        void deleteConcernStudio(clause.id!).then((result) => {
-                          if (!result.ok) setMessage(result.error)
-                          else router.refresh()
-                        })
-                      }
-                    >
-                      Delete
-                    </button>
-                  ) : null}
-                </div>
-              </li>
-            ))}
-          </ul>
           {editing ? (
-            <div className="rounded-md border border-stone-300 bg-stone-50 p-4">
+            <div ref={editorRef} className="rounded-md border border-stone-300 bg-stone-50 p-4">
               <h2 className="font-semibold text-stone-900">{editing.id ? 'Edit concern' : 'New concern'}</h2>
               <div className="mt-3 grid gap-3 lg:grid-cols-2">
                 <Field label="Title — English" value={editing.title_en} onChange={(v) => setEditing({ ...editing, title_en: v })} />
@@ -526,6 +578,57 @@ export function CampaignStudio({
               </div>
             </div>
           ) : null}
+          <ul className="space-y-2">
+            {clauseDrafts.map((clause, index) => (
+              <li key={clause.id ?? `new-${index}`} className="rounded-md border border-stone-200 bg-white p-3">
+                <p className="font-medium text-stone-900">
+                  {String(index + 1).padStart(2, '0')} {clause.code ? `${clause.code} · ` : ''}
+                  {clause.title_en}
+                </p>
+                <p className="text-sm text-stone-600">{clause.title_ml}</p>
+                <p className="mt-1 text-xs text-stone-500">{clause.is_active ? 'Active' : 'Inactive'}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button type="button" className={adminBtnSecondary} onClick={() => setEditing(clause)}>
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className={adminBtnSecondary}
+                    disabled={index === 0 || busyConcern !== null}
+                    onClick={() => void moveConcern(index, -1)}
+                  >
+                    Move up
+                  </button>
+                  <button
+                    type="button"
+                    className={adminBtnSecondary}
+                    disabled={index === clauseDrafts.length - 1 || busyConcern !== null}
+                    onClick={() => void moveConcern(index, 1)}
+                  >
+                    Move down
+                  </button>
+                  <button
+                    type="button"
+                    className={adminBtnSecondary}
+                    disabled={!clause.id || busyConcern === clause.id}
+                    onClick={() => void toggleConcernActive(clause)}
+                  >
+                    {busyConcern === clause.id ? 'Saving…' : clause.is_active ? 'Deactivate' : 'Activate'}
+                  </button>
+                  {clause.id ? (
+                    <button
+                      type="button"
+                      className={adminBtnDanger}
+                      disabled={busyConcern === clause.id}
+                      onClick={() => setDeleteTarget(clause)}
+                    >
+                      Delete
+                    </button>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
 
@@ -616,11 +719,11 @@ export function CampaignStudio({
         </div>
       ) : null}
 
-      {tab === 7 ? (
+      {tab === 8 ? (
         <CampaignSourcesEditor campaignId={campaign.id} sources={sources} loadError={sourcesLoadError} />
       ) : null}
 
-      {tab === 8 ? (
+      {tab === 9 ? (
         <div className="space-y-4 rounded-md border border-stone-200 bg-white p-4">
           <p className="font-mono text-xs text-stone-500">{status.toUpperCase()}</p>
           <h2 className="text-2xl font-semibold text-stone-900">{preview.title}</h2>
@@ -646,6 +749,18 @@ export function CampaignStudio({
           onConfirm={() => void publish()}
         >
           Publishing makes this campaign publicly actionable. Confirm that the copy, concerns, dates, and recipients are correct.
+        </ConfirmDialog>
+      ) : null}
+
+      {deleteTarget ? (
+        <ConfirmDialog
+          title="Delete this concern?"
+          confirmLabel="Delete"
+          busy={busyConcern === deleteTarget.id}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => void confirmDeleteConcern()}
+        >
+          {deleteTarget.title_en || 'This concern'} will be removed from the campaign. If people have already used it in a submitted letter, it will be turned off instead of permanently deleted.
         </ConfirmDialog>
       ) : null}
     </div>
