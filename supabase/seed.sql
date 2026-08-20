@@ -217,6 +217,15 @@ cross join (
 )
 where c.slug = 'kerala-forest-amendment-2024';
 
+update campaigns
+set
+  concern_selection_mode = 'single',
+  max_concern_selections = null,
+  allow_custom_concern = true
+where slug = 'kerala-forest-amendment-2024'
+   or slug ilike '%esa%'
+   or title_en ilike '%ecologically sensitive%';
+
 insert into constituencies (code, name_en, name_ml, district, level) values
   ('KL-TVM', 'Thiruvananthapuram', 'തിരുവനന്തപുരം', 'Thiruvananthapuram', 'mla'),
   ('KL-KLM', 'Kollam', 'കൊല്ലം', 'Kollam', 'mla'),

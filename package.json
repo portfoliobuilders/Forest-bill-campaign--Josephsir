@@ -7,7 +7,7 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
-    "test": "npx tsx --test src/lib/admin/admin-logic.test.ts"
+    "test": "npx tsx --test src/lib/admin/admin-logic.test.ts src/lib/concern-selection.test.ts && npx tsx scripts/verify-email.ts"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",

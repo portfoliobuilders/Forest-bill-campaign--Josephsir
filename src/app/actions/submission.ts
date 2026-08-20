@@ -3,9 +3,15 @@
 import { headers } from 'next/headers'
 import { z } from 'zod'
 
-import { composeEmail, clausesForLetter, liveMailTargets, resolveMailTargets } from '@/lib/compose'
+import { composeEmail, liveMailTargets, resolveMailTargets } from '@/lib/compose'
 import { getCampaignState, publicCampaign, readPreviewToken } from '@/lib/campaign'
-import { withForestClauses } from '@/lib/campaigns'
+import { withCampaignClauses } from '@/lib/campaigns'
+import {
+  campaignConcernConfig,
+  flattenCustomConcerns,
+  selectedClausesForLetter,
+  validatePredefinedSelection,
+} from '@/lib/concern-selection'
 import { demoCampaign, demoClauses } from '@/lib/demo-data'
 import { getClientIp, hashIp } from '@/lib/security'
 import { createServiceClient } from '@/lib/supabase/server'
@@ -19,8 +25,6 @@ const uuidSchema = z.uuid()
 const langSchema = z.enum(['ml', 'en'])
 const sendMethodSchema = z.enum(['gmail_web', 'mailto', 'copy', 'server', 'print'])
 
-const letterModeSchema = z.enum(['selected', 'full'])
-
 const letterInputSchema = z.object({
   campaignSlug: z.string().min(1),
   fullName: z.string().trim().min(1),
@@ -33,8 +37,7 @@ const letterInputSchema = z.object({
   language: langSchema,
   customText: z.string().max(300),
   extraConcerns: z.array(z.string().max(300)).max(6).default([]),
-  clauseCodes: z.array(z.string().min(1)).max(12).default([]),
-  letterMode: letterModeSchema.default('selected'),
+  clauseCodes: z.array(z.string().min(1)).max(50).default([]),
   constituencyId: z.uuid().nullable(),
   ccRepIds: z.array(z.uuid()),
 })
@@ -50,8 +53,8 @@ type CanonicalCompose = {
 }
 
 async function composeCanonicalLetter(input: LetterFields): Promise<ActionResult<CanonicalCompose>> {
-  const extraConcerns = input.extraConcerns.map((item) => item.replace(/\s+/g, ' ').trim()).filter(Boolean)
-  if (input.letterMode === 'selected' && input.clauseCodes.length + extraConcerns.length < 1) {
+  const extraConcerns = flattenCustomConcerns(input.extraConcerns)
+  if (input.clauseCodes.length < 1) {
     return { ok: false, error: 'invalid_clauses' }
   }
 
@@ -75,27 +78,36 @@ async function composeCanonicalLetter(input: LetterFields): Promise<ActionResult
     persistSlug = campaign.slug
     try {
       const supabase = createServiceClient()
-      let query = supabase
+      const { data } = await supabase
         .from('objection_clauses')
         .select('*')
         .eq('campaign_id', campaign.id)
         .eq('is_active', true)
-      if (input.letterMode === 'selected') {
-        query = query.in('code', input.clauseCodes)
-      }
-      const { data } = await query
-      sourceClauses = withForestClauses(campaign, (data ?? []) as ObjectionClause[])
+        .in('code', input.clauseCodes)
+      sourceClauses = withCampaignClauses(campaign, (data ?? []) as ObjectionClause[])
     } catch {
-      sourceClauses = withForestClauses(campaign, [])
+      sourceClauses = withCampaignClauses(campaign, [])
     }
   }
 
-  const selectedIds =
-    input.letterMode === 'full'
-      ? sourceClauses.map((clause) => clause.id)
-      : sourceClauses.filter((clause) => input.clauseCodes.includes(clause.code)).map((clause) => clause.id)
-  const clauses = clausesForLetter(sourceClauses, selectedIds, input.letterMode)
-  if (input.letterMode === 'selected' && clauses.length === 0 && extraConcerns.length === 0) {
+  const selectedIds = sourceClauses
+    .filter((clause) => input.clauseCodes.includes(clause.code))
+    .map((clause) => clause.id)
+  const config = campaignConcernConfig(campaign)
+  if (
+    validatePredefinedSelection({
+      mode: config.mode,
+      selectedIds,
+      maxSelections: config.maxSelections,
+    }) !== 'ok'
+  ) {
+    return { ok: false, error: 'invalid_clauses' }
+  }
+  if (config.mode === 'single' && selectedIds.length !== 1) {
+    return { ok: false, error: 'invalid_clauses' }
+  }
+  const clauses = selectedClausesForLetter(sourceClauses, selectedIds)
+  if (clauses.length === 0) {
     return { ok: false, error: 'invalid_clauses' }
   }
 
@@ -111,7 +123,7 @@ async function composeCanonicalLetter(input: LetterFields): Promise<ActionResult
       phone,
       email: input.email,
       customText: input.customText,
-      extraConcerns,
+      extraConcerns: config.allowCustomConcern ? extraConcerns : [],
     },
     lang: input.language,
   })

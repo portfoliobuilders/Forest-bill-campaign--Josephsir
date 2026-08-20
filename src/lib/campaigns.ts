@@ -41,8 +41,7 @@ export function withCampaignClauses(campaign: Campaign, clauses: ObjectionClause
 }
 
 export function withForestClauses(campaign: Campaign, clauses: ObjectionClause[]): ObjectionClause[] {
-  if (clauses.length > 0) return withCampaignClauses(campaign, clauses)
-  return []
+  return withCampaignClauses(campaign, clauses)
 }
 
 async function loadDistricts(): Promise<DistrictOption[]> {
@@ -88,14 +87,14 @@ export async function loadObjectionData(state: CampaignState): Promise<Objection
       supabase.from('constituencies').select('district, name_ml, name_en').eq('is_active', true).order('district'),
     ])
 
-    clauses = withForestClauses(campaign, (clauseRows ?? []) as ObjectionClause[])
+    clauses = withCampaignClauses(campaign, (clauseRows ?? []) as ObjectionClause[])
     if (constituencyRows && constituencyRows.length > 0) {
       districts = uniqueDistricts(constituencyRows as Pick<Constituency, 'district' | 'name_ml' | 'name_en'>[])
     }
   } catch {
     return {
       campaign,
-      clauses: withForestClauses(campaign, clauses),
+      clauses: withCampaignClauses(campaign, clauses),
       districts,
       mode: state.state,
     }
@@ -103,7 +102,7 @@ export async function loadObjectionData(state: CampaignState): Promise<Objection
 
   return {
     campaign,
-    clauses: withForestClauses(campaign, clauses),
+    clauses: withCampaignClauses(campaign, clauses),
     districts,
     mode: state.state,
   }

@@ -82,6 +82,13 @@ export const demoCampaign: Campaign = {
     'Warrantless arrest could happen anywhere, not only in forest.',
     'Arrested people could be held at a forest station.',
   ],
+  concern_selection_mode: 'single',
+  max_concern_selections: null,
+  allow_custom_concern: true,
+  custom_concern_label_en: null,
+  custom_concern_label_ml: null,
+  custom_concern_placeholder_en: null,
+  custom_concern_placeholder_ml: null,
   created_at: '2024-11-01T00:00:00+05:30',
 }
 
