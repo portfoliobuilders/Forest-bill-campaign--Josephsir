@@ -34,7 +34,24 @@ export const emptyDetails = (): DetailsFields => ({
 export function createDetailsSchema(lang: Lang, districts: string[], fields: CampaignFormField[]) {
   const optionalText = z.string().trim()
   const name = z.string().trim().min(1, t(lang, 'errorFullName'))
-  const email = z.email(t(lang, 'errorEmail'))
+  const emailRequired = isFieldRequired(fields, 'email')
+  const email = emailRequired
+    ? z.email(t(lang, 'errorEmail'))
+    : z
+        .string()
+        .trim()
+        .refine((value) => !value || z.email().safeParse(value).success, t(lang, 'errorEmail'))
+
+  const pincodeRequired = isFieldRequired(fields, 'pincode')
+  const pincode = pincodeRequired
+    ? z
+        .string()
+        .trim()
+        .regex(/^[1-9][0-9]{5}$/, t(lang, 'errorPincode'))
+    : z
+        .string()
+        .trim()
+        .refine((value) => !value || /^[1-9][0-9]{5}$/.test(value), t(lang, 'errorPincode'))
 
   const phone = isFieldRequired(fields, 'phone')
     ? z
@@ -82,7 +99,7 @@ export function createDetailsSchema(lang: Lang, districts: string[], fields: Cam
     panchayat,
     village,
     district,
-    pincode: optionalText,
+    pincode,
     customText,
   })
 }

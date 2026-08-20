@@ -20,7 +20,7 @@ import {
 } from '@/lib/concern-selection'
 import { composeEmail } from '@/lib/compose'
 import { cx } from '@/lib/cx'
-import { FOREST_BILL_SOURCE_URL, FOREST_BILL_VOLUNTEER_URL, type DistrictOption } from '@/lib/demo-data'
+import { type DistrictOption } from '@/lib/demo-data'
 import {
   createDetailsSchema,
   fieldErrorsFromZod,
@@ -231,6 +231,7 @@ export function Wizard({
         customText: details.customText,
         extraConcerns: config.allowCustomConcern ? extraConcerns : [],
         clauseCodes: selectedClauses.map((clause) => clause.code),
+        letterMode: 'selected',
         constituencyId: state.routing.constituencyId,
         ccRepIds: state.routing.ccRepresentativeIds,
       })
@@ -276,25 +277,29 @@ export function Wizard({
 
   return (
     <PageContainer>
-      {mode !== 'live' ? (
+      {mode !== 'live' && (campaign.source_url || campaign.reference_url) ? (
         <p className="mb-4 font-mono text-xs leading-relaxed text-muted sm:text-sm">
-          <a
-            href={campaign.source_url || FOREST_BILL_SOURCE_URL}
-            className={`font-medium text-accent underline ${focusRing}`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {t(lang, 'gazetteBill')}
-          </a>
-          {' · '}
-          <a
-            href={campaign.reference_url || FOREST_BILL_VOLUNTEER_URL}
-            className={`font-medium text-accent underline ${focusRing}`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {t(lang, 'volunteerLetter')}
-          </a>
+          {campaign.source_url ? (
+            <a
+              href={campaign.source_url}
+              className={`font-medium text-accent underline ${focusRing}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {t(lang, 'gazetteBill')}
+            </a>
+          ) : null}
+          {campaign.source_url && campaign.reference_url ? ' · ' : null}
+          {campaign.reference_url ? (
+            <a
+              href={campaign.reference_url}
+              className={`font-medium text-accent underline ${focusRing}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {t(lang, 'volunteerLetter')}
+            </a>
+          ) : null}
         </p>
       ) : null}
 
@@ -328,7 +333,6 @@ export function Wizard({
           districts={districts}
           errors={state.detailsErrors}
           routing={state.routing}
-          allowSample={mode !== 'live'}
           onChange={(patch) => dispatch({ type: 'set_details', details: patch })}
           onRoutingChange={(routing) => dispatch({ type: 'set_routing', routing })}
         />

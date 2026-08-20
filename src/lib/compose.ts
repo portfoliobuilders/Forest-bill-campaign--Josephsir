@@ -1,3 +1,8 @@
+import {
+  campaignConcernConfig,
+  formatConcernsForEmail,
+  selectedClausesForLetter,
+} from '@/lib/concern-selection'
 import { uniqueEmails } from '@/lib/compose-emails'
 import { defaultBodyTemplate, renderSafeTemplate, type EmailTemplateValues } from '@/lib/email-template'
 import type { Lang } from '@/lib/i18n'
@@ -168,36 +173,16 @@ function senderValues(
   }
 }
 
-function formattedConcerns(clauses: ObjectionClause[], extraConcerns: string[], lang: Lang): string {
-  const sorted = [...clauses].sort((a, b) => a.sort_order - b.sort_order)
-  const blocks: string[] = []
-  sorted.forEach((clause, index) => {
-    const title = concernTitle(clause, lang)
-    const body = concernBody(clause, lang)
-    const n = index + 1
-    if (sorted.length === 1) {
-      blocks.push(body.startsWith(title) || !title ? body : `${title}\n\n${body}`)
-      return
-    }
-    const text = body && title && !body.startsWith(title) ? `${title}\n\n${body}` : body || title
-    blocks.push(`${n}. ${text}`)
-  })
-  for (const extra of extraConcerns) {
-    const text = extra.replace(/\s+/g, ' ').trim()
-    if (!text) continue
-    blocks.push(`${blocks.length + 1}. ${text}`)
-  }
-  return blocks.join('\n\n')
-}
-
 export function composeSubject(campaign: Campaign, clauses: ObjectionClause[], lang: Lang): string {
+  const campaignSubject = pick(lang, campaign.subject_ml, campaign.subject_en).trim()
+  if (campaignSubject) return campaignSubject
   if (clauses.length === 1) {
     const custom = pick(lang, clauses[0].email_subject_ml ?? '', clauses[0].email_subject_en ?? '').trim()
     if (custom) return custom
     const title = concernTitle(clauses[0], lang)
     if (title) return title
   }
-  return pick(lang, campaign.subject_ml, campaign.subject_en)
+  return campaignSubject
 }
 
 function assembleBody(
@@ -212,11 +197,18 @@ function assembleBody(
   const stored = pick(lang, campaign.body_template_ml ?? '', campaign.body_template_en ?? '').trim()
   const template = stored || defaultBodyTemplate(lang)
   const config = campaignConcernConfig(campaign)
+  const sender = senderValues(details)
   const values: EmailTemplateValues = {
     intro,
     closing,
-    concerns: formattedConcerns(clauses, extras, lang),
-    ...senderValues(details),
+    concerns: formatConcernsForEmail({
+      mode: config.mode,
+      clauses,
+      extraConcerns: extras,
+      lang,
+    }),
+    ...sender,
+    custom_text: extras.length > 0 ? '' : sender.custom_text,
   }
   return renderSafeTemplate(template, values)
 }

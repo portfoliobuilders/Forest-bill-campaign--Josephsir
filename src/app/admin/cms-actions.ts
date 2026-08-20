@@ -14,6 +14,7 @@ import {
 import { flagsForPublishStatus, isPublishStatus, requiresLiveConfirmation, slugFromTitle, type PublishStatus } from '@/lib/admin/publish'
 import { revalidateAfterCmsSave, revalidateAdmin } from '@/lib/admin/revalidate'
 import { uniqueEmails } from '@/lib/compose'
+import { rowsFromLists } from '@/lib/recipients'
 import { createServiceClient } from '@/lib/supabase/server'
 
 export type ActionOk = { ok: true; id?: string }
@@ -125,6 +126,7 @@ export async function saveConcernSelectionSettings(input: ConcernSelectionSaveIn
     concern_selection_mode: mode,
     max_concern_selections: max,
     allow_custom_concern: input.allow_custom_concern !== false,
+    allow_multiple_concerns: mode === 'multiple',
     custom_concern_label_en: input.custom_concern_label_en.trim() || null,
     custom_concern_label_ml: input.custom_concern_label_ml.trim() || null,
     custom_concern_placeholder_en: input.custom_concern_placeholder_en.trim() || null,
@@ -155,6 +157,7 @@ export type EmailTemplateSaveInput = {
   id: string
   recipient_emails: string[]
   cc_emails: string[]
+  bcc_emails?: string[]
   subject_ml: string
   subject_en: string
   intro_ml: string
@@ -169,7 +172,8 @@ export async function saveEmailTemplate(input: EmailTemplateSaveInput): Promise<
   const session = await requireAdminSession()
   const to = parseEmails(input.recipient_emails)
   const cc = parseEmails(input.cc_emails)
-  const bad = invalidEmails([...to, ...cc])
+  const bcc = parseEmails(input.bcc_emails ?? [])
+  const bad = invalidEmails([...to, ...cc, ...bcc])
   if (bad.length > 0) return { ok: false, error: `Invalid email: ${bad[0]}` }
   if (!input.subject_ml.trim() || !input.subject_en.trim()) return { ok: false, error: 'Subject is required.' }
 
@@ -181,6 +185,7 @@ export async function saveEmailTemplate(input: EmailTemplateSaveInput): Promise<
     recipient_emails: to,
     recipient_email: to[0] ?? (before.recipient_email as string),
     cc_emails: cc,
+    bcc_emails: bcc,
     subject_ml: input.subject_ml.trim(),
     subject_en: input.subject_en.trim(),
     intro_ml: input.intro_ml.trim(),
@@ -193,6 +198,13 @@ export async function saveEmailTemplate(input: EmailTemplateSaveInput): Promise<
   }
   const { error } = await supabase.from('campaigns').update(patch).eq('id', input.id)
   if (error) return { ok: false, error: 'Could not save email template.' }
+
+  await supabase.from('campaign_recipients').delete().eq('campaign_id', input.id)
+  const recipientRows = rowsFromLists(input.id, to, cc, bcc)
+  if (recipientRows.length > 0) {
+    const { error: recError } = await supabase.from('campaign_recipients').insert(recipientRows)
+    if (recError) return { ok: false, error: 'Template saved, but recipients could not be updated.' }
+  }
 
   await writeAdminAudit({
     adminEmail: session.email,

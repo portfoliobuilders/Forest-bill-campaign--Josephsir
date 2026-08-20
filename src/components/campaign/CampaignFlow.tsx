@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useReducer, useState } from 'react'
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { prepareDemoLetter, markHandoff } from '@/app/actions/submission'
@@ -24,6 +24,10 @@ import {
   resolveMailTargets,
   type MailComposeParams,
 } from '@/lib/compose'
+import {
+  campaignConcernConfig,
+  customConcernCopy,
+} from '@/lib/concern-selection'
 import { cx } from '@/lib/cx'
 import {
   createDetailsSchema,
@@ -139,6 +143,9 @@ export function CampaignFlow({
 }) {
   const { lang } = useLang()
   const actionable = view === 'live' || view === 'preview'
+  const config = campaignConcernConfig(campaign)
+  const multiple = config.mode === 'multiple'
+  const customCopy = customConcernCopy(config, lang)
   const [state, dispatch] = useReducer(reducer, {
     step: 1 as Step,
     selectedIds: [],
@@ -196,6 +203,7 @@ export function CampaignFlow({
         phone,
         email: details.email,
         customText: details.customText,
+        extraConcerns: config.allowCustomConcern && details.customText.trim() ? [details.customText] : [],
       },
       lang,
     })
@@ -213,7 +221,7 @@ export function CampaignFlow({
         pincode: details.pincode,
         language: lang,
         customText: details.customText,
-        extraConcerns: [],
+        extraConcerns: config.allowCustomConcern && details.customText.trim() ? [details.customText] : [],
         clauseCodes: selected.map((clause) => clause.code),
         letterMode: 'selected',
         constituencyId: null,
@@ -304,11 +312,11 @@ export function CampaignFlow({
                     )}
                   >
                     <input
-                      type={campaign.allow_multiple_concerns ? 'checkbox' : 'radio'}
+                      type={multiple ? 'checkbox' : 'radio'}
                       name="concern"
                       className="mt-1 size-5 shrink-0 accent-[var(--color-accent)]"
                       checked={on}
-                      onChange={() => dispatch({ type: 'select', id: clause.id, multiple: campaign.allow_multiple_concerns })}
+                      onChange={() => dispatch({ type: 'select', id: clause.id, multiple })}
                     />
                     <span className="min-w-0">
                       <span className="font-mono text-xs font-semibold text-accent">{String(index + 1).padStart(2, '0')}</span>
@@ -332,10 +340,28 @@ export function CampaignFlow({
                       ) : null}
                     </span>
                   </label>
-                </li>
-              )
-            })}
+              </li>
+            )
+          })}
           </ul>
+          {config.allowCustomConcern ? (
+            <div className="mt-6 rounded-[10px] border border-dashed border-accent bg-raised p-4">
+              <label className={labelClass}>
+                {customCopy.label}
+                <span className="font-normal text-muted"> ({t(lang, 'optional')})</span>
+                <textarea
+                  className={`${inputClass} min-h-28 py-2`}
+                  maxLength={MAX_CUSTOM_CHARS}
+                  placeholder={customCopy.placeholder}
+                  value={state.details.customText}
+                  onChange={(event) => dispatch({ type: 'set_details', details: { customText: event.target.value } })}
+                />
+                <span className="mt-1 block text-sm font-normal text-muted">
+                  {state.details.customText.length}/{MAX_CUSTOM_CHARS} {t(lang, 'charsUsed')}
+                </span>
+              </label>
+            </div>
+          ) : null}
           {state.concernError ? (
             <p className="mt-3 text-sm text-red-800" role="alert">
               {t(lang, 'minClausesHint')}
@@ -365,6 +391,14 @@ export function CampaignFlow({
               value={state.details.fullName}
               error={state.detailsErrors.fullName}
               onChange={(value) => dispatch({ type: 'set_details', details: { fullName: value } })}
+            />
+            <PinField
+              lang={lang}
+              fields={formFields}
+              value={state.details.pincode}
+              error={state.detailsErrors.pincode}
+              onChange={(pincode) => dispatch({ type: 'set_details', details: { pincode } })}
+              onLocation={(patch) => dispatch({ type: 'set_details', details: patch })}
             />
             <Field
               lang={lang}
@@ -430,7 +464,7 @@ export function CampaignFlow({
               onChange={(value) => dispatch({ type: 'set_details', details: { addressLine: value } })}
               multiline
             />
-            {isFieldEnabled(formFields, 'custom_message') ? (
+            {isFieldEnabled(formFields, 'custom_message') && !config.allowCustomConcern ? (
               <label className={labelClass}>
                 {fieldByKey(formFields, 'custom_message')?.[lang === 'en' ? 'label_en' : 'label_ml'] || t(lang, 'customText')}
                 <span className="font-normal text-muted"> ({t(lang, 'optional')})</span>
@@ -482,6 +516,98 @@ export function CampaignFlow({
         />
       ) : null}
     </PageContainer>
+  )
+}
+
+const PINCODE_RE = /^[1-9][0-9]{5}$/
+
+function PinField({
+  lang,
+  fields,
+  value,
+  error,
+  onChange,
+  onLocation,
+}: {
+  lang: Lang
+  fields: CampaignFormField[]
+  value: string
+  error?: string
+  onChange: (value: string) => void
+  onLocation: (patch: Partial<DetailsFields>) => void
+}) {
+  const [hint, setHint] = useState('')
+  const onLocationRef = useRef(onLocation)
+  onLocationRef.current = onLocation
+
+  useEffect(() => {
+    const pin = value.trim()
+    if (!PINCODE_RE.test(pin)) {
+      setHint('')
+      return
+    }
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => {
+      void fetch(`/api/constituency?pincode=${encodeURIComponent(pin)}`, { signal: controller.signal })
+        .then(async (response) => {
+          if (!response.ok) {
+            setHint('')
+            return
+          }
+          const body = (await response.json()) as {
+            candidates?: Array<{ constituency?: { district?: string; name_en?: string; name_ml?: string } }>
+          }
+          const districts = [
+            ...new Set(
+              (body.candidates ?? [])
+                .map((row) => row.constituency?.district?.trim())
+                .filter((district): district is string => Boolean(district)),
+            ),
+          ]
+          if (districts.length === 1) {
+            onLocationRef.current({ district: districts[0] })
+            setHint(districts[0])
+            return
+          }
+          if (districts.length > 1) {
+            onLocationRef.current({ district: districts[0] })
+            setHint(districts.join(' / '))
+          }
+        })
+        .catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === 'AbortError') return
+          setHint('')
+        })
+    }, 300)
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [value])
+
+  if (!isFieldEnabled(fields, 'pincode')) return null
+  const field = fieldByKey(fields, 'pincode')
+  const label = (lang === 'en' ? field?.label_en : field?.label_ml) || t(lang, 'pincode')
+  const required = isFieldRequired(fields, 'pincode')
+  return (
+    <label className={labelClass}>
+      {label}
+      {!required ? <span className="font-normal text-muted"> ({t(lang, 'optional')})</span> : null}
+      <input
+        type="text"
+        inputMode="numeric"
+        autoComplete="postal-code"
+        className={inputClass}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {hint ? (
+        <span className="mt-1 block text-sm font-normal text-muted">
+          {t(lang, 'district')}: {hint}
+        </span>
+      ) : null}
+      {error ? <p className="mt-1 text-sm font-normal text-red-800">{error}</p> : null}
+    </label>
   )
 }
 
@@ -765,8 +891,7 @@ export function NoActiveCampaign() {
       <div className="flex justify-end">
         <LanguageToggle />
       </div>
-      <h1 className="font-display mt-6 text-2xl text-ink sm:text-3xl">{t(lang, 'noLiveTitle')}</h1>
-      <p className="mt-4 max-w-2xl text-base leading-relaxed text-body sm:text-lg">{t(lang, 'noActiveCampaign')}</p>
+      <h1 className="font-display mt-6 text-2xl text-ink sm:text-3xl">{t(lang, 'noActiveCampaign')}</h1>
     </PageContainer>
   )
 }
