@@ -208,6 +208,14 @@ export type StudioSaveInput = {
   opens_at: string
   deadline_at: string
   allow_multiple_concerns: boolean
+  concern_selection_mode?: 'single' | 'multiple'
+  max_concern_selections?: number | null
+  allow_custom_concern?: boolean
+  custom_concern_label_en?: string
+  custom_concern_label_ml?: string
+  custom_concern_placeholder_en?: string
+  custom_concern_placeholder_ml?: string
+  feature_settings?: Record<string, unknown>
   subject_en: string
   subject_ml: string
   intro_en: string
@@ -275,6 +283,15 @@ export async function saveCampaignStudio(input: StudioSaveInput): Promise<Action
     opens_at: opens.toISOString(),
     deadline_at: deadline ? deadline.toISOString() : null,
     allow_multiple_concerns: Boolean(input.allow_multiple_concerns),
+    concern_selection_mode: input.concern_selection_mode === 'multiple' ? 'multiple' : 'single',
+    max_concern_selections:
+      input.concern_selection_mode === 'multiple' && input.max_concern_selections ? input.max_concern_selections : null,
+    allow_custom_concern: input.allow_custom_concern !== false,
+    custom_concern_label_en: input.custom_concern_label_en?.trim() || null,
+    custom_concern_label_ml: input.custom_concern_label_ml?.trim() || null,
+    custom_concern_placeholder_en: input.custom_concern_placeholder_en?.trim() || null,
+    custom_concern_placeholder_ml: input.custom_concern_placeholder_ml?.trim() || null,
+    feature_settings: parseFeatureSettings(input.feature_settings),
     subject_en: input.subject_en.trim() || input.title_en.trim(),
     subject_ml: input.subject_ml.trim() || input.title_ml.trim(),
     intro_en: input.intro_en.trim(),
@@ -312,7 +329,7 @@ export async function saveCampaignStudio(input: StudioSaveInput): Promise<Action
     label_en: field.label_en.trim() || field.field_key,
     label_ml: field.label_ml.trim() || field.field_key,
     is_enabled: field.is_enabled,
-    is_required: field.field_key === 'name' || field.field_key === 'email' ? true : field.is_required,
+    is_required: field.is_required,
     display_order: field.display_order || index + 1,
   }))
   if (fieldRows.length > 0) {
@@ -367,6 +384,9 @@ export async function createEmptyCampaign(): Promise<ActionResult> {
       is_active: false,
       publish_status: 'draft',
       allow_multiple_concerns: false,
+      concern_selection_mode: 'single',
+      allow_custom_concern: true,
+      feature_settings: DEFAULT_FEATURE_SETTINGS,
       preview_token: randomBytes(24).toString('hex'),
       created_by: session.email,
       updated_by: session.email,
@@ -443,6 +463,14 @@ export async function duplicateCampaignFull(campaignId: string): Promise<ActionR
       og_title_ml: source.og_title_ml ?? '',
       og_description_en: source.og_description_en ?? '',
       og_description_ml: source.og_description_ml ?? '',
+      concern_selection_mode: source.concern_selection_mode ?? 'single',
+      max_concern_selections: source.max_concern_selections ?? null,
+      allow_custom_concern: source.allow_custom_concern !== false,
+      custom_concern_label_en: source.custom_concern_label_en ?? null,
+      custom_concern_label_ml: source.custom_concern_label_ml ?? null,
+      custom_concern_placeholder_en: source.custom_concern_placeholder_en ?? null,
+      custom_concern_placeholder_ml: source.custom_concern_placeholder_ml ?? null,
+      feature_settings: parseFeatureSettings(source.feature_settings),
       status: 'draft',
       is_active: false,
       publish_status: 'draft',
@@ -479,6 +507,10 @@ export async function duplicateCampaignFull(campaignId: string): Promise<ActionR
         email_subject_en: clause.email_subject_en ?? '',
         email_body_ml: clause.email_body_ml ?? '',
         email_body_en: clause.email_body_en ?? '',
+        ai_body_en: clause.ai_body_en ?? '',
+        ai_body_ml: clause.ai_body_ml ?? '',
+        ai_body_en_status: clause.ai_body_en_status ?? 'none',
+        ai_body_ml_status: clause.ai_body_ml_status ?? 'none',
         full_url: clause.full_url,
         sort_order: clause.sort_order,
         is_active: clause.is_active,
@@ -555,6 +587,10 @@ export async function saveConcernStudio(input: {
   email_subject_ml: string
   email_body_en: string
   email_body_ml: string
+  ai_body_en?: string
+  ai_body_ml?: string
+  ai_body_en_status?: 'none' | 'draft' | 'approved'
+  ai_body_ml_status?: 'none' | 'draft' | 'approved'
   is_active: boolean
   display_order: number
 }): Promise<ActionResult> {
@@ -576,6 +612,10 @@ export async function saveConcernStudio(input: {
     email_subject_ml: input.email_subject_ml.trim(),
     email_body_en: input.email_body_en.trim() || input.content_en.trim(),
     email_body_ml: input.email_body_ml.trim() || input.content_ml.trim(),
+    ai_body_en: input.ai_body_en?.trim() || '',
+    ai_body_ml: input.ai_body_ml?.trim() || '',
+    ai_body_en_status: input.ai_body_en_status || 'none',
+    ai_body_ml_status: input.ai_body_ml_status || 'none',
     sort_order: input.display_order,
     is_active: input.is_active,
   }

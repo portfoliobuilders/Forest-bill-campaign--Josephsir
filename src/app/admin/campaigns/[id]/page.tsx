@@ -2,8 +2,10 @@ import { notFound } from 'next/navigation'
 
 import { CampaignStudio } from '@/components/admin/CampaignStudio'
 import { requireAdminSession } from '@/lib/admin/auth'
+import { aiServerConfigured } from '@/lib/ai/provider'
 import { normalizeFormFields } from '@/lib/form-fields'
 import { publicCampaign } from '@/lib/campaign'
+import { postalDirectoryCount } from '@/lib/pin-lookup'
 import { createServiceClient } from '@/lib/supabase/server'
 import { assertAdminEnv } from '@/lib/env'
 import type { Campaign, CampaignFormField, CampaignRecipient, CampaignSource, ObjectionClause } from '@/types/database'
@@ -54,6 +56,8 @@ export default async function EditCampaignPage({
       sources={(sourcesResult.data ?? []) as CampaignSource[]}
       sourcesLoadError={sourcesLoadError}
       initialTab={tabIndexFromQuery(query.tab)}
+      postalCount={postalCount}
+      aiConfigured={aiConfigured}
     />
   )
 }

@@ -4,6 +4,7 @@ import { headers } from 'next/headers'
 import { z } from 'zod'
 
 import { composeEmail, liveMailTargets, resolveMailTargets } from '@/lib/compose'
+import { identityRequired, parseFeatureSettings } from '@/lib/campaign-features'
 import { getCampaignState, publicCampaign, readPreviewToken } from '@/lib/campaign'
 import { withCampaignClauses } from '@/lib/campaigns'
 import {
@@ -27,8 +28,8 @@ const letterModeSchema = z.enum(['selected', 'all'])
 
 const letterInputSchema = z.object({
   campaignSlug: z.string().min(1),
-  fullName: z.string().trim().min(1),
-  email: z.email(),
+  fullName: z.string().trim().optional().default(''),
+  email: z.string().trim().optional().default(''),
   phone: z.string().trim().optional().default(''),
   address: z.string().trim().optional().default(''),
   panchayat: z.string().trim().optional().default(''),
@@ -42,6 +43,11 @@ const letterInputSchema = z.object({
   letterMode: letterModeSchema.default('selected'),
   constituencyId: z.uuid().nullable(),
   ccRepIds: z.array(z.uuid()),
+  privacyMode: z.boolean().optional().default(false),
+  postOffice: z.string().trim().max(80).optional().default(''),
+  state: z.string().trim().max(80).optional().default(''),
+  postalRegion: z.string().trim().max(80).optional().default(''),
+  taluk: z.string().trim().max(80).optional().default(''),
 })
 
 type LetterFields = z.infer<typeof letterInputSchema>
@@ -60,10 +66,7 @@ async function composeCanonicalLetter(input: LetterFields): Promise<ActionResult
     return { ok: false, error: 'invalid_clauses' }
   }
 
-  const phone = input.phone.trim() ? normalizeIndianPhone(input.phone) : ''
-  if (input.phone.trim() && !phone) {
-    return { ok: false, error: 'invalid_input' }
-  }
+  const phone = input.phone.trim() ? normalizeIndianPhone(input.phone) || input.phone.trim() : ''
 
   const campaignState = await getCampaignState(input.campaignSlug, await readPreviewToken())
   if (campaignState.state === 'dormant') {
@@ -115,6 +118,12 @@ async function composeCanonicalLetter(input: LetterFields): Promise<ActionResult
     return { ok: false, error: 'invalid_clauses' }
   }
 
+  const features = parseFeatureSettings(campaign.feature_settings)
+  const privacyMode = Boolean(input.privacyMode && features.allow_privacy_mode)
+  if (identityRequired(features, privacyMode) && !input.fullName.trim() && !privacyMode) {
+    return { ok: false, error: 'invalid_input' }
+  }
+
   const composed = composeEmail({
     campaign,
     clauses,
@@ -129,6 +138,11 @@ async function composeCanonicalLetter(input: LetterFields): Promise<ActionResult
       email: input.email,
       customText: input.customText,
       extraConcerns: config.allowCustomConcern ? extraConcerns : [],
+      postOffice: input.postOffice,
+      state: input.state,
+      postalRegion: input.postalRegion,
+      taluk: input.taluk,
+      privacyMode,
     },
     lang: input.language,
   })
@@ -153,7 +167,6 @@ async function storeCanonicalLetter(
 ): Promise<string | null> {
   if (!canonical.persistSlug) return null
   const phone = input.phone.trim() ? normalizeIndianPhone(input.phone) : null
-  if (input.phone.trim() && !phone) return null
 
   try {
     const supabase = createServiceClient()
@@ -182,8 +195,8 @@ async function storeCanonicalLetter(
 
     const rpcArgs = {
       p_campaign_slug: slug,
-      p_full_name: input.fullName,
-      p_email: input.email,
+      p_full_name: input.fullName.trim() || 'Citizen',
+      p_email: input.email.trim() || `none+${crypto.randomUUID()}@invalid.local`,
       p_phone: phone,
       p_address: input.address,
       p_panchayat: input.panchayat || null,

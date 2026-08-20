@@ -53,6 +53,10 @@ export function withCampaignClauses(campaign: Campaign, clauses: ObjectionClause
     email_subject_en: clause.email_subject_en ?? '',
     email_body_ml: clause.email_body_ml ?? '',
     email_body_en: clause.email_body_en ?? '',
+    ai_body_en: clause.ai_body_en ?? '',
+    ai_body_ml: clause.ai_body_ml ?? '',
+    ai_body_en_status: clause.ai_body_en_status ?? 'none',
+    ai_body_ml_status: clause.ai_body_ml_status ?? 'none',
   }))
 }
 
