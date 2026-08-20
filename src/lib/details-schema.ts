@@ -18,6 +18,10 @@ export type DetailsFields = {
   phone: string
   email: string
   customText: string
+  postOffice: string
+  state: string
+  postalRegion: string
+  taluk: string
 }
 
 export const emptyDetails = (): DetailsFields => ({
@@ -30,6 +34,10 @@ export const emptyDetails = (): DetailsFields => ({
   phone: '',
   email: '',
   customText: '',
+  postOffice: '',
+  state: '',
+  postalRegion: '',
+  taluk: '',
 })
 
 function optionalText() {
@@ -114,6 +122,10 @@ export function createDetailsSchema(
     district,
     pincode,
     customText,
+    postOffice: optionalText(),
+    state: optionalText(),
+    postalRegion: optionalText(),
+    taluk: optionalText(),
   })
 }
 

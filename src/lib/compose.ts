@@ -1,6 +1,7 @@
 import { uniqueEmails } from '@/lib/compose-emails'
 import { concernTitle } from '@/lib/compose-concerns'
 import { identityBlock, privacyLetter } from '@/lib/compose-identity'
+import { campaignConcernConfig, formatConcernsForEmail, selectedClausesForLetter } from '@/lib/concern-selection'
 import { defaultBodyTemplate, renderSafeTemplate, type EmailTemplateValues } from '@/lib/email-template'
 import type { Lang } from '@/lib/i18n'
 import type { WizardMode } from '@/lib/wizard-mode'

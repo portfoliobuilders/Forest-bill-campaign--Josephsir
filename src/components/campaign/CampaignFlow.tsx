@@ -49,7 +49,8 @@ import { t, tReplace, type Lang } from '@/lib/i18n'
 import {
   compactLocationLine,
   isValidPincode,
-  locationFromLookup,
+  withPostalIdentity,
+  postalIdentityFromLookup,
   type PostalLookup,
 } from '@/lib/postal'
 import { btnGhost, btnPrimary, btnSecondary, focusRing, inputClass, labelClass } from '@/lib/ui'
@@ -69,6 +70,20 @@ function statusLabel(lang: Lang, view: 'live' | 'preview' | 'inactive' | 'expire
 }
 
 const pinCache = new Map<string, PostalLookup>()
+
+function detailsFromLookup(prev: DetailsFields, lookup: PostalLookup | null, office: string): DetailsFields {
+  const next = withPostalIdentity(prev, postalIdentityFromLookup(lookup, office))
+  if (
+    next.district === prev.district &&
+    next.postOffice === prev.postOffice &&
+    next.state === prev.state &&
+    next.postalRegion === prev.postalRegion &&
+    next.taluk === prev.taluk
+  ) {
+    return prev
+  }
+  return next
+}
 
 export function CampaignFlow({
   campaign,
@@ -123,8 +138,8 @@ export function CampaignFlow({
     () => (config.allowCustomConcern ? flattenCustomConcerns([customConcern]) : []),
     [config.allowCustomConcern, customConcern],
   )
-  const location = useMemo(
-    () => (privacyOn ? {} : locationFromLookup(lookup, officeName)),
+  const postalIdentity = useMemo(
+    () => (privacyOn ? postalIdentityFromLookup(null) : postalIdentityFromLookup(lookup, officeName)),
     [privacyOn, lookup, officeName],
   )
 
@@ -151,19 +166,14 @@ export function CampaignFlow({
       campaign,
       clauses: clausesForMail,
       details: {
-        ...details,
+        ...withPostalIdentity(details, postalIdentity),
         extraConcerns: extras,
         customText: '',
-        postOffice: location.postOffice,
-        district: location.district || details.district,
-        state: location.state,
-        postalRegion: location.postalRegion,
-        taluk: location.taluk,
         privacyMode: privacyOn,
       },
       lang,
     })
-  }, [campaign, clausesForMail, details, extras, lang, location, privacyOn, selected.length])
+  }, [campaign, clausesForMail, details, extras, lang, postalIdentity, privacyOn, selected.length])
 
   useEffect(() => {
     if (!features.enable_pin_lookup || privacyOn) return
@@ -172,16 +182,16 @@ export function CampaignFlow({
       setLookup(null)
       setLookupState('idle')
       setOfficeName('')
+      setDetails((prev) => detailsFromLookup(prev, null, ''))
       return
     }
     const cached = pinCache.get(pin)
     if (cached) {
+      const office = cached.common.postOffice || ''
       setLookup(cached)
       setLookupState('done')
-      setOfficeName(cached.common.postOffice || '')
-      if (cached.common.district) {
-        setDetails((prev) => (prev.district === cached.common.district ? prev : { ...prev, district: cached.common.district || '' }))
-      }
+      setOfficeName(office)
+      setDetails((prev) => detailsFromLookup(prev, cached, office))
       setStatus(compactLocationLine(cached.common) || t(lang, 'locationStatus'))
       return
     }
@@ -194,12 +204,11 @@ export function CampaignFlow({
       .then((response) => response.json())
       .then((data: PostalLookup) => {
         pinCache.set(pin, data)
+        const office = data.common.postOffice || ''
         setLookup(data)
         setLookupState('done')
-        setOfficeName(data.common.postOffice || '')
-        if (data.common.district) {
-          setDetails((prev) => ({ ...prev, district: data.common.district || prev.district }))
-        }
+        setOfficeName(office)
+        setDetails((prev) => detailsFromLookup(prev, data, office))
         if (data.found) setStatus(compactLocationLine(data.common) || t(lang, 'locationStatus'))
         else setStatus(t(lang, 'pinNotFound'))
       })
@@ -299,7 +308,7 @@ export function CampaignFlow({
         address: details.addressLine,
         panchayat: details.panchayat,
         village: details.village,
-        district: location.district || details.district,
+        district: postalIdentity.district || details.district,
         pincode: details.pincode,
         language: lang,
         customText: '',
@@ -309,10 +318,10 @@ export function CampaignFlow({
         constituencyId: null,
         ccRepIds: [],
         privacyMode: privacyOn,
-        postOffice: location.postOffice ?? '',
-        state: location.state ?? '',
-        postalRegion: location.postalRegion ?? '',
-        taluk: location.taluk ?? '',
+        postOffice: postalIdentity.postOffice,
+        state: postalIdentity.state,
+        postalRegion: postalIdentity.postalRegion,
+        taluk: postalIdentity.taluk,
       })
       if (prepared.ok) id = prepared.data.id
       setSubmissionId(id)
@@ -608,7 +617,11 @@ export function CampaignFlow({
                           id="post-office"
                           className={inputClass}
                           value={officeName}
-                          onChange={(event) => setOfficeName(event.target.value)}
+                          onChange={(event) => {
+                            const name = event.target.value
+                            setOfficeName(name)
+                            setDetails((prev) => detailsFromLookup(prev, lookup, name))
+                          }}
                         >
                           <option value="">{t(lang, 'selectPostOffice')}</option>
                           {lookup.offices.map((office) => (
