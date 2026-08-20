@@ -1,9 +1,10 @@
 import { z } from 'zod'
 
+import { identityRequired, parseFeatureSettings } from '@/lib/campaign-features'
 import { isFieldEnabled, isFieldRequired } from '@/lib/form-fields'
 import { t, type Lang } from '@/lib/i18n'
-import { normalizeIndianPhone } from '@/lib/phone'
-import type { CampaignFormField } from '@/types/database'
+import { PINCODE_RE } from '@/lib/postal'
+import type { Campaign, CampaignFormField } from '@/types/database'
 
 export const MAX_CUSTOM_CHARS = 1000
 
@@ -65,30 +66,23 @@ export function createDetailsSchema(lang: Lang, districts: string[], fields: Cam
         .refine((value) => !value || normalizeIndianPhone(value) !== null, t(lang, 'errorPhone'))
 
   const districtEnabled = isFieldEnabled(fields, 'district')
-  const districtRequired = isFieldRequired(fields, 'district')
+  const districtRequired = districtEnabled && isFieldRequired(fields, 'district') && !privacy
   const district = districtEnabled
     ? districtRequired
       ? z
           .string()
           .trim()
           .min(1, t(lang, 'errorDistrict'))
-          .refine((value) => districts.includes(value), t(lang, 'errorDistrict'))
+          .refine((value) => districts.length === 0 || districts.includes(value), t(lang, 'errorDistrict'))
       : z
           .string()
           .trim()
-          .refine((value) => !value || districts.includes(value), t(lang, 'errorDistrict'))
-    : optionalText
+          .refine((value) => !value || districts.length === 0 || districts.includes(value), t(lang, 'errorDistrict'))
+    : optionalText()
 
-  const address = isFieldRequired(fields, 'address')
-    ? z.string().trim().min(1, t(lang, 'errorAddress'))
-    : optionalText
-
-  const panchayat = isFieldRequired(fields, 'local_body')
-    ? z.string().trim().min(1, t(lang, 'panchayat'))
-    : optionalText
-
-  const village = isFieldRequired(fields, 'village') ? z.string().trim().min(1, t(lang, 'village')) : optionalText
-
+  const address = isFieldRequired(fields, 'address') && !privacy ? requiredText(t(lang, 'errorAddress')) : optionalText()
+  const panchayat = isFieldRequired(fields, 'local_body') && !privacy ? requiredText(t(lang, 'panchayat')) : optionalText()
+  const village = isFieldRequired(fields, 'village') && !privacy ? requiredText(t(lang, 'village')) : optionalText()
   const customText = z.string().max(MAX_CUSTOM_CHARS, t(lang, 'errorCustomText'))
 
   return z.object({

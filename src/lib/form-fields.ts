@@ -5,12 +5,15 @@ export const FORM_FIELD_KEYS: FormFieldKey[] = [
   'pincode',
   'email',
   'phone',
+  'address',
+  'email',
   'district',
   'local_body',
   'village',
-  'address',
   'custom_message',
 ]
+
+export type FieldMode = 'disabled' | 'optional' | 'required'
 
 export const DEFAULT_FORM_FIELDS: Array<Omit<CampaignFormField, 'id' | 'campaign_id'>> = [
   { field_key: 'name', label_en: 'Full name', label_ml: 'പൂർണ്ണ നാമം', is_enabled: true, is_required: true, display_order: 1 },
@@ -58,4 +61,26 @@ export function isFieldRequired(fields: CampaignFormField[], key: FormFieldKey):
   if (!field) return key === 'pincode'
   if (!field.is_enabled) return false
   return field.is_required
+}
+
+export function fieldMode(fields: CampaignFormField[], key: FormFieldKey): FieldMode {
+  if (!isFieldEnabled(fields, key)) return 'disabled'
+  return isFieldRequired(fields, key) ? 'required' : 'optional'
+}
+
+export function applyFieldMode(
+  field: Omit<CampaignFormField, 'id' | 'campaign_id'> | CampaignFormField,
+  mode: FieldMode,
+) {
+  return {
+    ...field,
+    is_enabled: mode !== 'disabled',
+    is_required: mode === 'required',
+  }
+}
+
+export function labelForField(fields: CampaignFormField[], key: FormFieldKey, lang: 'ml' | 'en', fallback: string): string {
+  const field = fieldByKey(fields, key)
+  if (!field) return fallback
+  return (lang === 'en' ? field.label_en : field.label_ml) || fallback
 }

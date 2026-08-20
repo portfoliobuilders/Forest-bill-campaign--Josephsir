@@ -119,3 +119,54 @@ export function IconGmail({ className = 'size-5' }: IconProps) {
     </svg>
   )
 }
+
+export function IconMic({ className = 'size-5' }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <rect {...stroke} x="9" y="3.5" width="6" height="11" rx="3" />
+      <path {...stroke} d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v3.5" />
+    </svg>
+  )
+}
+
+export function IconSpeaker({ className = 'size-5' }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <path {...stroke} d="M4 9.5h3.2L12 5.5v13l-4.8-4H4V9.5Z" />
+      <path {...stroke} d="M16 9.2a4 4 0 0 1 0 5.6M18.5 7a7 7 0 0 1 0 10" />
+    </svg>
+  )
+}
+
+export function IconSparkle({ className = 'size-5' }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <path {...stroke} d="M12 3.5 13.4 9 19 10.5 13.4 12 12 17.5 10.6 12 5 10.5 10.6 9 12 3.5Z" />
+      <path {...stroke} d="M18 15.5 18.6 17.4 20.5 18 18.6 18.6 18 20.5 17.4 18.6 15.5 18 17.4 17.4 18 15.5Z" />
+    </svg>
+  )
+}
+
+export function IconPause({ className = 'size-5' }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <path {...stroke} d="M8 6h2.8v12H8zM13.2 6H16v12h-2.8z" />
+    </svg>
+  )
+}
+
+export function IconStop({ className = 'size-5' }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <rect {...stroke} x="6.5" y="6.5" width="11" height="11" rx="1" />
+    </svg>
+  )
+}
+
+export function IconPlay({ className = 'size-5' }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <path {...stroke} d="m8 6 11 6-11 6V6Z" />
+    </svg>
+  )
+}

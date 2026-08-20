@@ -5,18 +5,15 @@ import { useRouter } from 'next/navigation'
 
 import { prepareDemoLetter, markHandoff } from '@/app/actions/submission'
 import { CampaignProgress } from '@/components/campaign/CampaignProgress'
+import { CampaignSources } from '@/components/campaign/CampaignSources'
 import { LanguageToggle } from '@/components/LanguageToggle'
 import { useLang } from '@/components/LanguageProvider'
-import { IconChevronRight, IconCopy, IconEnvelope, IconGmail } from '@/components/ui/icons'
+import { IconCheck, IconCopy, IconEnvelope, IconSparkle } from '@/components/ui/icons'
 import { PageContainer } from '@/components/ui/PageContainer'
 import {
   androidSendIntent,
   composeEmail,
-  concernBody,
-  concernShort,
-  concernTitle,
   formatCompleteEmailCopy,
-  formatUnsentEml,
   gmailComposeUrl,
   gmailUrlTooLong,
   mailtoUrl,
@@ -37,14 +34,19 @@ import {
   type DetailsFields,
   type FieldErrors,
 } from '@/lib/details-schema'
-import { fieldByKey, isFieldEnabled, isFieldRequired } from '@/lib/form-fields'
 import { formatCampaignDate } from '@/lib/format-date'
+import { isFieldEnabled, isFieldRequired, labelForField } from '@/lib/form-fields'
 import { t, tReplace, type Lang } from '@/lib/i18n'
-import { normalizeIndianPhone } from '@/lib/phone'
+import {
+  compactLocationLine,
+  isValidPincode,
+  locationFromLookup,
+  type PostalLookup,
+} from '@/lib/postal'
 import { btnGhost, btnPrimary, btnSecondary, focusRing, inputClass, labelClass } from '@/lib/ui'
 import type { WizardMode } from '@/lib/wizard-mode'
 import { isDryRun } from '@/lib/wizard-mode'
-import type { Campaign, CampaignFormField, ObjectionClause } from '@/types/database'
+import type { Campaign, CampaignFormField, CampaignSource, ObjectionClause } from '@/types/database'
 import type { DistrictOption } from '@/lib/demo-data'
 
 type Step = 1 | 2 | 3 | 4 | 5
@@ -119,12 +121,14 @@ function pick(lang: Lang, ml: string, en: string) {
   return lang === 'en' ? en : ml
 }
 
-function statusLabel(lang: Lang, mode: WizardMode | 'inactive' | 'expired') {
-  if (mode === 'live') return t(lang, 'statusActive')
-  if (mode === 'expired' || mode === 'demo') return t(lang, 'statusExpired')
-  if (mode === 'inactive') return t(lang, 'statusInactive')
+function statusLabel(lang: Lang, view: 'live' | 'preview' | 'inactive' | 'expired') {
+  if (view === 'live') return t(lang, 'statusActive')
+  if (view === 'expired') return t(lang, 'statusExpired')
+  if (view === 'inactive') return t(lang, 'statusInactive')
   return t(lang, 'statusDraft')
 }
+
+const pinCache = new Map<string, PostalLookup>()
 
 export function CampaignFlow({
   campaign,
@@ -133,15 +137,18 @@ export function CampaignFlow({
   districts,
   mode,
   view,
+  sources = [],
 }: {
   campaign: Campaign
   clauses: ObjectionClause[]
   formFields: CampaignFormField[]
-  districts: DistrictOption[]
+  districts: { value: string; labelEn: string; labelMl: string }[]
   mode: WizardMode
   view: 'live' | 'preview' | 'inactive' | 'expired'
+  sources?: CampaignSource[]
 }) {
   const { lang } = useLang()
+  const router = useRouter()
   const actionable = view === 'live' || view === 'preview'
   const config = campaignConcernConfig(campaign)
   const multiple = config.mode === 'multiple'
@@ -165,28 +172,52 @@ export function CampaignFlow({
     ? Math.max(0, Math.ceil((new Date(campaign.deadline_at).getTime() - Date.now()) / 86_400_000))
     : null
 
-  function goConcern() {
-    if (!actionable) return
-    dispatch({ type: 'goto', step: 2 })
+  const showAi =
+    features.enable_ai_mail &&
+    selected.length === 1 &&
+    (aiConfigured || Boolean(selected[0] && approvedAiBody(selected[0], lang)))
+  const showVoice = features.enable_voice_input
+  const showRead = features.enable_mail_read_aloud && Boolean(letter?.body)
+
+  function patchDetails(next: Partial<DetailsFields>) {
+    setDetails((prev) => ({ ...prev, ...next }))
+    const nextErrors = { ...errors }
+    for (const key of Object.keys(next) as Array<keyof DetailsFields>) delete nextErrors[key]
+    setErrors(nextErrors)
   }
 
-  function goDetails() {
-    if (state.selectedIds.length < 1) {
-      dispatch({ type: 'concern_error' })
-      return
+  function selectConcern(id: string) {
+    const next = applyPredefinedConcernClick({
+      mode: config.mode,
+      selectedIds,
+      id,
+      maxSelections: config.maxSelections,
+    })
+    setSelectedIds(next.selectedIds)
+    setConcernError(false)
+    setImproved(null)
+    setAiError('')
+  }
+
+  function validate(): boolean {
+    const validity = validatePredefinedSelection({
+      mode: config.mode,
+      selectedIds,
+      maxSelections: config.maxSelections,
+    })
+    if (validity !== 'ok') {
+      setConcernError(true)
+      return false
     }
-    dispatch({ type: 'goto', step: 3 })
-  }
-
-  async function goReview() {
     const parsed = createDetailsSchema(
       lang,
-      districts.map((d) => d.value),
+      districts.map((item) => item.value),
       formFields,
-    ).safeParse(state.details)
+      { privacyMode: privacyOn, campaign },
+    ).safeParse(details)
     if (!parsed.success) {
-      dispatch({ type: 'details_invalid', errors: fieldErrorsFromZod(parsed.error) })
-      return
+      setErrors(fieldErrorsFromZod(parsed.error))
+      return false
     }
     const phone = parsed.data.phone.trim() ? (normalizeIndianPhone(parsed.data.phone) ?? parsed.data.phone) : ''
     const details = { ...parsed.data, phone }
@@ -211,13 +242,13 @@ export function CampaignFlow({
     try {
       const prepared = await prepareDemoLetter({
         campaignSlug: campaign.slug,
-        fullName: details.fullName,
+        fullName: details.fullName || (privacyOn ? 'Citizen' : ''),
         email: details.email,
-        phone,
+        phone: details.phone,
         address: details.addressLine,
         panchayat: details.panchayat,
         village: details.village,
-        district: details.district,
+        district: location.district || details.district,
         pincode: details.pincode,
         language: lang,
         customText: details.customText,
@@ -226,61 +257,135 @@ export function CampaignFlow({
         letterMode: 'selected',
         constituencyId: null,
         ccRepIds: [],
+        privacyMode: privacyOn,
+        postOffice: location.postOffice ?? '',
+        state: location.state ?? '',
+        postalRegion: location.postalRegion ?? '',
+        taluk: location.taluk ?? '',
       })
-      if (prepared.ok) {
-        letter = { subject: prepared.data.subject, body: prepared.data.body, charCount: letter.charCount, error: null }
-        submissionId = prepared.data.id
-      }
+      if (prepared.ok) id = prepared.data.id
+      setSubmissionId(id)
     } catch {
-      // Letter still works offline.
+      // Sending still works offline.
     }
-    dispatch({
-      type: 'ready_review',
-      details,
-      letter: { subject: letter.subject, body: letter.body },
-      submissionId,
-    })
+    if (id) await markHandoff(id, method)
+    if (goSent && id) router.push(`/sent?id=${id}`)
   }
+
+  function mailParams(): MailComposeParams | null {
+    if (!letter) return null
+    const targets = resolveMailTargets({ campaign, mode, testerEmail: details.email })
+    return { to: targets.to, cc: targets.cc, bcc: targets.bcc, subject: letter.subject, body: letter.body }
+  }
+
+  async function sendMailto() {
+    if (!validate()) return
+    const params = mailParams()
+    if (!params || params.to.length === 0) return
+    setPasteHint(false)
+    const ua = navigator.userAgent
+    if (/Android/i.test(ua)) {
+      await copyPlainText(params.body).catch(() => undefined)
+      window.location.href = androidSendIntent(params, { fallbackUrl: mailtoUrl(params, { includeBody: false }) })
+      await persistAndHandoff('mailto', false)
+      return
+    }
+    if (mailtoUrlTooLong(params)) {
+      await copyPlainText(formatCompleteEmailCopy(params)).catch(() => undefined)
+      setCopyState('copied')
+      setPasteHint(true)
+      setStatus(t(lang, 'mailtoTooLong'))
+      await persistAndHandoff('copy', false)
+      return
+    }
+    window.location.href = mailtoUrl(params)
+    await persistAndHandoff('mailto', false)
+  }
+
+  async function sendGmail() {
+    if (!validate()) return
+    const params = mailParams()
+    if (!params || params.to.length === 0) return
+    if (gmailUrlTooLong(params)) {
+      await copyPlainText(params.body).catch(() => undefined)
+      window.open(gmailComposeUrl(params, { includeBody: false }), '_blank', 'noopener,noreferrer')
+      setPasteHint(true)
+      await persistAndHandoff('gmail_web', false)
+      return
+    }
+    window.open(gmailComposeUrl(params), '_blank', 'noopener,noreferrer')
+    await persistAndHandoff('gmail_web', true)
+  }
+
+  async function improveEmail() {
+    const concern = selected[0]
+    if (!concern || !showAi) return
+    aiAbort.current?.abort()
+    const controller = new AbortController()
+    aiAbort.current = controller
+    setImproving(true)
+    setAiError('')
+    setStatus(t(lang, 'improvingEmail'))
+    try {
+      const response = await fetch('/api/ai/improve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          campaign_id: campaign.id,
+          concern_id: concern.id,
+          language: lang,
+        }),
+      })
+      const payload = (await response.json()) as { ok?: boolean; body?: string }
+      if (!payload.ok || !payload.body) {
+        setAiError(t(lang, 'aiUnavailable'))
+        setImproved(null)
+        setStatus(t(lang, 'aiUnavailable'))
+        return
+      }
+      setImproved({ concernId: concern.id, body: payload.body })
+      setStatus(t(lang, 'aiGenerated'))
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+      setAiError(t(lang, 'aiUnavailable'))
+      setImproved(null)
+      setStatus(t(lang, 'aiUnavailable'))
+    } finally {
+      setImproving(false)
+    }
+  }
+
+  const locationLine = lookup?.found ? compactLocationLine(lookup.common) : ''
 
   return (
     <PageContainer>
-      {state.step > 1 && actionable ? <CampaignProgress step={state.step} /> : null}
+      <StatusRegion message={status} />
 
-      {state.step === 1 ? (
-        <section>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-accent">
-              {t(lang, 'campaignStatus')}: {statusLabel(lang, view === 'live' ? 'live' : view === 'preview' ? 'preview' : view)}
-            </p>
-          </div>
-          <h1 className="font-display mt-4 text-[1.85rem] text-ink sm:text-4xl">{title}</h1>
-          <div className="mt-5 max-w-3xl space-y-4 text-base leading-relaxed text-body sm:text-lg">
-            {description.split(/\n{2,}/).map((para) => (
-              <p key={para.slice(0, 48)}>{para}</p>
-            ))}
-          </div>
-          {deadline ? (
-            <p className="mt-6 font-mono text-sm text-muted">
-              {view === 'expired' ? t(lang, 'publicCommentsClosedOn') : t(lang, 'publicCommentsCloseOn')}{' '}
-              <span className="text-ink">{deadline}</span>
-              {view === 'live' && daysLeft !== null ? (
-                <span className="ml-2 font-semibold text-accent">
-                  {tReplace(lang, 'daysRemaining', { n: String(daysLeft) })}
-                </span>
-              ) : null}
-            </p>
-          ) : null}
-
-          {view === 'inactive' ? (
-            <p className="mt-8 rounded-[8px] border border-rule bg-raised px-4 py-4 text-base text-ink">
-              {t(lang, 'campaignInactivePublic')}
-            </p>
-          ) : null}
-          {view === 'expired' ? (
-            <p className="mt-8 rounded-[8px] border border-rule bg-raised px-4 py-4 text-base text-ink">
-              {t(lang, 'campaignExpiredThanks')}
-            </p>
-          ) : null}
+      <section>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-accent">
+            {t(lang, 'campaignStatus')}: {statusLabel(lang, view)}
+          </p>
+          <LanguageToggle />
+        </div>
+        <h1 lang={lang} className="font-display mt-4 text-[1.85rem] text-ink sm:text-4xl">{title}</h1>
+        <div className="mt-5 max-w-3xl space-y-4 text-base leading-relaxed text-body sm:text-lg">
+          {description.split(/\n{2,}/).map((para) => (
+            <p key={para.slice(0, 48)}>{para}</p>
+          ))}
+        </div>
+        {deadline ? (
+          <p className="mt-6 font-mono text-sm text-muted">
+            {view === 'expired' ? t(lang, 'publicCommentsClosedOn') : t(lang, 'publicCommentsCloseOn')}{' '}
+            <span className="text-ink">{deadline}</span>
+            {view === 'live' && daysLeft !== null ? (
+              <span className="ml-2 font-semibold text-accent">{tReplace(lang, 'daysRemaining', { n: String(daysLeft) })}</span>
+            ) : null}
+          </p>
+        ) : null}
+        <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted">{t(lang, 'trustLine')}</p>
+      </section>
 
           {actionable ? (
             <button type="button" className={cx(btnPrimary, 'mt-8 w-full sm:w-auto')} onClick={goConcern}>
@@ -289,6 +394,7 @@ export function CampaignFlow({
             </button>
           ) : null}
           <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted">{t(lang, 'trustLine')}</p>
+          <CampaignSources sources={sources} />
         </section>
       ) : null}
 
@@ -367,30 +473,17 @@ export function CampaignFlow({
               {t(lang, 'minClausesHint')}
             </p>
           ) : null}
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-            <button type="button" className={cx(btnGhost, 'w-full sm:w-auto')} onClick={() => dispatch({ type: 'goto', step: 1 })}>
-              {t(lang, 'back')}
-            </button>
-            <button type="button" className={cx(btnPrimary, 'w-full sm:flex-1')} onClick={goDetails}>
-              {t(lang, 'continue')}
-              <IconChevronRight className="size-4 shrink-0" />
-            </button>
-          </div>
-        </section>
-      ) : null}
 
-      {state.step === 3 ? (
-        <section>
-          <h1 className="font-display text-2xl text-ink sm:text-3xl">{t(lang, 'yourDetails')}</h1>
-          <p className="mt-2 text-base leading-relaxed text-body">{t(lang, 'privacyDetails')}</p>
-          <div className="mt-6 grid gap-4">
+          {isFieldEnabled(formFields, 'name') && !privacyOn ? (
             <Field
-              lang={lang}
-              fields={formFields}
-              fieldKey="name"
-              value={state.details.fullName}
-              error={state.detailsErrors.fullName}
-              onChange={(value) => dispatch({ type: 'set_details', details: { fullName: value } })}
+              id="full-name"
+              label={labelForField(formFields, 'name', lang, t(lang, 'fullName'))}
+              required={isFieldRequired(formFields, 'name')}
+              value={details.fullName}
+              error={errors.fullName}
+              autoComplete="name"
+              onChange={(value) => patchDetails({ fullName: value })}
+              voice={showVoice ? { lang, onStatus: setStatus } : null}
             />
             <PinField
               lang={lang}
@@ -401,119 +494,175 @@ export function CampaignFlow({
               onLocation={(patch) => dispatch({ type: 'set_details', details: patch })}
             />
             <Field
-              lang={lang}
-              fields={formFields}
-              fieldKey="email"
-              type="email"
-              value={state.details.email}
-              error={state.detailsErrors.email}
-              onChange={(value) => dispatch({ type: 'set_details', details: { email: value } })}
-              autoComplete="email"
-            />
-            <Field
-              lang={lang}
-              fields={formFields}
-              fieldKey="phone"
+              id="phone"
+              label={labelForField(formFields, 'phone', lang, t(lang, 'phone'))}
+              required={isFieldRequired(formFields, 'phone')}
+              value={details.phone}
+              error={errors.phone}
               type="tel"
-              value={state.details.phone}
-              error={state.detailsErrors.phone}
-              onChange={(value) => dispatch({ type: 'set_details', details: { phone: value } })}
-              hint={t(lang, 'phoneHint')}
+              inputMode="tel"
+              autoComplete="tel"
+              onChange={(value) => patchDetails({ phone: value })}
             />
-            {isFieldEnabled(formFields, 'district') ? (
-              <label className={labelClass}>
-                {fieldByKey(formFields, 'district')?.[lang === 'en' ? 'label_en' : 'label_ml'] || t(lang, 'district')}
-                {!isFieldRequired(formFields, 'district') ? <span className="font-normal text-muted"> ({t(lang, 'optional')})</span> : null}
-                <select
-                  className={inputClass}
-                  value={state.details.district}
-                  onChange={(event) => dispatch({ type: 'set_details', details: { district: event.target.value } })}
-                >
-                  <option value="">{t(lang, 'selectDistrict')}</option>
-                  {districts.map((district) => (
-                    <option key={district.value} value={district.value}>
-                      {lang === 'en' ? district.labelEn : district.labelMl}
-                    </option>
-                  ))}
-                </select>
-                {state.detailsErrors.district ? <p className="mt-1 text-sm font-normal text-red-800">{state.detailsErrors.district}</p> : null}
-              </label>
-            ) : null}
+          ) : null}
+
+          {isFieldEnabled(formFields, 'address') && !privacyOn ? (
             <Field
-              lang={lang}
-              fields={formFields}
-              fieldKey="local_body"
-              value={state.details.panchayat}
-              error={state.detailsErrors.panchayat}
-              onChange={(value) => dispatch({ type: 'set_details', details: { panchayat: value } })}
-            />
-            <Field
-              lang={lang}
-              fields={formFields}
-              fieldKey="village"
-              value={state.details.village}
-              error={state.detailsErrors.village}
-              onChange={(value) => dispatch({ type: 'set_details', details: { village: value } })}
-            />
-            <Field
-              lang={lang}
-              fields={formFields}
-              fieldKey="address"
-              value={state.details.addressLine}
-              error={state.detailsErrors.addressLine}
-              onChange={(value) => dispatch({ type: 'set_details', details: { addressLine: value } })}
+              id="address"
+              label={labelForField(formFields, 'address', lang, t(lang, 'address'))}
+              required={isFieldRequired(formFields, 'address')}
+              value={details.addressLine}
+              error={errors.addressLine}
               multiline
+              onChange={(value) => patchDetails({ addressLine: value })}
+              voice={showVoice ? { lang, onStatus: setStatus } : null}
+            />
+          ) : null}
+
+          {isFieldEnabled(formFields, 'local_body') && !privacyOn ? (
+            <Field
+              id="panchayat"
+              label={labelForField(formFields, 'local_body', lang, t(lang, 'panchayat'))}
+              required={isFieldRequired(formFields, 'local_body')}
+              value={details.panchayat}
+              error={errors.panchayat}
+              onChange={(value) => patchDetails({ panchayat: value })}
+            />
+          ) : null}
+
+          {isFieldEnabled(formFields, 'village') && !privacyOn ? (
+            <Field
+              id="village"
+              label={labelForField(formFields, 'village', lang, t(lang, 'village'))}
+              required={isFieldRequired(formFields, 'village')}
+              value={details.village}
+              error={errors.village}
+              onChange={(value) => patchDetails({ village: value })}
+            />
+          ) : null}
+
+          {isFieldEnabled(formFields, 'email') && !privacyOn ? (
+            <Field
+              id="email"
+              label={labelForField(formFields, 'email', lang, t(lang, 'email'))}
+              required={isFieldRequired(formFields, 'email')}
+              value={details.email}
+              error={errors.email}
+              type="email"
+              autoComplete="email"
+              onChange={(value) => patchDetails({ email: value })}
             />
             {isFieldEnabled(formFields, 'custom_message') && !config.allowCustomConcern ? (
               <label className={labelClass}>
                 {fieldByKey(formFields, 'custom_message')?.[lang === 'en' ? 'label_en' : 'label_ml'] || t(lang, 'customText')}
                 <span className="font-normal text-muted"> ({t(lang, 'optional')})</span>
-                <textarea
-                  className={`${inputClass} min-h-28 py-2`}
-                  maxLength={MAX_CUSTOM_CHARS}
-                  value={state.details.customText}
-                  onChange={(event) => dispatch({ type: 'set_details', details: { customText: event.target.value } })}
+              ) : (
+                <span className="text-accent"> *</span>
+              )}
+              <select
+                id="district"
+                className={inputClass}
+                value={details.district}
+                onChange={(event) => patchDetails({ district: event.target.value })}
+              >
+                <option value="">{t(lang, 'selectDistrict')}</option>
+                {districts.map((district) => (
+                  <option key={district.value} value={district.value}>
+                    {lang === 'en' ? district.labelEn : district.labelMl}
+                  </option>
+                ))}
+              </select>
+              {errors.district ? <p className="mt-1 text-sm font-normal text-red-800">{errors.district}</p> : null}
+            </label>
+          ) : null}
+
+          {features.allow_privacy_mode ? (
+            <div className="rounded-[8px] border border-rule bg-raised p-4">
+              <label className="flex min-h-11 cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  className="mt-1 size-6 accent-[var(--color-accent)]"
+                  checked={privacyOn}
+                  onChange={(event) => {
+                    setPrivacyMode(event.target.checked)
+                    setImproved(null)
+                  }}
                 />
-                {state.detailsErrors.customText ? (
-                  <p className="mt-1 text-sm font-normal text-red-800">{state.detailsErrors.customText}</p>
-                ) : null}
+                <span>
+                  <span className="block font-semibold text-ink">{t(lang, 'privacyMode')}</span>
+                  <span className="mt-1 block text-sm leading-relaxed text-body">{t(lang, 'privacyModeHelp')}</span>
+                </span>
               </label>
-            ) : null}
-          </div>
-          <p className="mt-4 text-sm leading-relaxed text-muted">{t(lang, 'consentNotice')}</p>
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-            <button type="button" className={cx(btnGhost, 'w-full sm:w-auto')} onClick={() => dispatch({ type: 'goto', step: 2 })}>
-              {t(lang, 'back')}
-            </button>
-            <button type="button" className={cx(btnPrimary, 'w-full sm:flex-1')} onClick={() => void goReview()}>
-              {t(lang, 'continue')}
-              <IconChevronRight className="size-4 shrink-0" />
-            </button>
-          </div>
-        </section>
-      ) : null}
+            </div>
+          ) : null}
 
-      {state.step === 4 && state.letter ? (
-        <ReviewStep
-          campaign={campaign}
-          selected={selected}
-          details={state.details}
-          letter={state.letter}
-          mode={mode}
-          onBack={() => dispatch({ type: 'goto', step: 3 })}
-          onContinue={() => dispatch({ type: 'goto', step: 5 })}
-        />
-      ) : null}
+          {letter ? (
+            <section aria-label={t(lang, 'previewEmail')}>
+              <h2 className="font-display text-xl text-ink">{t(lang, 'previewEmail')}</h2>
+              <p className="mt-2 text-sm font-semibold text-ink">{letter.subject}</p>
+              <pre className="mt-3 max-h-[40vh] overflow-auto whitespace-pre-wrap break-words rounded-[8px] border border-rule bg-raised p-4 text-sm leading-relaxed text-ink sm:text-base">
+                {letter.body}
+              </pre>
+            </section>
+          ) : null}
 
-      {state.step === 5 && state.letter ? (
-        <EmailStep
-          campaign={campaign}
-          details={state.details}
-          letter={state.letter}
-          mode={mode}
-          submissionId={state.submissionId}
-          onBack={() => dispatch({ type: 'goto', step: 4 })}
-        />
+          {showRead && letter ? <ReadAloudControls lang={lang} text={`${letter.subject}\n\n${letter.body}`} onStatus={setStatus} /> : null}
+
+          {showAi ? (
+            <div>
+              <button
+                type="button"
+                className={cx(btnGhost, 'w-full sm:w-auto')}
+                onClick={() => void improveEmail()}
+                disabled={improving}
+                aria-busy={improving}
+              >
+                <IconSparkle className="size-5" />
+                {improving ? t(lang, 'improvingEmail') : t(lang, 'improveEmail')}
+              </button>
+              <p className="mt-1 text-sm text-muted">{t(lang, 'improveEmailHint')}</p>
+              {improving ? (
+                <button type="button" className={cx(btnGhost, 'mt-2')} onClick={() => aiAbort.current?.abort()}>
+                  {t(lang, 'cancelImprove')}
+                </button>
+              ) : null}
+              {aiError ? <p className="mt-2 text-sm text-ink">{aiError}</p> : null}
+            </div>
+          ) : null}
+
+          {isDryRun(mode) ? <p className="text-base text-amber-900">{t(lang, 'demoLetterHint')}</p> : null}
+
+          <div className="flex flex-col gap-3">
+            <button type="submit" className={cx(btnPrimary, 'min-h-14 w-full')}>
+              <IconEnvelope className="size-5 shrink-0" />
+              {t(lang, 'sendEmail')}
+            </button>
+            <button type="button" className={cx(btnSecondary, 'min-h-12 w-full')} onClick={() => void sendGmail()}>
+              {t(lang, 'sendGmail')}
+            </button>
+            <button
+              type="button"
+              className={cx(btnGhost, 'min-h-12 w-full')}
+              onClick={() => {
+                if (!validate()) return
+                const params = mailParams()
+                if (!params) return
+                void copyPlainText(formatCompleteEmailCopy(params))
+                  .then(() => {
+                    setCopyState('copied')
+                    setStatus(t(lang, 'mailCopied'))
+                    return persistAndHandoff('copy', true)
+                  })
+                  .catch(() => setCopyState('failed'))
+              }}
+            >
+              <IconCopy className="size-4" />
+              {copyState === 'copied' ? t(lang, 'copied') : t(lang, 'copyEmail')}
+            </button>
+          </div>
+          {pasteHint ? <p className="text-sm text-ink">{t(lang, 'mailtoTooLong')}</p> : null}
+          {copyState === 'failed' ? <p className="text-sm text-red-800">{t(lang, 'copyFailed')}</p> : null}
+        </form>
       ) : null}
     </PageContainer>
   )
@@ -612,275 +761,72 @@ function PinField({
 }
 
 function Field({
-  lang,
-  fields,
-  fieldKey,
+  id,
+  label,
   value,
-  error,
   onChange,
+  error,
+  required,
   type = 'text',
   multiline,
-  hint,
   autoComplete,
+  inputMode,
+  voice,
 }: {
-  lang: Lang
-  fields: CampaignFormField[]
-  fieldKey: Parameters<typeof isFieldEnabled>[1]
+  id: string
+  label: string
   value: string
-  error?: string
   onChange: (value: string) => void
+  error?: string
+  required?: boolean
   type?: string
   multiline?: boolean
-  hint?: string
   autoComplete?: string
+  inputMode?: HTMLAttributes<HTMLInputElement>['inputMode']
+  voice?: { lang: Lang; onStatus: (message: string) => void } | null
 }) {
-  if (!isFieldEnabled(fields, fieldKey)) return null
-  const field = fieldByKey(fields, fieldKey)
-  const label = (lang === 'en' ? field?.label_en : field?.label_ml) || fieldKey
-  const required = isFieldRequired(fields, fieldKey)
+  const { lang } = useLang()
   return (
-    <label className={labelClass}>
-      {label}
-      {!required ? <span className="font-normal text-muted"> ({t(lang, 'optional')})</span> : null}
+    <div>
+      <div className="flex items-end justify-between gap-3">
+        <label htmlFor={id} className={labelClass}>
+          {label}
+          {required ? <span className="text-accent"> *</span> : <span className="font-normal text-muted"> ({t(lang, 'optional')})</span>}
+        </label>
+        {voice ? (
+          <VoiceInputButton lang={voice.lang} fieldId={id} value={value} onChange={onChange} onStatus={voice.onStatus} />
+        ) : null}
+      </div>
       {multiline ? (
-        <textarea className={`${inputClass} min-h-24 py-2`} value={value} onChange={(event) => onChange(event.target.value)} />
+        <textarea
+          id={id}
+          className={`${inputClass} min-h-24 resize-y py-2`}
+          value={value}
+          aria-required={required}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? `${id}-error` : undefined}
+          onChange={(event) => onChange(event.target.value)}
+        />
       ) : (
         <input
+          id={id}
           type={type}
+          inputMode={inputMode}
+          autoComplete={autoComplete}
           className={inputClass}
           value={value}
-          autoComplete={autoComplete}
+          aria-required={required}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? `${id}-error` : undefined}
           onChange={(event) => onChange(event.target.value)}
         />
       )}
-      {hint ? <span className="mt-1 block text-sm font-normal text-muted">{hint}</span> : null}
-      {error ? <p className="mt-1 text-sm font-normal text-red-800">{error}</p> : null}
-    </label>
-  )
-}
-
-function ReviewStep({
-  campaign,
-  selected,
-  details,
-  letter,
-  mode,
-  onBack,
-  onContinue,
-}: {
-  campaign: Campaign
-  selected: ObjectionClause[]
-  details: DetailsFields
-  letter: CanonicalLetter
-  mode: WizardMode
-  onBack: () => void
-  onContinue: () => void
-}) {
-  const { lang } = useLang()
-  const targets = resolveMailTargets({ campaign, mode, testerEmail: details.email })
-  return (
-    <section>
-      <h1 className="font-display text-2xl text-ink sm:text-3xl">{t(lang, 'reviewTitle')}</h1>
-      <p className="mt-2 text-base text-body">{t(lang, 'reviewLead')}</p>
-      <dl className="mt-6 space-y-4 text-base">
-        <div>
-          <dt className="font-semibold text-ink">{t(lang, 'selectedConcern')}</dt>
-          <dd className="mt-1 text-body">{selected.map((clause) => concernTitle(clause, lang)).join(', ')}</dd>
-        </div>
-        <div>
-          <dt className="font-semibold text-ink">{t(lang, 'yourName')}</dt>
-          <dd className="mt-1 text-body">{details.fullName}</dd>
-        </div>
-        <div>
-          <dt className="font-semibold text-ink">{t(lang, 'subjectLabel')}</dt>
-          <dd className="mt-1 break-words text-body">{letter.subject}</dd>
-        </div>
-        <div>
-          <dt className="font-semibold text-ink">{t(lang, 'toLabel')}</dt>
-          <dd className="mt-1 break-all text-body">{targets.to.join(', ') || '—'}</dd>
-        </div>
-        <div>
-          <dt className="font-semibold text-ink">{t(lang, 'ccLabel')}</dt>
-          <dd className="mt-1 break-all text-body">{targets.cc.join(', ') || '—'}</dd>
-        </div>
-        <div>
-          <dt className="font-semibold text-ink">{t(lang, 'bccLabel')}</dt>
-          <dd className="mt-1 text-body">{targets.bcc.length > 0 ? t(lang, 'bccPrivateNote') : '—'}</dd>
-        </div>
-      </dl>
-      <pre className="mt-5 max-h-[40vh] overflow-auto whitespace-pre-wrap break-words rounded-[8px] border border-rule bg-raised p-4 text-sm leading-relaxed text-ink sm:text-base">
-        {letter.body}
-      </pre>
-      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-        <button type="button" className={cx(btnGhost, 'w-full sm:w-auto')} onClick={onBack}>
-          {t(lang, 'backAndEdit')}
-        </button>
-        <button type="button" className={cx(btnPrimary, 'w-full sm:flex-1')} onClick={onContinue}>
-          {t(lang, 'continueToEmail')}
-          <IconChevronRight className="size-4 shrink-0" />
-        </button>
-      </div>
-    </section>
-  )
-}
-
-function EmailStep({
-  campaign,
-  details,
-  letter,
-  mode,
-  submissionId,
-  onBack,
-}: {
-  campaign: Campaign
-  details: DetailsFields
-  letter: CanonicalLetter
-  mode: WizardMode
-  submissionId: string | null
-  onBack: () => void
-}) {
-  const { lang } = useLang()
-  const router = useRouter()
-  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
-  const [pasteHint, setPasteHint] = useState(false)
-  const [emlHint, setEmlHint] = useState(false)
-  const dryRun = isDryRun(mode)
-  const targets = useMemo(
-    () => resolveMailTargets({ campaign, mode, testerEmail: details.email }),
-    [campaign, mode, details.email],
-  )
-  const mailParams: MailComposeParams = {
-    to: targets.to,
-    cc: targets.cc,
-    bcc: targets.bcc,
-    subject: letter.subject,
-    body: letter.body,
-  }
-  const sendDisabled = !details.fullName.trim() || !details.email.trim() || mailParams.to.length === 0
-
-  async function recordHandoff(method: 'gmail_web' | 'mailto' | 'copy', goSent: boolean) {
-    if (!submissionId) return
-    await markHandoff(submissionId, method)
-    if (goSent) router.push(`/sent?id=${submissionId}`)
-  }
-
-  async function copyPlainText(text: string) {
-    try {
-      await navigator.clipboard.writeText(text)
-    } catch {
-      const field = document.createElement('textarea')
-      field.value = text
-      field.setAttribute('readonly', '')
-      field.style.position = 'fixed'
-      field.style.opacity = '0'
-      document.body.appendChild(field)
-      field.select()
-      const ok = document.execCommand('copy')
-      document.body.removeChild(field)
-      if (!ok) throw new Error('copy failed')
-    }
-  }
-
-  async function openGmail() {
-    setEmlHint(false)
-    setPasteHint(false)
-    const ua = navigator.userAgent
-    if (/Android/i.test(ua)) {
-      await copyPlainText(letter.body).catch(() => undefined)
-      window.location.href = androidSendIntent(mailParams, {
-        gmailOnly: true,
-        fallbackUrl: gmailComposeUrl(mailParams, { includeBody: false }),
-      })
-      await recordHandoff('gmail_web', false)
-      return
-    }
-    if (gmailUrlTooLong(mailParams)) {
-      await copyPlainText(letter.body).catch(() => undefined)
-      window.open(gmailComposeUrl(mailParams, { includeBody: false }), '_blank', 'noopener,noreferrer')
-      setPasteHint(true)
-      await recordHandoff('gmail_web', false)
-      return
-    }
-    window.open(gmailComposeUrl(mailParams), '_blank', 'noopener,noreferrer')
-    await recordHandoff('gmail_web', true)
-  }
-
-  async function openMailApp() {
-    setEmlHint(false)
-    setPasteHint(false)
-    const ua = navigator.userAgent
-    const ios = /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1)
-    if (/Android/i.test(ua)) {
-      await copyPlainText(letter.body).catch(() => undefined)
-      window.location.href = androidSendIntent(mailParams, {
-        fallbackUrl: mailtoUrl(mailParams, { includeBody: false }),
-      })
-      await recordHandoff('mailto', false)
-      return
-    }
-    if (!ios) {
-      const blob = new Blob([formatUnsentEml(mailParams)], { type: 'message/rfc822' })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = 'janashabdam-letter.eml'
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      window.setTimeout(() => URL.revokeObjectURL(url), 2000)
-      setEmlHint(true)
-      await recordHandoff('mailto', false)
-      return
-    }
-    if (mailtoUrlTooLong(mailParams)) {
-      await copyPlainText(letter.body).catch(() => undefined)
-      window.location.href = mailtoUrl(mailParams, { includeBody: false })
-      setPasteHint(true)
-      await recordHandoff('mailto', false)
-      return
-    }
-    window.location.href = mailtoUrl(mailParams)
-    await recordHandoff('mailto', false)
-  }
-
-  return (
-    <section>
-      <h1 className="font-display text-2xl text-ink sm:text-3xl">{t(lang, 'sendEmail')}</h1>
-      <p className="mt-2 text-base text-body">{t(lang, 'letterSupport')}</p>
-      {dryRun ? <p className="mt-3 text-base text-amber-900">{t(lang, 'demoLetterHint')}</p> : null}
-      <div className="mt-6 flex flex-col gap-3">
-        <button type="button" disabled={sendDisabled} onClick={() => void openGmail()} className={cx(btnPrimary, 'min-h-12 w-full')}>
-          <IconGmail className="size-5 shrink-0" />
-          {t(lang, 'sendEmail')}
-        </button>
-        <button type="button" disabled={sendDisabled} onClick={() => void openMailApp()} className={cx(btnSecondary, 'min-h-12 w-full')}>
-          <IconEnvelope className="size-4 shrink-0" />
-          {t(lang, 'sendMailto')}
-        </button>
-        <button
-          type="button"
-          disabled={sendDisabled}
-          onClick={() => {
-            void copyPlainText(formatCompleteEmailCopy(mailParams))
-              .then(() => {
-                setCopyState('copied')
-                return recordHandoff('copy', true)
-              })
-              .catch(() => setCopyState('failed'))
-          }}
-          className={cx(btnGhost, 'min-h-12 w-full')}
-        >
-          <IconCopy className="size-4 shrink-0" />
-          {copyState === 'copied' ? t(lang, 'copied') : t(lang, 'copyCompleteEmail')}
-        </button>
-      </div>
-      {pasteHint ? <p className="mt-3 text-sm text-ink">{t(lang, 'pasteHint')}</p> : null}
-      {emlHint ? <p className="mt-3 text-sm text-ink">{t(lang, 'emlHint')}</p> : null}
-      {copyState === 'failed' ? <p className="mt-2 text-sm text-red-800">{t(lang, 'copyFailed')}</p> : null}
-      <button type="button" className={cx(btnGhost, 'mt-6')} onClick={onBack}>
-        {t(lang, 'backAndEdit')}
-      </button>
-    </section>
+      {error ? (
+        <p id={`${id}-error`} className="mt-1 text-sm font-normal text-red-800" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
   )
 }
 

@@ -18,13 +18,13 @@ export function LanguageToggle() {
 
   return (
     <div role="group" aria-label={t(lang, 'languageGroup')} className="inline-flex shrink-0 overflow-hidden rounded-[5px] border border-rule">
-      <button type="button" aria-pressed={lang === 'ml'} onClick={() => setLang('ml' satisfies Lang)} className={optionClass(lang === 'ml')}>
+      <button type="button" lang="ml" aria-pressed={lang === 'ml'} onClick={() => setLang('ml' satisfies Lang)} className={optionClass(lang === 'ml')}>
         {t(lang, 'langMlLabel')}
       </button>
       <span className="self-center px-1 text-muted" aria-hidden="true">
         |
       </span>
-      <button type="button" aria-pressed={lang === 'en'} onClick={() => setLang('en' satisfies Lang)} className={optionClass(lang === 'en')}>
+      <button type="button" lang="en" aria-pressed={lang === 'en'} onClick={() => setLang('en' satisfies Lang)} className={optionClass(lang === 'en')}>
         {t(lang, 'langEnLabel')}
       </button>
     </div>

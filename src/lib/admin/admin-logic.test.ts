@@ -5,7 +5,7 @@ import { isAdminEmail } from './allowlist'
 import { conversionPct, displayStage, dropOffPct, funnelFromStatusCounts, statusesForDisplayStage } from './stages'
 import { flagsForPublishStatus, requiresLiveConfirmation, slugFromTitle } from './publish'
 import { flagsForCampaignStatus, requiresPublishConfirmation } from '../campaign-status'
-import { listUnknownPlaceholders, renderSafeTemplate } from '../email-template'
+import { listUnknownPlaceholders, renderSafeTemplate, EMAIL_PLACEHOLDERS } from '../email-template'
 import { composeEmail, liveMailTargets, resolveMailTargets } from '../compose'
 import { fixtureCampaign, fixtureClauses } from '../campaign-fixtures'
 
@@ -158,4 +158,32 @@ test('admin allowlist comparison is exact after trim/lowercase', () => {
     if (prev === undefined) delete process.env.ADMIN_EMAILS
     else process.env.ADMIN_EMAILS = prev
   }
+})
+
+test('composed emails cannot interpolate campaign sources or newspaper clippings', () => {
+  assert.equal((EMAIL_PLACEHOLDERS as readonly string[]).includes('sources'), false)
+  assert.deepEqual(listUnknownPlaceholders('{{sources}} {{clipping}}'), ['sources', 'clipping'])
+  const result = composeEmail({
+    campaign: {
+      ...demoCampaign,
+      intro_en: 'Approved ESA wording only.',
+      body_template_en: '{{intro}}\n\n{{sources}}\n\n{{concerns}}\n\n{{closing}}',
+    },
+    clauses: [demoClauses[0]],
+    details: {
+      fullName: 'Ravi Kumar',
+      addressLine: 'House',
+      panchayat: 'Panchayat',
+      district: 'Idukki',
+      pincode: '685533',
+      phone: '9876543210',
+      email: 'ravi@example.com',
+    },
+    lang: 'en',
+  })
+  assert.match(result.body, /Approved ESA wording only/)
+  assert.doesNotMatch(result.body, /\{\{sources\}\}/)
+  assert.doesNotMatch(result.body, /Deepika/)
+  assert.doesNotMatch(result.body, /Mathrubhumi/)
+  assert.doesNotMatch(result.body, /56,825/)
 })

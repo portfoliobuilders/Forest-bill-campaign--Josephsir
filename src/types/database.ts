@@ -30,6 +30,10 @@ export type FormFieldKey =
   | 'custom_message'
   | 'pincode'
 
+export type ConcernSelectionMode = 'single' | 'multiple'
+
+export type AiBodyStatus = 'none' | 'draft' | 'approved'
+
 export type Campaign = {
   id: string
   slug: string
@@ -67,13 +71,14 @@ export type Campaign = {
   social_image_url: string | null
   explainer_ml: string[]
   explainer_en: string[]
-  concern_selection_mode: ConcernSelectionMode
+  concern_selection_mode: 'single' | 'multiple'
   max_concern_selections: number | null
   allow_custom_concern: boolean
   custom_concern_label_en: string | null
   custom_concern_label_ml: string | null
   custom_concern_placeholder_en: string | null
   custom_concern_placeholder_ml: string | null
+  feature_settings?: Record<string, unknown> | null
   created_at: string
   updated_at?: string
   updated_by?: string | null
@@ -97,6 +102,10 @@ export type ObjectionClause = {
   email_subject_en?: string
   email_body_ml?: string
   email_body_en?: string
+  ai_body_en?: string
+  ai_body_ml?: string
+  ai_body_en_status?: AiBodyStatus
+  ai_body_ml_status?: AiBodyStatus
   full_url: string | null
   sort_order: number
   is_active: boolean
@@ -120,6 +129,28 @@ export type CampaignFormField = {
   is_enabled: boolean
   is_required: boolean
   display_order: number
+}
+
+/** Supporting newspaper clippings / references. Never copied into composed emails. */
+export type CampaignSource = {
+  id: string
+  campaign_id: string
+  publication_name: string
+  publication_date: string | null
+  title_ml: string
+  title_en: string
+  description_ml: string
+  description_en: string
+  source_url: string | null
+  file_url: string | null
+  file_path?: string | null
+  file_mime: string | null
+  file_name: string | null
+  is_public: boolean
+  sort_order: number
+  created_at: string
+  updated_at?: string
+  created_by?: string | null
 }
 
 export type SiteBranding = {
