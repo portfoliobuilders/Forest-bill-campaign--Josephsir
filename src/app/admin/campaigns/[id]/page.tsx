@@ -16,7 +16,7 @@ export async function generateMetadata() {
   return { title: 'Edit campaign — Admin', robots: { index: false, follow: false } }
 }
 
-const TAB_KEYS = ['basic', 'english', 'malayalam', 'concerns', 'recipients', 'fields', 'schedule', 'sources', 'preview'] as const
+const TAB_KEYS = ['basic', 'english', 'malayalam', 'concerns', 'recipients', 'fields', 'features', 'schedule', 'sources', 'preview'] as const
 
 function tabIndexFromQuery(value: string | undefined): number {
   if (!value) return 0
@@ -47,6 +47,7 @@ export default async function EditCampaignPage({
   const sourcesLoadError = sourcesResult.error
     ? 'Could not load sources. Apply the campaign_sources database migration, then reload.'
     : null
+  const [postalCount, aiConfigured] = await Promise.all([postalDirectoryCount(), Promise.resolve(aiServerConfigured())])
   return (
     <CampaignStudio
       campaign={publicCampaign(campaign as Campaign)}

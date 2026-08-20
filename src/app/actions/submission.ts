@@ -1,6 +1,5 @@
 'use server'
 
-import { randomUUID } from 'crypto'
 import { headers } from 'next/headers'
 import { z } from 'zod'
 
@@ -30,9 +29,11 @@ const optionalEmail = z
   .trim()
   .refine((value) => !value || z.email().safeParse(value).success, 'invalid_email')
 
+const letterModeSchema = z.enum(['selected', 'all'])
+
 const letterInputSchema = z.object({
   campaignSlug: z.string().min(1),
-  fullName: z.string().trim().min(1),
+  fullName: z.string().trim().optional().default(''),
   email: optionalEmail.optional().default(''),
   phone: z.string().trim().optional().default(''),
   address: z.string().trim().optional().default(''),
@@ -44,8 +45,14 @@ const letterInputSchema = z.object({
   customText: z.string().max(1000).optional().default(''),
   extraConcerns: z.array(z.string().max(1000)).max(12).default([]),
   clauseCodes: z.array(z.string().min(1)).max(50).default([]),
+  letterMode: letterModeSchema.optional().default('selected'),
   constituencyId: z.uuid().nullable().optional().default(null),
   ccRepIds: z.array(z.uuid()).optional().default([]),
+  privacyMode: z.boolean().optional().default(false),
+  postOffice: z.string().trim().max(80).optional().default(''),
+  state: z.string().trim().max(80).optional().default(''),
+  postalRegion: z.string().trim().max(80).optional().default(''),
+  taluk: z.string().trim().max(80).optional().default(''),
 })
 
 type LetterFields = z.infer<typeof letterInputSchema>

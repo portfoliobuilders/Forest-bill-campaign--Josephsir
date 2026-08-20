@@ -20,6 +20,8 @@ import {
   sanitizeSourceFileName,
 } from '@/lib/campaign-sources'
 import { DEFAULT_BODY_TEMPLATE_EN, DEFAULT_BODY_TEMPLATE_ML } from '@/lib/email-template'
+import { DEFAULT_FEATURE_SETTINGS, parseFeatureSettings } from '@/lib/campaign-features'
+import { improveCampaignConcern } from '@/lib/ai/improve'
 import { DEFAULT_FORM_FIELDS } from '@/lib/form-fields'
 import { invalidEmails, parseEmailList, rowsFromLists } from '@/lib/recipients'
 import { createServiceClient } from '@/lib/supabase/server'
@@ -240,6 +242,7 @@ export type StudioSaveInput = {
   to_emails: string[]
   cc_emails: string[]
   bcc_emails: string[]
+  feature_settings?: Record<string, unknown>
   form_fields: Array<{
     field_key: string
     label_en: string
@@ -320,6 +323,7 @@ export async function saveCampaignStudio(input: StudioSaveInput): Promise<Action
     recipient_email: to[0] ?? (before.recipient_email as string),
     cc_emails: cc,
     bcc_emails: bcc,
+    feature_settings: parseFeatureSettings(input.feature_settings),
     updated_by: session.email,
   }
 
@@ -397,6 +401,7 @@ export async function createEmptyCampaign(): Promise<ActionResult> {
       allow_multiple_concerns: false,
       concern_selection_mode: 'single',
       allow_custom_concern: true,
+      feature_settings: DEFAULT_FEATURE_SETTINGS,
       preview_token: randomBytes(24).toString('hex'),
       created_by: session.email,
       updated_by: session.email,
@@ -480,13 +485,6 @@ export async function duplicateCampaignFull(campaignId: string): Promise<ActionR
       og_title_ml: source.og_title_ml ?? '',
       og_description_en: source.og_description_en ?? '',
       og_description_ml: source.og_description_ml ?? '',
-      concern_selection_mode: source.concern_selection_mode ?? 'single',
-      max_concern_selections: source.max_concern_selections ?? null,
-      allow_custom_concern: source.allow_custom_concern !== false,
-      custom_concern_label_en: source.custom_concern_label_en ?? null,
-      custom_concern_label_ml: source.custom_concern_label_ml ?? null,
-      custom_concern_placeholder_en: source.custom_concern_placeholder_en ?? null,
-      custom_concern_placeholder_ml: source.custom_concern_placeholder_ml ?? null,
       feature_settings: parseFeatureSettings(source.feature_settings),
       status: 'draft',
       is_active: false,
@@ -945,4 +943,27 @@ export async function reorderCampaignSources(campaignId: string, ids: string[]):
   }
   revalidateAfterCmsSave()
   return { ok: true }
+}
+
+export async function generateAiConcernDraft(
+  campaignId: string,
+  concernId: string,
+  language: 'ml' | 'en',
+): Promise<ActionResult & { body?: string }> {
+  await requireAdminSession()
+  const result = await improveCampaignConcern({
+    campaignId,
+    concernId,
+    language,
+    forceLive: true,
+  })
+  if (!result.ok) return { ok: false, error: 'AI draft is unavailable. The original concern is unchanged.' }
+  const supabase = createServiceClient()
+  const patch =
+    language === 'en'
+      ? { ai_body_en: result.body, ai_body_en_status: 'draft' }
+      : { ai_body_ml: result.body, ai_body_ml_status: 'draft' }
+  await supabase.from('objection_clauses').update(patch).eq('id', concernId)
+  revalidateAfterCmsSave()
+  return { ok: true, id: concernId, body: result.body }
 }

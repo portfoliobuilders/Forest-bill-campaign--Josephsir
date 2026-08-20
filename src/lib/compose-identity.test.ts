@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import { composeEmail } from './compose'
 import { identityBlock, privacyLetter } from './compose-identity'
-import { demoCampaign, demoClauses } from './demo-data'
+import { fixtureCampaign as demoCampaign, fixtureClauses as demoClauses } from './campaign-fixtures'
 
 const identityDetails = {
   fullName: 'Joseph Mathew',

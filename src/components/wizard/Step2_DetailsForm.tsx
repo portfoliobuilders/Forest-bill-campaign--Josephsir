@@ -143,9 +143,6 @@ export function Step2_DetailsForm({
           {t(lang, 'footerPrivacy')}
         </a>
       </p>
-      {allowSample ? (
-        <p className="mt-4 text-sm text-muted">{t(lang, 'sampleHint')}</p>
-      ) : null}
 
       <div className="mt-6 rounded-[8px] border border-rule bg-raised p-4">
         <TextAreaField

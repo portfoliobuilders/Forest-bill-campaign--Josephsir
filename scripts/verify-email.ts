@@ -9,6 +9,7 @@ import {
   gmailComposeUrl,
   liveMailTargets,
   mailtoUrl,
+  mailtoUrlTooLong,
   resolveMailTargets,
   uniqueEmails,
 } from '../src/lib/compose'
@@ -135,6 +136,10 @@ assert.doesNotMatch(gmail, /Forest/)
 assert.doesNotMatch(gmail, /undefined/)
 assert.match(mail, /mailto:min\.for%40kerala\.gov\.in/)
 assert.doesNotMatch(mail, /esz-mef@nic\.in/)
+assert.equal(
+  mailtoUrlTooLong({ to: targets.to, cc: targets.cc, subject: full.subject, body: full.body }),
+  false,
+)
 
 const copied = formatCompleteEmailCopy({
   to: targets.to,
