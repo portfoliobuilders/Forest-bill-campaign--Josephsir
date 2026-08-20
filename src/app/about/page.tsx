@@ -20,11 +20,11 @@ export default async function AboutPage() {
   } else {
     try {
       const supabase = createServiceClient()
-      const { data } = await supabase
-        .from('campaigns')
-        .select('source_url, title_ml')
-        .eq('slug', getDefaultCampaignSlug())
-        .maybeSingle()
+      const slug = getDefaultCampaignSlug()
+      const query = supabase.from('campaigns').select('source_url, title_ml')
+      const { data } = slug
+        ? await query.eq('slug', slug).maybeSingle()
+        : await query.order('created_at', { ascending: false }).limit(1).maybeSingle()
       sourceUrl = (data?.source_url as string | undefined) ?? null
       campaignTitle = (data?.title_ml as string | undefined) ?? null
     } catch {

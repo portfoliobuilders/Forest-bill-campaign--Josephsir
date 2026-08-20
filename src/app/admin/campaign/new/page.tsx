@@ -1,11 +1,5 @@
-import { NewCampaignWizard } from '@/app/admin/campaign/new/NewCampaignWizard'
-import { requireAdminSession } from '@/lib/admin/auth'
-import { assertAdminEnv } from '@/lib/env'
+import { redirect } from 'next/navigation'
 
-export const dynamic = 'force-dynamic'
-
-export default async function NewCampaignPage() {
-  assertAdminEnv()
-  await requireAdminSession()
-  return <NewCampaignWizard />
+export default function AdminCampaignNewRedirectPage() {
+  redirect('/admin/campaigns/new')
 }

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
 
-export default function DemoPage() {
-  redirect('/objection')
+export default function DemoRedirect() {
+  redirect('/')
 }

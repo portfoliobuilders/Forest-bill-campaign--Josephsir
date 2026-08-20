@@ -905,6 +905,11 @@ export type SiteSettings = {
   default_language: string
   site_title_ml: string
   site_title_en: string
+  tagline_ml: string
+  tagline_en: string
+  logo_url: string | null
+  favicon_url: string | null
+  og_image_url: string | null
   support_email: string | null
   public_disclaimer_ml: string
   public_disclaimer_en: string
@@ -919,6 +924,11 @@ export async function fetchSiteSettings(): Promise<SiteSettings> {
     default_language: (data?.default_language as string | undefined) ?? 'ml',
     site_title_ml: (data?.site_title_ml as string | undefined) ?? 'ജനശബ്ദം',
     site_title_en: (data?.site_title_en as string | undefined) ?? 'Janashabdam',
+    tagline_ml: (data?.tagline_ml as string | undefined) ?? '',
+    tagline_en: (data?.tagline_en as string | undefined) ?? '',
+    logo_url: (data?.logo_url as string | null | undefined) ?? null,
+    favicon_url: (data?.favicon_url as string | null | undefined) ?? null,
+    og_image_url: (data?.og_image_url as string | null | undefined) ?? null,
     support_email: (data?.support_email as string | null | undefined) ?? null,
     public_disclaimer_ml: (data?.public_disclaimer_ml as string | undefined) ?? '',
     public_disclaimer_en: (data?.public_disclaimer_en as string | undefined) ?? '',

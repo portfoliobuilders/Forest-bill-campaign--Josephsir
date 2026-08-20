@@ -1,14 +1,17 @@
 import { z } from 'zod'
 
+import { isFieldEnabled, isFieldRequired } from '@/lib/form-fields'
 import { t, type Lang } from '@/lib/i18n'
 import { normalizeIndianPhone } from '@/lib/phone'
+import type { CampaignFormField } from '@/types/database'
 
-export const MAX_CUSTOM_CHARS = 300
+export const MAX_CUSTOM_CHARS = 1000
 
 export type DetailsFields = {
   fullName: string
   addressLine: string
   panchayat: string
+  village: string
   district: string
   pincode: string
   phone: string
@@ -16,27 +19,71 @@ export type DetailsFields = {
   customText: string
 }
 
-export function createDetailsSchema(lang: Lang, districts: string[]) {
+export const emptyDetails = (): DetailsFields => ({
+  fullName: '',
+  addressLine: '',
+  panchayat: '',
+  village: '',
+  district: '',
+  pincode: '',
+  phone: '',
+  email: '',
+  customText: '',
+})
+
+export function createDetailsSchema(lang: Lang, districts: string[], fields: CampaignFormField[]) {
+  const optionalText = z.string().trim()
+  const name = z.string().trim().min(1, t(lang, 'errorFullName'))
+  const email = z.email(t(lang, 'errorEmail'))
+
+  const phone = isFieldRequired(fields, 'phone')
+    ? z
+        .string()
+        .trim()
+        .min(1, t(lang, 'errorPhone'))
+        .refine((value) => normalizeIndianPhone(value) !== null, t(lang, 'errorPhone'))
+    : z
+        .string()
+        .trim()
+        .refine((value) => !value || normalizeIndianPhone(value) !== null, t(lang, 'errorPhone'))
+
+  const districtEnabled = isFieldEnabled(fields, 'district')
+  const districtRequired = isFieldRequired(fields, 'district')
+  const district = districtEnabled
+    ? districtRequired
+      ? z
+          .string()
+          .trim()
+          .min(1, t(lang, 'errorDistrict'))
+          .refine((value) => districts.includes(value), t(lang, 'errorDistrict'))
+      : z
+          .string()
+          .trim()
+          .refine((value) => !value || districts.includes(value), t(lang, 'errorDistrict'))
+    : optionalText
+
+  const address = isFieldRequired(fields, 'address')
+    ? z.string().trim().min(1, t(lang, 'errorAddress'))
+    : optionalText
+
+  const panchayat = isFieldRequired(fields, 'local_body')
+    ? z.string().trim().min(1, t(lang, 'panchayat'))
+    : optionalText
+
+  const village = isFieldRequired(fields, 'village') ? z.string().trim().min(1, t(lang, 'village')) : optionalText
+
+  const customText = z.string().max(MAX_CUSTOM_CHARS, t(lang, 'errorCustomText'))
+
   return z.object({
-    fullName: z.string().trim().min(1, t(lang, 'errorFullName')),
-    addressLine: z.string().trim().min(1, t(lang, 'errorAddress')),
-    panchayat: z.string().trim(),
-    district: z
-      .string()
-      .trim()
-      .min(1, t(lang, 'errorDistrict'))
-      .refine((value) => districts.includes(value), t(lang, 'errorDistrict')),
-    pincode: z
-      .string()
-      .trim()
-      .regex(/^[1-9][0-9]{5}$/, t(lang, 'errorPincode')),
-    phone: z
-      .string()
-      .trim()
-      .min(1, t(lang, 'errorPhone'))
-      .refine((value) => normalizeIndianPhone(value) !== null, t(lang, 'errorPhone')),
-    email: z.email(t(lang, 'errorEmail')),
-    customText: z.string().max(MAX_CUSTOM_CHARS, t(lang, 'errorCustomText')),
+    fullName: name,
+    email,
+    phone,
+    addressLine: address,
+    panchayat,
+    village,
+    district,
+    pincode: optionalText,
+    customText,
   })
 }
 

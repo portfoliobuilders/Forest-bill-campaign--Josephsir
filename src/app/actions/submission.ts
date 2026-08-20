@@ -5,8 +5,7 @@ import { z } from 'zod'
 
 import { composeEmail, clausesForLetter, liveMailTargets, resolveMailTargets } from '@/lib/compose'
 import { getCampaignState, publicCampaign, readPreviewToken } from '@/lib/campaign'
-import { withForestClauses } from '@/lib/campaigns'
-import { demoCampaign, demoClauses } from '@/lib/demo-data'
+import { withCampaignClauses } from '@/lib/campaigns'
 import { getClientIp, hashIp } from '@/lib/security'
 import { createServiceClient } from '@/lib/supabase/server'
 import { normalizeIndianPhone } from '@/lib/phone'
@@ -25,15 +24,16 @@ const letterInputSchema = z.object({
   campaignSlug: z.string().min(1),
   fullName: z.string().trim().min(1),
   email: z.email(),
-  phone: z.string().trim().min(1),
-  address: z.string().trim().min(1),
-  panchayat: z.string().trim(),
-  district: z.string().trim().min(1),
-  pincode: z.string().trim().regex(/^[1-9][0-9]{5}$/),
+  phone: z.string().trim().optional().default(''),
+  address: z.string().trim().optional().default(''),
+  panchayat: z.string().trim().optional().default(''),
+  village: z.string().trim().optional().default(''),
+  district: z.string().trim().optional().default(''),
+  pincode: z.string().trim().optional().default(''),
   language: langSchema,
-  customText: z.string().max(300),
-  extraConcerns: z.array(z.string().max(300)).max(6).default([]),
-  clauseCodes: z.array(z.string().min(1)).max(12).default([]),
+  customText: z.string().max(1000).optional().default(''),
+  extraConcerns: z.array(z.string().max(1000)).max(12).default([]),
+  clauseCodes: z.array(z.string().min(1)).max(50).default([]),
   letterMode: letterModeSchema.default('selected'),
   constituencyId: z.uuid().nullable(),
   ccRepIds: z.array(z.uuid()),
@@ -43,7 +43,7 @@ type LetterFields = z.infer<typeof letterInputSchema>
 
 type CanonicalCompose = {
   campaign: Campaign
-  persistSlug: string | null
+  persistSlug: string
   composed: { subject: string; body: string }
   clauseCodes: string[]
   isTest: boolean
@@ -55,39 +55,38 @@ async function composeCanonicalLetter(input: LetterFields): Promise<ActionResult
     return { ok: false, error: 'invalid_clauses' }
   }
 
-  const phone = normalizeIndianPhone(input.phone)
-  if (!phone) {
+  const phone = input.phone.trim() ? normalizeIndianPhone(input.phone) : ''
+  if (input.phone.trim() && !phone) {
     return { ok: false, error: 'invalid_input' }
   }
 
   const campaignState = await getCampaignState(input.campaignSlug, await readPreviewToken())
-  let campaign: Campaign
-  let sourceClauses: ObjectionClause[]
-  let persistSlug: string | null = null
+  if (campaignState.state === 'dormant') {
+    return { ok: false, error: 'campaign_not_active' }
+  }
+  if (campaignState.state !== 'live' && campaignState.state !== 'preview') {
+    return { ok: false, error: 'campaign_not_active' }
+  }
+
+  const campaign = publicCampaign(campaignState.campaign)
+  const persistSlug = campaign.slug
   const isTest = campaignState.state === 'preview'
 
-  if (campaignState.state === 'dormant') {
-    campaign = demoCampaign
-    sourceClauses = demoClauses
-    persistSlug = input.campaignSlug
-  } else {
-    campaign = publicCampaign(campaignState.campaign)
-    persistSlug = campaign.slug
-    try {
-      const supabase = createServiceClient()
-      let query = supabase
-        .from('objection_clauses')
-        .select('*')
-        .eq('campaign_id', campaign.id)
-        .eq('is_active', true)
-      if (input.letterMode === 'selected') {
-        query = query.in('code', input.clauseCodes)
-      }
-      const { data } = await query
-      sourceClauses = withForestClauses(campaign, (data ?? []) as ObjectionClause[])
-    } catch {
-      sourceClauses = withForestClauses(campaign, [])
+  let sourceClauses: ObjectionClause[] = []
+  try {
+    const supabase = createServiceClient()
+    let query = supabase
+      .from('objection_clauses')
+      .select('*')
+      .eq('campaign_id', campaign.id)
+      .eq('is_active', true)
+    if (input.letterMode === 'selected') {
+      query = query.in('code', input.clauseCodes)
     }
+    const { data } = await query
+    sourceClauses = withCampaignClauses(campaign, (data ?? []) as ObjectionClause[])
+  } catch {
+    sourceClauses = []
   }
 
   const selectedIds =
@@ -106,6 +105,7 @@ async function composeCanonicalLetter(input: LetterFields): Promise<ActionResult
       fullName: input.fullName,
       addressLine: input.address,
       panchayat: input.panchayat,
+      village: input.village,
       district: input.district,
       pincode: input.pincode,
       phone,
@@ -135,8 +135,8 @@ async function storeCanonicalLetter(
   userAgent: string,
 ): Promise<string | null> {
   if (!canonical.persistSlug) return null
-  const phone = normalizeIndianPhone(input.phone)
-  if (!phone) return null
+  const phone = input.phone.trim() ? normalizeIndianPhone(input.phone) : null
+  if (input.phone.trim() && !phone) return null
 
   try {
     const supabase = createServiceClient()
@@ -153,12 +153,14 @@ async function storeCanonicalLetter(
       mode: canonical.isTest ? 'preview' : 'live',
       testerEmail: input.email,
     })
-    const generatedTo = targets.to
-    const generatedCc = targets.cc
+    const generatedTo = [...targets.to]
+    const generatedCc = [...targets.cc]
+    const generatedBcc = [...targets.bcc]
     if (!canonical.isTest && generatedTo.length === 0) {
       const live = liveMailTargets(canonical.campaign)
       generatedTo.push(...live.to)
       generatedCc.push(...live.cc)
+      generatedBcc.push(...live.bcc)
     }
 
     const rpcArgs = {
@@ -200,6 +202,13 @@ async function storeCanonicalLetter(
       }
     }
     if (error || !submissionId) return null
+    await supabase
+      .from('submissions')
+      .update({
+        village: input.village || null,
+        generated_bcc: generatedBcc,
+      })
+      .eq('id', submissionId as string)
     return submissionId as string
   } catch {
     return null

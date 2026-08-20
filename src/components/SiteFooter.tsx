@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 import { useLang } from '@/components/LanguageProvider'
+import { PortfolixLockup } from '@/components/PortfolixLockup'
 import { t } from '@/lib/i18n'
 import { focusRing } from '@/lib/ui'
 
@@ -33,8 +34,7 @@ export function SiteFooter({
   supportEmail?: string | null
 }) {
   const { lang } = useLang()
-  const disclaimer =
-    (lang === 'en' ? disclaimerEn : disclaimerMl)?.trim() || t(lang, 'notOfficial')
+  const disclaimer = (lang === 'en' ? disclaimerEn : disclaimerMl)?.trim() || t(lang, 'notOfficial')
   const footerNote = (lang === 'en' ? footerEn : footerMl)?.trim() || ''
 
   return (
@@ -73,19 +73,20 @@ export function SiteFooter({
           </p>
         ) : null}
 
-        <div className="mt-8 flex flex-col gap-3 border-t border-white/10 pt-6 sm:flex-row sm:items-end sm:justify-between">
+        <div className="mt-8 flex flex-col gap-4 border-t border-white/10 pt-6 sm:flex-row sm:items-end sm:justify-between">
           <p className="font-mono text-xs text-stone-500">{t(lang, 'footerCopyright')}</p>
-          <p className="font-mono text-[10px] tracking-wide text-stone-600">
-            {t(lang, 'poweredBy')}{' '}
-            <a
-              href="https://portfolix.tech"
-              className={`text-stone-500 hover:text-stone-300 ${focusRing}`}
-              rel="noopener noreferrer"
-              target="_blank"
-            >
-              Portfolix.Tech
-            </a>
-          </p>
+          <a
+            href="https://portfolix.tech/"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={t(lang, 'portfolixCredit')}
+            className={`inline-flex max-w-full items-center gap-3 rounded-md bg-black px-2 py-1.5 hover:bg-black ${focusRing}`}
+          >
+            <PortfolixLockup className="px-2 py-1.5" />
+            <span className="font-mono text-[10px] tracking-wide text-stone-400">
+              Powered by <span className="font-semibold text-white">Portfolix.tech</span>
+            </span>
+          </a>
         </div>
       </div>
     </footer>

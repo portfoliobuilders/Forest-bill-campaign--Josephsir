@@ -21,7 +21,6 @@ export type ActionErr = { ok: false; error: string }
 export type ActionResult = ActionOk | ActionErr
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const CLAUSE_EMAIL_MAX = 220
 
 function parseEmails(values: string[]): string[] {
   return uniqueEmails(values.map((v) => v.trim()).filter(Boolean))
@@ -177,6 +176,8 @@ export async function changeCampaignStatus(
   }
 
   const flags = flagsForPublishStatus(nextStatus)
+  const status =
+    nextStatus === 'live' ? 'active' : nextStatus === 'archived' ? 'archived' : nextStatus === 'closed' ? 'expired' : 'draft'
   let previewToken = (before.preview_token as string | null) ?? null
   if (nextStatus === 'preview' && !previewToken) {
     previewToken = randomBytes(24).toString('hex')
@@ -186,6 +187,7 @@ export async function changeCampaignStatus(
     .from('campaigns')
     .update({
       ...flags,
+      status,
       preview_token: previewToken,
       updated_by: session.email,
     })
@@ -399,17 +401,10 @@ export type ConcernSaveInput = {
   is_active: boolean
 }
 
-function clauseTooLong(text: string): boolean {
-  return [...text].length > CLAUSE_EMAIL_MAX
-}
-
 export async function saveConcern(input: ConcernSaveInput): Promise<ActionResult> {
   const session = await requireAdminSession()
   if (!input.code.trim() || !input.title_ml.trim() || !input.title_en.trim()) {
     return { ok: false, error: 'Code and titles are required.' }
-  }
-  if (clauseTooLong(input.email_ml) || clauseTooLong(input.email_en)) {
-    return { ok: false, error: `Email copy must be ${CLAUSE_EMAIL_MAX} characters or fewer.` }
   }
 
   const supabase = createServiceClient()
@@ -552,6 +547,11 @@ export async function saveSiteSettings(input: {
   default_language: string
   site_title_ml: string
   site_title_en: string
+  tagline_ml?: string
+  tagline_en?: string
+  logo_url?: string
+  favicon_url?: string
+  og_image_url?: string
   support_email: string
   public_disclaimer_ml: string
   public_disclaimer_en: string
@@ -566,6 +566,11 @@ export async function saveSiteSettings(input: {
     default_language: lang,
     site_title_ml: input.site_title_ml.trim() || 'ജനശബ്ദം',
     site_title_en: input.site_title_en.trim() || 'Janashabdam',
+    tagline_ml: input.tagline_ml ?? '',
+    tagline_en: input.tagline_en ?? '',
+    logo_url: input.logo_url?.trim() || null,
+    favicon_url: input.favicon_url?.trim() || null,
+    og_image_url: input.og_image_url?.trim() || null,
     support_email: input.support_email.trim() || null,
     public_disclaimer_ml: input.public_disclaimer_ml,
     public_disclaimer_en: input.public_disclaimer_en,

@@ -4,8 +4,9 @@ import test from 'node:test'
 import { isAdminEmail } from './allowlist'
 import { conversionPct, displayStage, dropOffPct, funnelFromStatusCounts, statusesForDisplayStage } from './stages'
 import { flagsForPublishStatus, requiresLiveConfirmation, slugFromTitle } from './publish'
+import { flagsForCampaignStatus, requiresPublishConfirmation } from '../campaign-status'
 import { listUnknownPlaceholders, renderSafeTemplate } from '../email-template'
-import { composeEmail, resolveMailTargets } from '../compose'
+import { composeEmail, liveMailTargets, resolveMailTargets } from '../compose'
 import { demoCampaign, demoClauses } from '../demo-data'
 
 test('displayStage maps backend statuses to business labels', () => {
@@ -70,10 +71,9 @@ test('compose uses template placeholders and does not eval javascript', () => {
   assert.doesNotMatch(result.body, /constructor/)
 })
 
-test('email copy over 220 characters is invalid', () => {
+test('email copy may exceed the former 220-character letter limit', () => {
   const long = 'a'.repeat(221)
   assert.equal([...long].length > 220, true)
-  assert.equal([...('b'.repeat(220))].length <= 220, true)
 })
 
 test('publish flags never go live without an explicit live status', () => {
@@ -82,6 +82,14 @@ test('publish flags never go live without an explicit live status', () => {
   assert.deepEqual(flagsForPublishStatus('live'), { publish_status: 'live', is_active: true })
   assert.equal(requiresLiveConfirmation('preview', 'live'), true)
   assert.equal(requiresLiveConfirmation('live', 'closed'), false)
+})
+
+test('campaign status flags stay aligned with legacy publish_status', () => {
+  assert.deepEqual(flagsForCampaignStatus('active'), { status: 'active', is_active: true, publish_status: 'live' })
+  assert.deepEqual(flagsForCampaignStatus('draft'), { status: 'draft', is_active: false, publish_status: 'draft' })
+  assert.deepEqual(flagsForCampaignStatus('archived'), { status: 'archived', is_active: false, publish_status: 'archived' })
+  assert.equal(requiresPublishConfirmation('draft', 'active'), true)
+  assert.equal(requiresPublishConfirmation('active', 'inactive'), false)
 })
 
 test('slug generation is campaign-safe', () => {
@@ -96,8 +104,39 @@ test('preview and admin test mail never address government recipients', () => {
   })
   assert.deepEqual(targets.to, ['admin@janashabdam.example'])
   assert.deepEqual(targets.cc, [])
+  assert.deepEqual(targets.bcc, [])
   assert.equal(targets.dryRun, true)
   assert.ok(targets.liveTo.length > 0)
+})
+
+test('live mail keeps BCC off TO/CC, and empty TO falls back to CC', () => {
+  const withBcc = { ...demoCampaign, bcc_emails: ['archive@example.test'] }
+  const live = resolveMailTargets({
+    campaign: withBcc,
+    mode: 'live',
+    testerEmail: 'admin@janashabdam.example',
+  })
+  assert.deepEqual(live.bcc, ['archive@example.test'])
+  assert.equal(live.dryRun, false)
+
+  const preview = resolveMailTargets({
+    campaign: withBcc,
+    mode: 'preview',
+    testerEmail: 'admin@janashabdam.example',
+  })
+  assert.deepEqual(preview.bcc, [])
+  assert.deepEqual(preview.liveBcc, ['archive@example.test'])
+
+  const ccAsTo = liveMailTargets({
+    ...demoCampaign,
+    recipient_emails: [],
+    recipient_email: '',
+    cc_emails: ['cc@example.test'],
+    bcc_emails: ['archive@example.test'],
+  })
+  assert.deepEqual(ccAsTo.to, ['cc@example.test'])
+  assert.deepEqual(ccAsTo.cc, [])
+  assert.deepEqual(ccAsTo.bcc, ['archive@example.test'])
 })
 
 test('funnel helpers count unique statuses; callers must exclude is_test first', () => {
