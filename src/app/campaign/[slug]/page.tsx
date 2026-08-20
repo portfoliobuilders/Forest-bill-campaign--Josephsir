@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { cookies } from 'next/headers'
 
 import { CampaignFlow, NoActiveCampaign } from '@/components/campaign/CampaignFlow'
+import { aiServerConfigured } from '@/lib/ai/provider'
 import { resolveCampaignState, resolvePublicCampaign } from '@/lib/campaign'
 import { loadObjectionData } from '@/lib/campaigns'
 import { parseLang } from '@/lib/lang'
@@ -64,6 +65,7 @@ export default async function CampaignPage({ params, searchParams }: Props) {
       mode={data.mode}
       view={view}
       sources={data.sources}
+      aiConfigured={aiServerConfigured()}
     />
   )
 }

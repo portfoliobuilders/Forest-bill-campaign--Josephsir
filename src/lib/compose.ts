@@ -1,8 +1,3 @@
-import {
-  campaignConcernConfig,
-  formatConcernsForEmail,
-  selectedClausesForLetter,
-} from '@/lib/concern-selection'
 import { uniqueEmails } from '@/lib/compose-emails'
 import { concernTitle } from '@/lib/compose-concerns'
 import { identityBlock, privacyLetter } from '@/lib/compose-identity'
@@ -184,15 +179,13 @@ function senderValues(
 }
 
 export function composeSubject(campaign: Campaign, clauses: ObjectionClause[], lang: Lang): string {
-  const fromCampaign = pick(lang, campaign.subject_ml, campaign.subject_en).trim()
-  if (fromCampaign) return fromCampaign
   if (clauses.length === 1) {
     const custom = pick(lang, clauses[0].email_subject_ml ?? '', clauses[0].email_subject_en ?? '').trim()
     if (custom) return custom
     const title = concernTitle(clauses[0], lang)
     if (title) return title
   }
-  return pick(lang, campaign.title_ml, campaign.title_en)
+  return pick(lang, campaign.subject_ml, campaign.subject_en)
 }
 
 function assembleBody(
@@ -230,7 +223,6 @@ function assembleBody(
   return renderSafeTemplate(template, values)
 }
 
-/** Composed from campaign intro, selected concerns, and the citizen's details. Campaign sources/references are never included. */
 export function composeEmail({ campaign, clauses, details, lang }: ComposeEmailInput): ComposeEmailResult {
   const subject = composeSubject(campaign, clauses, lang)
   const body = assembleBody(campaign, clauses, details, lang)

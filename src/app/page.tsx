@@ -25,6 +25,7 @@ export default async function Home({ searchParams }: Props) {
       mode={data.mode}
       view={view}
       sources={data.sources}
+      aiConfigured={aiServerConfigured()}
     />
   )
 }
