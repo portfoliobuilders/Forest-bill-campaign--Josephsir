@@ -1,6 +1,5 @@
 'use server'
 
-import { randomUUID } from 'crypto'
 import { headers } from 'next/headers'
 import { z } from 'zod'
 
@@ -25,15 +24,12 @@ import type { ActionResult } from '@/lib/submission-types'
 const uuidSchema = z.uuid()
 const langSchema = z.enum(['ml', 'en'])
 const sendMethodSchema = z.enum(['gmail_web', 'mailto', 'copy', 'server', 'print'])
-const optionalEmail = z
-  .string()
-  .trim()
-  .refine((value) => !value || z.email().safeParse(value).success, 'invalid_email')
+const letterModeSchema = z.enum(['selected', 'all'])
 
 const letterInputSchema = z.object({
   campaignSlug: z.string().min(1),
-  fullName: z.string().trim().min(1),
-  email: optionalEmail.optional().default(''),
+  fullName: z.string().trim().optional().default(''),
+  email: z.string().trim().optional().default(''),
   phone: z.string().trim().optional().default(''),
   address: z.string().trim().optional().default(''),
   panchayat: z.string().trim().optional().default(''),
@@ -44,8 +40,14 @@ const letterInputSchema = z.object({
   customText: z.string().max(1000).optional().default(''),
   extraConcerns: z.array(z.string().max(1000)).max(12).default([]),
   clauseCodes: z.array(z.string().min(1)).max(50).default([]),
-  constituencyId: z.uuid().nullable().optional().default(null),
-  ccRepIds: z.array(z.uuid()).optional().default([]),
+  letterMode: letterModeSchema.default('selected'),
+  constituencyId: z.uuid().nullable(),
+  ccRepIds: z.array(z.uuid()),
+  privacyMode: z.boolean().optional().default(false),
+  postOffice: z.string().trim().max(80).optional().default(''),
+  state: z.string().trim().max(80).optional().default(''),
+  postalRegion: z.string().trim().max(80).optional().default(''),
+  taluk: z.string().trim().max(80).optional().default(''),
 })
 
 type LetterFields = z.infer<typeof letterInputSchema>
@@ -81,12 +83,15 @@ async function composeCanonicalLetter(input: LetterFields): Promise<ActionResult
   let sourceClauses: ObjectionClause[] = []
   try {
     const supabase = createServiceClient()
-    const { data } = await supabase
+    let query = supabase
       .from('objection_clauses')
       .select('*')
       .eq('campaign_id', campaign.id)
       .eq('is_active', true)
-      .in('code', input.clauseCodes)
+    if (input.letterMode === 'selected') {
+      query = query.in('code', input.clauseCodes)
+    }
+    const { data } = await query
     sourceClauses = withCampaignClauses(campaign, (data ?? []) as ObjectionClause[])
   } catch {
     sourceClauses = []
@@ -167,7 +172,10 @@ async function storeCanonicalLetter(
     const supabase = createServiceClient()
     const preferred = canonical.persistSlug
     const bySlug = await supabase.from('campaigns').select('slug').eq('slug', preferred).maybeSingle()
-    const slug = (bySlug.data?.slug as string | undefined) ?? null
+    const fallback = bySlug.data?.slug
+      ? null
+      : await supabase.from('campaigns').select('slug').order('created_at', { ascending: false }).limit(1).maybeSingle()
+    const slug = (bySlug.data?.slug as string | undefined) ?? (fallback?.data?.slug as string | undefined)
     if (!slug) return null
 
     const targets = resolveMailTargets({
@@ -185,13 +193,10 @@ async function storeCanonicalLetter(
       generatedBcc.push(...live.bcc)
     }
 
-    const persistEmail =
-      input.email.trim() || `unspecified-${crypto.randomUUID()}@invalid.janashabdam`
-
     const rpcArgs = {
       p_campaign_slug: slug,
-      p_full_name: input.fullName,
-      p_email: persistEmail,
+      p_full_name: input.fullName.trim() || 'Citizen',
+      p_email: input.email.trim() || `none+${crypto.randomUUID()}@invalid.local`,
       p_phone: phone,
       p_address: input.address,
       p_panchayat: input.panchayat || null,

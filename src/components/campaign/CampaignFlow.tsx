@@ -1,20 +1,20 @@
 'use client'
 
-import { useEffect, useMemo, useReducer, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type HTMLAttributes } from 'react'
 import { useRouter } from 'next/navigation'
 
-import { prepareDemoLetter, markHandoff } from '@/app/actions/submission'
-import { CampaignProgress } from '@/components/campaign/CampaignProgress'
+import { markHandoff, prepareDemoLetter } from '@/app/actions/submission'
 import { CampaignSources } from '@/components/campaign/CampaignSources'
+import { ReadAloudControls } from '@/components/campaign/ReadAloudControls'
+import { StatusRegion } from '@/components/campaign/StatusRegion'
+import { VoiceInputButton } from '@/components/campaign/VoiceInputButton'
 import { LanguageToggle } from '@/components/LanguageToggle'
 import { useLang } from '@/components/LanguageProvider'
 import { IconCheck, IconCopy, IconEnvelope, IconSparkle } from '@/components/ui/icons'
 import { PageContainer } from '@/components/ui/PageContainer'
-import { ConcernSelector } from '@/components/wizard/ConcernSelector'
 import {
   androidSendIntent,
   composeEmail,
-  concernTitle,
   formatCompleteEmailCopy,
   gmailComposeUrl,
   gmailUrlTooLong,
@@ -23,13 +23,17 @@ import {
   resolveMailTargets,
   type MailComposeParams,
 } from '@/lib/compose'
+import { approvedAiBody, concernBody, concernShort, concernTitle } from '@/lib/compose-concerns'
 import {
   applyPredefinedConcernClick,
   campaignConcernConfig,
+  customConcernCopy,
   flattenCustomConcerns,
+  isMultiSelect,
   selectedClausesForLetter,
   validatePredefinedSelection,
 } from '@/lib/concern-selection'
+import { parseFeatureSettings } from '@/lib/campaign-features'
 import { cx } from '@/lib/cx'
 import {
   createDetailsSchema,
@@ -42,96 +46,16 @@ import {
 import { formatCampaignDate } from '@/lib/format-date'
 import { isFieldEnabled, isFieldRequired, labelForField } from '@/lib/form-fields'
 import { t, tReplace, type Lang } from '@/lib/i18n'
-import type { DistrictOption } from '@/lib/kerala-districts'
-import { normalizeIndianPhone } from '@/lib/phone'
-import { btnGhost, btnPrimary, btnSecondary, inputClass, labelClass } from '@/lib/ui'
+import {
+  compactLocationLine,
+  isValidPincode,
+  locationFromLookup,
+  type PostalLookup,
+} from '@/lib/postal'
+import { btnGhost, btnPrimary, btnSecondary, focusRing, inputClass, labelClass } from '@/lib/ui'
 import type { WizardMode } from '@/lib/wizard-mode'
 import { isDryRun } from '@/lib/wizard-mode'
-import type { Campaign, CampaignFormField, ObjectionClause } from '@/types/database'
-
-type Step = 1 | 2 | 3 | 4 | 5
-type CanonicalLetter = { subject: string; body: string }
-
-type FlowState = {
-  step: Step
-  selectedIds: string[]
-  customConcerns: string[]
-  details: DetailsFields
-  detailsErrors: FieldErrors
-  concernError: boolean
-  maxError: boolean
-  letter: CanonicalLetter | null
-  submissionId: string | null
-}
-
-type Action =
-  | { type: 'select'; id: string; multiple: boolean; maxSelections: number | null }
-  | { type: 'set_custom'; index: number; text: string }
-  | { type: 'add_custom' }
-  | { type: 'remove_custom'; index: number }
-  | { type: 'set_details'; details: Partial<DetailsFields> }
-  | { type: 'details_invalid'; errors: FieldErrors }
-  | { type: 'goto'; step: Step }
-  | { type: 'concern_error' }
-  | { type: 'max_error' }
-  | {
-      type: 'ready_review'
-      details: DetailsFields
-      letter: CanonicalLetter
-      submissionId: string | null
-    }
-
-function reducer(state: FlowState, action: Action): FlowState {
-  switch (action.type) {
-    case 'select': {
-      const next = applyPredefinedConcernClick({
-        mode: action.multiple ? 'multiple' : 'single',
-        selectedIds: state.selectedIds,
-        id: action.id,
-        maxSelections: action.maxSelections,
-      })
-      return { ...state, concernError: false, maxError: next.limited, selectedIds: next.selectedIds }
-    }
-    case 'set_custom': {
-      const customConcerns = [...state.customConcerns]
-      customConcerns[action.index] = action.text
-      const detailsErrors = { ...state.detailsErrors }
-      delete detailsErrors.customText
-      return { ...state, customConcerns, detailsErrors }
-    }
-    case 'add_custom':
-      return { ...state, customConcerns: [...state.customConcerns, ''] }
-    case 'remove_custom':
-      return {
-        ...state,
-        customConcerns: state.customConcerns.filter((_, index) => index !== action.index),
-      }
-    case 'set_details': {
-      const detailsErrors = { ...state.detailsErrors }
-      for (const key of Object.keys(action.details) as Array<keyof DetailsFields>) delete detailsErrors[key]
-      return { ...state, details: { ...state.details, ...action.details }, detailsErrors }
-    }
-    case 'details_invalid':
-      return { ...state, detailsErrors: action.errors }
-    case 'goto':
-      return { ...state, step: action.step }
-    case 'concern_error':
-      return { ...state, concernError: true }
-    case 'max_error':
-      return { ...state, maxError: true }
-    case 'ready_review':
-      return {
-        ...state,
-        details: action.details,
-        detailsErrors: {},
-        letter: action.letter,
-        submissionId: action.submissionId,
-        step: 4,
-      }
-    default:
-      return state
-  }
-}
+import type { Campaign, CampaignFormField, CampaignSource, ObjectionClause } from '@/types/database'
 
 function pick(lang: Lang, ml: string, en: string) {
   return lang === 'en' ? en : ml
@@ -154,6 +78,7 @@ export function CampaignFlow({
   mode,
   view,
   sources = [],
+  aiConfigured = false,
 }: {
   campaign: Campaign
   clauses: ObjectionClause[]
@@ -162,25 +87,131 @@ export function CampaignFlow({
   mode: WizardMode
   view: 'live' | 'preview' | 'inactive' | 'expired'
   sources?: CampaignSource[]
+  aiConfigured?: boolean
 }) {
   const { lang } = useLang()
   const router = useRouter()
   const actionable = view === 'live' || view === 'preview'
   const config = campaignConcernConfig(campaign)
-  const [state, dispatch] = useReducer(reducer, {
-    step: 1 as Step,
-    selectedIds: [],
-    customConcerns: config.allowCustomConcern ? [''] : [],
-    details: emptyDetails(),
-    detailsErrors: {},
-    concernError: false,
-    maxError: false,
-    letter: null,
-    submissionId: null,
-  })
+  const features = parseFeatureSettings(campaign.feature_settings)
+  const multi = isMultiSelect(config.mode)
+  const customCopy = customConcernCopy(config, lang)
 
-  const selected = selectedClausesForLetter(clauses, state.selectedIds)
-  const extraConcerns = config.allowCustomConcern ? flattenCustomConcerns(state.customConcerns) : []
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [customConcern, setCustomConcern] = useState('')
+  const [details, setDetails] = useState<DetailsFields>(emptyDetails)
+  const [privacyMode, setPrivacyMode] = useState(false)
+  const [errors, setErrors] = useState<FieldErrors>({})
+  const [concernError, setConcernError] = useState(false)
+  const [lookup, setLookup] = useState<PostalLookup | null>(null)
+  const [lookupState, setLookupState] = useState<'idle' | 'loading' | 'done'>('idle')
+  const [officeName, setOfficeName] = useState('')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [improved, setImproved] = useState<{ concernId: string; body: string } | null>(null)
+  const [improving, setImproving] = useState(false)
+  const [aiError, setAiError] = useState('')
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const [pasteHint, setPasteHint] = useState(false)
+  const [status, setStatus] = useState('')
+  const [submissionId, setSubmissionId] = useState<string | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
+  const aiAbort = useRef<AbortController | null>(null)
+
+  const privacyOn = privacyMode && features.allow_privacy_mode
+  const selected = selectedClausesForLetter(clauses, selectedIds)
+  const extras = useMemo(
+    () => (config.allowCustomConcern ? flattenCustomConcerns([customConcern]) : []),
+    [config.allowCustomConcern, customConcern],
+  )
+  const location = useMemo(
+    () => (privacyOn ? {} : locationFromLookup(lookup, officeName)),
+    [privacyOn, lookup, officeName],
+  )
+
+  const clausesForMail = useMemo(() => {
+    if (!improved) return selected
+    return selected.map((clause) =>
+      clause.id === improved.concernId
+        ? {
+            ...clause,
+            email_body_en: improved.body,
+            email_body_ml: improved.body,
+            email_en: improved.body,
+            email_ml: improved.body,
+            full_text_en: improved.body,
+            full_text_ml: improved.body,
+          }
+        : clause,
+    )
+  }, [selected, improved])
+
+  const letter = useMemo(() => {
+    if (selected.length === 0) return null
+    return composeEmail({
+      campaign,
+      clauses: clausesForMail,
+      details: {
+        ...details,
+        extraConcerns: extras,
+        customText: '',
+        postOffice: location.postOffice,
+        district: location.district || details.district,
+        state: location.state,
+        postalRegion: location.postalRegion,
+        taluk: location.taluk,
+        privacyMode: privacyOn,
+      },
+      lang,
+    })
+  }, [campaign, clausesForMail, details, extras, lang, location, privacyOn, selected.length])
+
+  useEffect(() => {
+    if (!features.enable_pin_lookup || privacyOn) return
+    const pin = details.pincode.trim()
+    if (!isValidPincode(pin)) {
+      setLookup(null)
+      setLookupState('idle')
+      setOfficeName('')
+      return
+    }
+    const cached = pinCache.get(pin)
+    if (cached) {
+      setLookup(cached)
+      setLookupState('done')
+      setOfficeName(cached.common.postOffice || '')
+      if (cached.common.district) {
+        setDetails((prev) => (prev.district === cached.common.district ? prev : { ...prev, district: cached.common.district || '' }))
+      }
+      setStatus(compactLocationLine(cached.common) || t(lang, 'locationStatus'))
+      return
+    }
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+    setLookupState('loading')
+    setStatus(t(lang, 'findingLocation'))
+    fetch(`/api/pincode/${pin}`, { signal: controller.signal })
+      .then((response) => response.json())
+      .then((data: PostalLookup) => {
+        pinCache.set(pin, data)
+        setLookup(data)
+        setLookupState('done')
+        setOfficeName(data.common.postOffice || '')
+        if (data.common.district) {
+          setDetails((prev) => ({ ...prev, district: data.common.district || prev.district }))
+        }
+        if (data.found) setStatus(compactLocationLine(data.common) || t(lang, 'locationStatus'))
+        else setStatus(t(lang, 'pinNotFound'))
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+        setLookupState('done')
+        setLookup(null)
+        setStatus(t(lang, 'pinNotFound'))
+      })
+    return () => controller.abort()
+  }, [details.pincode, features.enable_pin_lookup, lang, privacyOn])
+
   const title = pick(lang, campaign.title_ml, campaign.title_en)
   const description = pick(lang, campaign.homepage_intro_ml || campaign.summary_ml, campaign.homepage_intro_en || campaign.summary_en)
   const deadline = formatCampaignDate(campaign.deadline_at, lang)
@@ -188,50 +219,31 @@ export function CampaignFlow({
     ? Math.max(0, Math.ceil((new Date(campaign.deadline_at).getTime() - Date.now()) / 86_400_000))
     : null
 
-  useEffect(() => {
-    const pin = state.details.pincode.trim()
-    if (!/^[1-9][0-9]{5}$/.test(pin)) return
-    const controller = new AbortController()
-    const timer = window.setTimeout(() => {
-      const params = new URLSearchParams({ pincode: pin })
-      if (state.details.district.trim()) params.set('district', state.details.district.trim())
-      void fetch(`/api/constituency?${params.toString()}`, { signal: controller.signal })
-        .then(async (response) => {
-          if (!response.ok) return
-          const body = (await response.json()) as { candidates?: Array<{ constituency?: { district?: string } }> }
-          const district = body.candidates?.[0]?.constituency?.district
-          if (district && !state.details.district.trim()) {
-            dispatch({ type: 'set_details', details: { district } })
-          }
-        })
-        .catch(() => undefined)
-    }, 400)
-    return () => {
-      window.clearTimeout(timer)
-      controller.abort()
-    }
-  }, [state.details.pincode, state.details.district])
+  const showAi =
+    features.enable_ai_mail &&
+    selected.length === 1 &&
+    (aiConfigured || Boolean(selected[0] && approvedAiBody(selected[0], lang)))
+  const showVoice = features.enable_voice_input
+  const showRead = features.enable_mail_read_aloud && Boolean(letter?.body)
 
-  function goConcern() {
-    if (!actionable) return
-    dispatch({ type: 'goto', step: 2 })
+  function patchDetails(next: Partial<DetailsFields>) {
+    setDetails((prev) => ({ ...prev, ...next }))
+    const nextErrors = { ...errors }
+    for (const key of Object.keys(next) as Array<keyof DetailsFields>) delete nextErrors[key]
+    setErrors(nextErrors)
   }
 
-  function goDetails() {
-    const check = validatePredefinedSelection({
+  function selectConcern(id: string) {
+    const next = applyPredefinedConcernClick({
       mode: config.mode,
-      selectedIds: state.selectedIds,
+      selectedIds,
+      id,
       maxSelections: config.maxSelections,
     })
-    if (check === 'required') {
-      dispatch({ type: 'concern_error' })
-      return
-    }
-    if (check === 'too_many') {
-      dispatch({ type: 'max_error' })
-      return
-    }
-    dispatch({ type: 'goto', step: 3 })
+    setSelectedIds(next.selectedIds)
+    setConcernError(false)
+    setImproved(null)
+    setAiError('')
   }
 
   function validate(): boolean {
@@ -254,26 +266,30 @@ export function CampaignFlow({
       setErrors(fieldErrorsFromZod(parsed.error))
       return false
     }
-    const phone = parsed.data.phone.trim() ? (normalizeIndianPhone(parsed.data.phone) ?? parsed.data.phone) : ''
-    const details = { ...parsed.data, phone }
-    let letter = composeEmail({
-      campaign,
-      clauses: selected,
-      details: {
-        fullName: details.fullName,
-        addressLine: details.addressLine,
-        panchayat: details.panchayat,
-        village: details.village,
-        district: details.district,
-        pincode: details.pincode,
-        phone,
-        email: details.email,
-        customText: details.customText,
-        extraConcerns,
-      },
-      lang,
-    })
-    let submissionId: string | null = null
+    setErrors({})
+    return true
+  }
+
+  async function copyPlainText(text: string) {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      const field = document.createElement('textarea')
+      field.value = text
+      field.setAttribute('readonly', '')
+      field.style.position = 'fixed'
+      field.style.opacity = '0'
+      document.body.appendChild(field)
+      field.select()
+      const ok = document.execCommand('copy')
+      document.body.removeChild(field)
+      if (!ok) throw new Error('copy failed')
+    }
+  }
+
+  async function persistAndHandoff(method: 'gmail_web' | 'mailto' | 'copy', goSent: boolean) {
+    if (!letter || selected.length === 0) return
+    let id = submissionId
     try {
       const prepared = await prepareDemoLetter({
         campaignSlug: campaign.slug,
@@ -286,9 +302,10 @@ export function CampaignFlow({
         district: location.district || details.district,
         pincode: details.pincode,
         language: lang,
-        customText: details.customText,
-        extraConcerns,
+        customText: '',
+        extraConcerns: extras,
         clauseCodes: selected.map((clause) => clause.code),
+        letterMode: 'selected',
         constituencyId: null,
         ccRepIds: [],
         privacyMode: privacyOn,
@@ -420,43 +437,114 @@ export function CampaignFlow({
         ) : null}
         <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted">{t(lang, 'trustLine')}</p>
       </section>
+      <CampaignSources sources={sources} />
 
-          {actionable ? (
-            <button type="button" className={cx(btnPrimary, 'mt-8 w-full sm:w-auto')} onClick={goConcern}>
-              {t(lang, 'selectYourConcern')}
-              <IconChevronRight className="size-4 shrink-0" />
-            </button>
-          ) : null}
-          <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted">{t(lang, 'trustLine')}</p>
-          <CampaignSources sources={sources} />
-        </section>
+      {view === 'inactive' ? (
+        <p className="mt-8 rounded-[8px] border border-rule bg-raised px-4 py-4 text-base text-ink">{t(lang, 'campaignInactivePublic')}</p>
+      ) : null}
+      {view === 'expired' ? (
+        <p className="mt-8 rounded-[8px] border border-rule bg-raised px-4 py-4 text-base text-ink">{t(lang, 'campaignExpiredThanks')}</p>
       ) : null}
 
-      {state.step === 2 ? (
-        <section>
-          <ConcernSelector
-            campaign={campaign}
-            clauses={clauses}
-            selectedIds={state.selectedIds}
-            customConcerns={state.customConcerns}
-            customError={state.detailsErrors.customText}
-            maxError={state.maxError}
-            onSelect={(id) =>
-              dispatch({
-                type: 'select',
-                id,
-                multiple: config.mode === 'multiple',
-                maxSelections: config.maxSelections,
-              })
-            }
-            onCustomChange={(index, text) => dispatch({ type: 'set_custom', index, text })}
-            onAddCustom={() => dispatch({ type: 'add_custom' })}
-            onRemoveCustom={(index) => dispatch({ type: 'remove_custom', index })}
-          />
-          {state.concernError ? (
-            <p className="mt-3 text-sm text-red-800" role="alert">
-              {config.mode === 'single' ? t(lang, 'minClausesHint') : t(lang, 'minClausesHintMultiple')}
-            </p>
+      {actionable ? (
+        <form
+          className="mt-10 min-w-0 space-y-8"
+          lang={lang}
+          onSubmit={(event) => {
+            event.preventDefault()
+            void sendMailto()
+          }}
+        >
+          <fieldset>
+            <legend className="font-display text-2xl text-ink">{t(lang, 'chooseYourConcern')}</legend>
+            <p className="mt-2 text-base text-body">{multi ? t(lang, 'concernsLeadMultiple') : t(lang, 'concernsLead')}</p>
+            <ul className="mt-5 space-y-3">
+              {clauses.map((clause, index) => {
+                const on = selectedIds.includes(clause.id)
+                const expanded = expandedId === clause.id
+                const short = concernShort(clause, lang)
+                const full = concernBody(clause, lang)
+                const needsMore = full.length > short.length + 8
+                return (
+                  <li key={clause.id}>
+                    <label
+                      className={cx(
+                        'flex min-h-11 cursor-pointer gap-3 rounded-[10px] border p-4',
+                        on ? 'border-accent bg-accent-tint' : 'border-rule bg-raised',
+                      )}
+                    >
+                      <input
+                        type={multi ? 'checkbox' : 'radio'}
+                        name="campaign-concern"
+                        className="mt-1 size-6 shrink-0 accent-[var(--color-accent)]"
+                        checked={on}
+                        onChange={() => selectConcern(clause.id)}
+                      />
+                      <span className="min-w-0">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-xs font-semibold text-accent">{String(index + 1).padStart(2, '0')}</span>
+                          {on ? (
+                            <span className="inline-flex items-center gap-1 text-sm font-semibold text-accent">
+                              <IconCheck className="size-4" />
+                              {t(lang, 'selectedVisible')}
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="mt-1 block text-base font-semibold leading-snug text-ink sm:text-lg">
+                          {concernTitle(clause, lang)}
+                        </span>
+                        <span className="mt-2 block text-sm leading-relaxed text-body sm:text-base">{expanded ? full : short}</span>
+                        {needsMore ? (
+                          <button
+                            type="button"
+                            className={cx('mt-2 min-h-11 text-sm font-semibold text-accent', focusRing)}
+                            onClick={(event) => {
+                              event.preventDefault()
+                              setExpandedId(expanded ? null : clause.id)
+                            }}
+                          >
+                            {expanded ? t(lang, 'readLess') : t(lang, 'readMore')}
+                          </button>
+                        ) : null}
+                      </span>
+                    </label>
+                  </li>
+                )
+              })}
+            </ul>
+            {concernError ? (
+              <p className="mt-3 text-sm text-red-800" role="alert">
+                {multi ? t(lang, 'minClausesHintMultiple') : t(lang, 'minClausesHint')}
+              </p>
+            ) : null}
+          </fieldset>
+
+          {config.allowCustomConcern ? (
+            <div>
+              <div className="flex items-end justify-between gap-3">
+                <label htmlFor="custom-concern" className={labelClass}>
+                  {customCopy.label || t(lang, 'moreToSay')}
+                  <span className="font-normal text-muted"> ({t(lang, 'optional')})</span>
+                </label>
+                {showVoice ? (
+                  <VoiceInputButton
+                    lang={lang}
+                    fieldId="custom-concern"
+                    value={customConcern}
+                    onChange={setCustomConcern}
+                    onStatus={setStatus}
+                  />
+                ) : null}
+              </div>
+              <textarea
+                id="custom-concern"
+                className={`${inputClass} min-h-28 resize-y py-2`}
+                maxLength={MAX_CUSTOM_CHARS}
+                value={customConcern}
+                placeholder={customCopy.placeholder}
+                onChange={(event) => setCustomConcern(event.target.value)}
+              />
+            </div>
           ) : null}
 
           {isFieldEnabled(formFields, 'name') && !privacyOn ? (
@@ -470,26 +558,83 @@ export function CampaignFlow({
               onChange={(value) => patchDetails({ fullName: value })}
               voice={showVoice ? { lang, onStatus: setStatus } : null}
             />
-            <PinField
-              lang={lang}
-              fields={formFields}
-              fieldKey="pincode"
-              inputMode="numeric"
-              value={state.details.pincode}
-              error={state.detailsErrors.pincode}
-              onChange={(value) => dispatch({ type: 'set_details', details: { pincode: value } })}
-              autoComplete="postal-code"
-            />
-            <Field
-              lang={lang}
-              fields={formFields}
-              fieldKey="email"
-              type="email"
-              value={state.details.email}
-              error={state.detailsErrors.email}
-              onChange={(value) => dispatch({ type: 'set_details', details: { email: value } })}
-              autoComplete="email"
-            />
+          ) : null}
+
+          {isFieldEnabled(formFields, 'pincode') && !privacyOn ? (
+            <div>
+              <label htmlFor="pincode" className={labelClass}>
+                {labelForField(formFields, 'pincode', lang, t(lang, 'pincode'))}
+                {isFieldRequired(formFields, 'pincode') ? (
+                  <span className="text-accent"> *</span>
+                ) : (
+                  <span className="font-normal text-muted"> ({t(lang, 'optional')})</span>
+                )}
+              </label>
+              <input
+                id="pincode"
+                inputMode="numeric"
+                autoComplete="postal-code"
+                pattern="[1-9][0-9]{5}"
+                maxLength={6}
+                className={inputClass}
+                value={details.pincode}
+                aria-required={isFieldRequired(formFields, 'pincode')}
+                aria-invalid={Boolean(errors.pincode)}
+                aria-describedby={errors.pincode ? 'pincode-error' : lookupState !== 'idle' ? 'pincode-status' : undefined}
+                onChange={(event) => patchDetails({ pincode: event.target.value.replace(/\D/g, '').slice(0, 6) })}
+              />
+              {lookupState === 'loading' ? (
+                <p id="pincode-status" className="mt-2 text-sm text-muted">
+                  {t(lang, 'findingLocation')}
+                </p>
+              ) : lookup?.found ? (
+                <div id="pincode-status" className="mt-2 text-sm text-ink">
+                  <p className="font-semibold text-accent">
+                    ✓ {locationLine}
+                  </p>
+                  {lookup.common.postOffice || lookup.common.region ? (
+                    <p className="mt-1 text-body">
+                      {lookup.common.postOffice ? `${lookup.common.postOffice}` : ''}
+                      {lookup.common.postOffice && lookup.common.region ? ' · ' : ''}
+                      {lookup.common.region ? `${t(lang, 'postalRegion')}: ${lookup.common.region}` : ''}
+                    </p>
+                  ) : null}
+                  {lookup.askPostOffice ? (
+                    <div className="mt-3">
+                      <p className="text-body">{t(lang, 'multiplePostOffices')}</p>
+                      <label htmlFor="post-office" className={`${labelClass} mt-2`}>
+                        {t(lang, 'postOffice')}
+                        <select
+                          id="post-office"
+                          className={inputClass}
+                          value={officeName}
+                          onChange={(event) => setOfficeName(event.target.value)}
+                        >
+                          <option value="">{t(lang, 'selectPostOffice')}</option>
+                          {lookup.offices.map((office) => (
+                            <option key={office.officeName} value={office.officeName}>
+                              {office.officeName}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  ) : null}
+                </div>
+              ) : lookupState === 'done' && isValidPincode(details.pincode) ? (
+                <p id="pincode-status" className="mt-2 text-sm text-muted">
+                  {t(lang, 'pinNotFound')}
+                </p>
+              ) : null}
+              {errors.pincode ? (
+                <p id="pincode-error" className="mt-1 text-sm text-red-800" role="alert">
+                  {errors.pincode}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {isFieldEnabled(formFields, 'phone') && !privacyOn ? (
             <Field
               id="phone"
               label={labelForField(formFields, 'phone', lang, t(lang, 'phone'))}
@@ -549,9 +694,12 @@ export function CampaignFlow({
               autoComplete="email"
               onChange={(value) => patchDetails({ email: value })}
             />
-            {isFieldEnabled(formFields, 'custom_message') && !config.allowCustomConcern ? (
-              <label className={labelClass}>
-                {fieldByKey(formFields, 'custom_message')?.[lang === 'en' ? 'label_en' : 'label_ml'] || t(lang, 'customText')}
+          ) : null}
+
+          {isFieldEnabled(formFields, 'district') && !privacyOn ? (
+            <label htmlFor="district" className={labelClass}>
+              {labelForField(formFields, 'district', lang, t(lang, 'district'))}
+              {!isFieldRequired(formFields, 'district') ? (
                 <span className="font-normal text-muted"> ({t(lang, 'optional')})</span>
               ) : (
                 <span className="text-accent"> *</span>
@@ -665,106 +813,6 @@ export function CampaignFlow({
   )
 }
 
-const PINCODE_RE = /^[1-9][0-9]{5}$/
-
-function PinField({
-  lang,
-  fields,
-  value,
-  error,
-  onChange,
-  type = 'text',
-  multiline,
-  hint,
-  autoComplete,
-  inputMode,
-}: {
-  lang: Lang
-  fields: CampaignFormField[]
-  value: string
-  error?: string
-  onChange: (value: string) => void
-  type?: string
-  multiline?: boolean
-  hint?: string
-  autoComplete?: string
-  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode']
-}) {
-  const [hint, setHint] = useState('')
-  const onLocationRef = useRef(onLocation)
-  onLocationRef.current = onLocation
-
-  useEffect(() => {
-    const pin = value.trim()
-    if (!PINCODE_RE.test(pin)) {
-      setHint('')
-      return
-    }
-    const controller = new AbortController()
-    const timer = window.setTimeout(() => {
-      void fetch(`/api/constituency?pincode=${encodeURIComponent(pin)}`, { signal: controller.signal })
-        .then(async (response) => {
-          if (!response.ok) {
-            setHint('')
-            return
-          }
-          const body = (await response.json()) as {
-            candidates?: Array<{ constituency?: { district?: string; name_en?: string; name_ml?: string } }>
-          }
-          const districts = [
-            ...new Set(
-              (body.candidates ?? [])
-                .map((row) => row.constituency?.district?.trim())
-                .filter((district): district is string => Boolean(district)),
-            ),
-          ]
-          if (districts.length === 1) {
-            onLocationRef.current({ district: districts[0] })
-            setHint(districts[0])
-            return
-          }
-          if (districts.length > 1) {
-            onLocationRef.current({ district: districts[0] })
-            setHint(districts.join(' / '))
-          }
-        })
-        .catch((error: unknown) => {
-          if (error instanceof DOMException && error.name === 'AbortError') return
-          setHint('')
-        })
-    }, 300)
-    return () => {
-      window.clearTimeout(timer)
-      controller.abort()
-    }
-  }, [value])
-
-  if (!isFieldEnabled(fields, 'pincode')) return null
-  const field = fieldByKey(fields, 'pincode')
-  const label = (lang === 'en' ? field?.label_en : field?.label_ml) || t(lang, 'pincode')
-  const required = isFieldRequired(fields, 'pincode')
-  return (
-    <label className={labelClass}>
-      {label}
-      {!required ? <span className="font-normal text-muted"> ({t(lang, 'optional')})</span> : null}
-      {multiline ? (
-        <textarea className={`${inputClass} min-h-24 py-2`} value={value} onChange={(event) => onChange(event.target.value)} />
-      ) : (
-        <input
-          type={type}
-          inputMode={inputMode}
-          className={inputClass}
-          value={value}
-          autoComplete={autoComplete}
-          onChange={(event) => onChange(event.target.value)}
-        />
-      )}
-      {hint ? <span className="mt-1 block text-sm font-normal text-muted">{hint}</span> : null}
-      {error ? <p className="mt-1 text-sm font-normal text-red-800">{error}</p> : null}
-    </label>
-  )
-}
-
 function Field({
   id,
   label,
@@ -791,109 +839,6 @@ function Field({
   voice?: { lang: Lang; onStatus: (message: string) => void } | null
 }) {
   const { lang } = useLang()
-  const router = useRouter()
-  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
-  const [pasteHint, setPasteHint] = useState(false)
-  const [emlHint, setEmlHint] = useState(false)
-  const dryRun = isDryRun(mode)
-  const targets = useMemo(
-    () => resolveMailTargets({ campaign, mode, testerEmail: details.email }),
-    [campaign, mode, details.email],
-  )
-  const mailParams: MailComposeParams = {
-    to: targets.to,
-    cc: targets.cc,
-    bcc: targets.bcc,
-    subject: letter.subject,
-    body: letter.body,
-  }
-  const sendDisabled = !details.fullName.trim() || mailParams.to.length === 0
-
-  async function recordHandoff(method: 'gmail_web' | 'mailto' | 'copy', goSent: boolean) {
-    if (!submissionId) return
-    await markHandoff(submissionId, method)
-    if (goSent) router.push(`/sent?id=${submissionId}`)
-  }
-
-  async function copyPlainText(text: string) {
-    try {
-      await navigator.clipboard.writeText(text)
-    } catch {
-      const field = document.createElement('textarea')
-      field.value = text
-      field.setAttribute('readonly', '')
-      field.style.position = 'fixed'
-      field.style.opacity = '0'
-      document.body.appendChild(field)
-      field.select()
-      const ok = document.execCommand('copy')
-      document.body.removeChild(field)
-      if (!ok) throw new Error('copy failed')
-    }
-  }
-
-  async function openGmail() {
-    setEmlHint(false)
-    setPasteHint(false)
-    const ua = navigator.userAgent
-    if (/Android/i.test(ua)) {
-      await copyPlainText(letter.body).catch(() => undefined)
-      window.location.href = androidSendIntent(mailParams, {
-        gmailOnly: true,
-        fallbackUrl: gmailComposeUrl(mailParams, { includeBody: false }),
-      })
-      await recordHandoff('gmail_web', false)
-      return
-    }
-    if (gmailUrlTooLong(mailParams)) {
-      await copyPlainText(letter.body).catch(() => undefined)
-      window.open(gmailComposeUrl(mailParams, { includeBody: false }), '_blank', 'noopener,noreferrer')
-      setPasteHint(true)
-      await recordHandoff('gmail_web', false)
-      return
-    }
-    window.open(gmailComposeUrl(mailParams), '_blank', 'noopener,noreferrer')
-    await recordHandoff('gmail_web', true)
-  }
-
-  async function openMailApp() {
-    setEmlHint(false)
-    setPasteHint(false)
-    const ua = navigator.userAgent
-    const ios = /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1)
-    if (/Android/i.test(ua)) {
-      await copyPlainText(letter.body).catch(() => undefined)
-      window.location.href = androidSendIntent(mailParams, {
-        fallbackUrl: mailtoUrl(mailParams, { includeBody: false }),
-      })
-      await recordHandoff('mailto', false)
-      return
-    }
-    if (!ios) {
-      const blob = new Blob([formatUnsentEml(mailParams)], { type: 'message/rfc822' })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = 'janashabdam-letter.eml'
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      window.setTimeout(() => URL.revokeObjectURL(url), 2000)
-      setEmlHint(true)
-      await recordHandoff('mailto', false)
-      return
-    }
-    if (mailtoUrlTooLong(mailParams)) {
-      await copyPlainText(letter.body).catch(() => undefined)
-      window.location.href = mailtoUrl(mailParams, { includeBody: false })
-      setPasteHint(true)
-      await recordHandoff('mailto', false)
-      return
-    }
-    window.location.href = mailtoUrl(mailParams)
-    await recordHandoff('mailto', false)
-  }
-
   return (
     <div>
       <div className="flex items-end justify-between gap-3">
@@ -945,7 +890,7 @@ export function NoActiveCampaign() {
       <div className="flex justify-end">
         <LanguageToggle />
       </div>
-      <h1 className="font-display mt-6 text-2xl text-ink sm:text-3xl">{t(lang, 'noActiveCampaignTitle')}</h1>
+      <h1 className="font-display mt-6 text-2xl text-ink sm:text-3xl">{t(lang, 'noLiveTitle')}</h1>
       <p className="mt-4 max-w-2xl text-base leading-relaxed text-body sm:text-lg">{t(lang, 'noActiveCampaign')}</p>
     </PageContainer>
   )
