@@ -16,13 +16,12 @@ import {
   androidSendIntent,
   composeEmail,
   formatCompleteEmailCopy,
-  gmailComposeUrl,
-  gmailUrlTooLong,
   mailtoUrl,
   mailtoUrlTooLong,
   resolveMailTargets,
   type MailComposeParams,
 } from '@/lib/compose'
+import { applyGmailHandoff, clientPlatform, planGmailHandoff } from '@/lib/gmail-handoff'
 import { approvedAiBody, concernBody, concernShort, concernTitle } from '@/lib/compose-concerns'
 import {
   applyPredefinedConcernClick,
@@ -357,15 +356,18 @@ export function CampaignFlow({
     if (!validate()) return
     const params = mailParams()
     if (!params || params.to.length === 0) return
-    if (gmailUrlTooLong(params)) {
+    setPasteHint(false)
+    const plan = planGmailHandoff(
+      params,
+      clientPlatform(navigator.userAgent, navigator.maxTouchPoints),
+      navigator.userAgent,
+    )
+    if (!plan.includeBody) {
       await copyPlainText(params.body).catch(() => undefined)
-      window.open(gmailComposeUrl(params, { includeBody: false }), '_blank', 'noopener,noreferrer')
       setPasteHint(true)
-      await persistAndHandoff('gmail_web', false)
-      return
     }
-    window.open(gmailComposeUrl(params), '_blank', 'noopener,noreferrer')
-    await persistAndHandoff('gmail_web', true)
+    applyGmailHandoff(plan)
+    await persistAndHandoff('gmail_web', plan.openInNewTab && plan.includeBody)
   }
 
   async function improveEmail() {

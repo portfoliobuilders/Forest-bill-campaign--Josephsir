@@ -11,14 +11,13 @@ import {
   composeEmail,
   formatCompleteEmailCopy,
   formatUnsentEml,
-  gmailComposeUrl,
-  gmailUrlTooLong,
   mailtoUrl,
   mailtoUrlTooLong,
   resolveMailTargets,
   withRepresentativeCc,
   type MailComposeParams,
 } from '@/lib/compose'
+import { applyGmailHandoff, clientPlatform, planGmailHandoff } from '@/lib/gmail-handoff'
 import { cx } from '@/lib/cx'
 import type { DetailsFields } from '@/lib/details-schema'
 import { t } from '@/lib/i18n'
@@ -34,15 +33,6 @@ export type CanonicalLetter = {
 }
 
 const mailBtn = 'min-h-12 w-full'
-
-function clientPlatform(): 'android' | 'ios' | 'other' {
-  const ua = navigator.userAgent
-  if (/Android/i.test(ua)) return 'android'
-  if (/iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1)) {
-    return 'ios'
-  }
-  return 'other'
-}
 
 async function copyPlainText(text: string): Promise<void> {
   try {
@@ -168,12 +158,9 @@ export function Step3_Preview({
     optedIn,
   )
 
-  const gmailTooLong = gmailUrlTooLong(mailParams)
   const mailtoTooLong = mailtoUrlTooLong(mailParams)
   const identityReady = hasIdentity(details)
   const sendDisabled = !identityReady || mailParams.to.length === 0
-  const gmailHref = gmailComposeUrl(mailParams)
-  const gmailHeadersOnly = gmailComposeUrl(mailParams, { includeBody: false })
   const mailtoHref = mailtoUrl(mailParams)
   const mailtoHeadersOnly = mailtoUrl(mailParams, { includeBody: false })
   const completeCopy = formatCompleteEmailCopy(mailParams)
@@ -208,35 +195,23 @@ export function Step3_Preview({
   async function openGmail() {
     setEmlHint(false)
     setPasteHint(false)
-    const platform = clientPlatform()
-
-    if (platform === 'android') {
-      const copied = copyBodyQuiet()
-      window.location.href = androidSendIntent(mailParams, {
-        gmailOnly: true,
-        fallbackUrl: gmailHeadersOnly,
-      })
-      await copied
-      await recordHandoff('gmail_web', false)
-      return
+    const plan = planGmailHandoff(
+      mailParams,
+      clientPlatform(navigator.userAgent, navigator.maxTouchPoints),
+      navigator.userAgent,
+    )
+    if (!plan.includeBody) {
+      const copied = await copyBodyQuiet()
+      if (copied) setPasteHint(true)
     }
-
-    if (gmailTooLong) {
-      const copied = copyBodyQuiet()
-      window.open(gmailHeadersOnly, '_blank', 'noopener,noreferrer')
-      if (await copied) setPasteHint(true)
-      await recordHandoff('gmail_web', false)
-      return
-    }
-
-    window.open(gmailHref, '_blank', 'noopener,noreferrer')
-    await recordHandoff('gmail_web', true)
+    applyGmailHandoff(plan)
+    await recordHandoff('gmail_web', plan.openInNewTab && plan.includeBody)
   }
 
   async function openMailApp() {
     setEmlHint(false)
     setPasteHint(false)
-    const platform = clientPlatform()
+    const platform = clientPlatform(navigator.userAgent, navigator.maxTouchPoints)
 
     if (platform === 'android') {
       const copied = copyBodyQuiet()
