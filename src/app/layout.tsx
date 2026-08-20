@@ -9,6 +9,7 @@ import { LanguageProvider } from '@/components/LanguageProvider'
 import { SiteFooterGate } from '@/components/SiteFooter'
 import { isAdminPath } from '@/lib/admin/paths'
 import { fetchSiteSettings } from '@/lib/admin/queries'
+import { resolveCampaignState } from '@/lib/campaign'
 import { parseLang } from '@/lib/lang'
 
 import './globals.css'
@@ -118,7 +119,6 @@ export default async function RootLayout({
       <body className="flex min-h-dvh flex-col bg-surface text-base text-ink antialiased">
         <LanguageProvider initialLang={lang}>
           <AuthErrorCatcher />
-          {admin ? null : <DemoBannerGate active={campaignState.state === 'preview'} />}
           {admin ? null : (
             <Header
               titleMl={settings?.site_title_ml}
