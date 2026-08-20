@@ -33,9 +33,14 @@ import {
 import { fieldByKey, isFieldEnabled, isFieldRequired } from '@/lib/form-fields'
 import { formatCampaignDate } from '@/lib/format-date'
 import { t, tReplace, type Lang } from '@/lib/i18n'
-import type { DistrictOption } from '@/lib/kerala-districts'
-import { normalizeIndianPhone } from '@/lib/phone'
-import { btnGhost, btnPrimary, btnSecondary, inputClass, labelClass } from '@/lib/ui'
+import {
+  compactLocationLine,
+  isValidPincode,
+  withPostalIdentity,
+  postalIdentityFromLookup,
+  type PostalLookup,
+} from '@/lib/postal'
+import { btnGhost, btnPrimary, btnSecondary, focusRing, inputClass, labelClass } from '@/lib/ui'
 import type { WizardMode } from '@/lib/wizard-mode'
 import { isDryRun } from '@/lib/wizard-mode'
 import type { Campaign, CampaignFormField, CampaignSource, ObjectionClause } from '@/types/database'
@@ -135,6 +140,22 @@ function statusLabel(lang: Lang, mode: WizardMode | 'inactive' | 'expired') {
   return t(lang, 'statusDraft')
 }
 
+const pinCache = new Map<string, PostalLookup>()
+
+function detailsFromLookup(prev: DetailsFields, lookup: PostalLookup | null, office: string): DetailsFields {
+  const next = withPostalIdentity(prev, postalIdentityFromLookup(lookup, office))
+  if (
+    next.district === prev.district &&
+    next.postOffice === prev.postOffice &&
+    next.state === prev.state &&
+    next.postalRegion === prev.postalRegion &&
+    next.taluk === prev.taluk
+  ) {
+    return prev
+  }
+  return next
+}
+
 export function CampaignFlow({
   campaign,
   clauses,
@@ -156,20 +177,119 @@ export function CampaignFlow({
   const { lang } = useLang()
   const actionable = view === 'live' || view === 'preview'
   const config = campaignConcernConfig(campaign)
-  const [state, dispatch] = useReducer(reducer, {
-    step: 1 as Step,
-    selectedIds: [],
-    customConcerns: config.allowCustomConcern ? [''] : [],
-    details: emptyDetails(),
-    detailsErrors: {},
-    concernError: false,
-    maxError: false,
-    letter: null,
-    submissionId: null,
-  })
+  const features = parseFeatureSettings(campaign.feature_settings)
+  const multi = isMultiSelect(config.mode)
+  const customCopy = customConcernCopy(config, lang)
 
-  const selected = selectedClausesForLetter(clauses, state.selectedIds)
-  const extraConcerns = config.allowCustomConcern ? flattenCustomConcerns(state.customConcerns) : []
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [customConcern, setCustomConcern] = useState('')
+  const [details, setDetails] = useState<DetailsFields>(emptyDetails)
+  const [privacyMode, setPrivacyMode] = useState(false)
+  const [errors, setErrors] = useState<FieldErrors>({})
+  const [concernError, setConcernError] = useState(false)
+  const [lookup, setLookup] = useState<PostalLookup | null>(null)
+  const [lookupState, setLookupState] = useState<'idle' | 'loading' | 'done'>('idle')
+  const [officeName, setOfficeName] = useState('')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [improved, setImproved] = useState<{ concernId: string; body: string } | null>(null)
+  const [improving, setImproving] = useState(false)
+  const [aiError, setAiError] = useState('')
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const [pasteHint, setPasteHint] = useState(false)
+  const [status, setStatus] = useState('')
+  const [submissionId, setSubmissionId] = useState<string | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
+  const aiAbort = useRef<AbortController | null>(null)
+
+  const privacyOn = privacyMode && features.allow_privacy_mode
+  const selected = selectedClausesForLetter(clauses, selectedIds)
+  const extras = useMemo(
+    () => (config.allowCustomConcern ? flattenCustomConcerns([customConcern]) : []),
+    [config.allowCustomConcern, customConcern],
+  )
+  const postalIdentity = useMemo(
+    () => (privacyOn ? postalIdentityFromLookup(null) : postalIdentityFromLookup(lookup, officeName)),
+    [privacyOn, lookup, officeName],
+  )
+
+  const clausesForMail = useMemo(() => {
+    if (!improved) return selected
+    return selected.map((clause) =>
+      clause.id === improved.concernId
+        ? {
+            ...clause,
+            email_body_en: improved.body,
+            email_body_ml: improved.body,
+            email_en: improved.body,
+            email_ml: improved.body,
+            full_text_en: improved.body,
+            full_text_ml: improved.body,
+          }
+        : clause,
+    )
+  }, [selected, improved])
+
+  const letter = useMemo(() => {
+    if (selected.length === 0) return null
+    return composeEmail({
+      campaign,
+      clauses: clausesForMail,
+      details: {
+        ...withPostalIdentity(details, postalIdentity),
+        extraConcerns: extras,
+        customText: '',
+        privacyMode: privacyOn,
+      },
+      lang,
+    })
+  }, [campaign, clausesForMail, details, extras, lang, postalIdentity, privacyOn, selected.length])
+
+  useEffect(() => {
+    if (!features.enable_pin_lookup || privacyOn) return
+    const pin = details.pincode.trim()
+    if (!isValidPincode(pin)) {
+      setLookup(null)
+      setLookupState('idle')
+      setOfficeName('')
+      setDetails((prev) => detailsFromLookup(prev, null, ''))
+      return
+    }
+    const cached = pinCache.get(pin)
+    if (cached) {
+      const office = cached.common.postOffice || ''
+      setLookup(cached)
+      setLookupState('done')
+      setOfficeName(office)
+      setDetails((prev) => detailsFromLookup(prev, cached, office))
+      setStatus(compactLocationLine(cached.common) || t(lang, 'locationStatus'))
+      return
+    }
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+    setLookupState('loading')
+    setStatus(t(lang, 'findingLocation'))
+    fetch(`/api/pincode/${pin}`, { signal: controller.signal })
+      .then((response) => response.json())
+      .then((data: PostalLookup) => {
+        pinCache.set(pin, data)
+        const office = data.common.postOffice || ''
+        setLookup(data)
+        setLookupState('done')
+        setOfficeName(office)
+        setDetails((prev) => detailsFromLookup(prev, data, office))
+        if (data.found) setStatus(compactLocationLine(data.common) || t(lang, 'locationStatus'))
+        else setStatus(t(lang, 'pinNotFound'))
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+        setLookupState('done')
+        setLookup(null)
+        setStatus(t(lang, 'pinNotFound'))
+      })
+    return () => controller.abort()
+  }, [details.pincode, features.enable_pin_lookup, lang, privacyOn])
+
   const title = pick(lang, campaign.title_ml, campaign.title_en)
   const description = pick(lang, campaign.homepage_intro_ml || campaign.summary_ml, campaign.homepage_intro_en || campaign.summary_en)
   const deadline = formatCampaignDate(campaign.deadline_at, lang)
@@ -262,7 +382,7 @@ export function CampaignFlow({
         address: details.addressLine,
         panchayat: details.panchayat,
         village: details.village,
-        district: details.district,
+        district: postalIdentity.district || details.district,
         pincode: details.pincode,
         language: lang,
         customText: details.customText,
@@ -270,6 +390,11 @@ export function CampaignFlow({
         clauseCodes: selected.map((clause) => clause.code),
         constituencyId: null,
         ccRepIds: [],
+        privacyMode: privacyOn,
+        postOffice: postalIdentity.postOffice,
+        state: postalIdentity.state,
+        postalRegion: postalIdentity.postalRegion,
+        taluk: postalIdentity.taluk,
       })
       if (prepared.ok) {
         letter = { subject: prepared.data.subject, body: prepared.data.body, charCount: letter.charCount, error: null }
@@ -389,6 +514,87 @@ export function CampaignFlow({
               error={state.detailsErrors.fullName}
               onChange={(value) => dispatch({ type: 'set_details', details: { fullName: value } })}
             />
+          ) : null}
+
+          {isFieldEnabled(formFields, 'pincode') && !privacyOn ? (
+            <div>
+              <label htmlFor="pincode" className={labelClass}>
+                {labelForField(formFields, 'pincode', lang, t(lang, 'pincode'))}
+                {isFieldRequired(formFields, 'pincode') ? (
+                  <span className="text-accent"> *</span>
+                ) : (
+                  <span className="font-normal text-muted"> ({t(lang, 'optional')})</span>
+                )}
+              </label>
+              <input
+                id="pincode"
+                inputMode="numeric"
+                autoComplete="postal-code"
+                pattern="[1-9][0-9]{5}"
+                maxLength={6}
+                className={inputClass}
+                value={details.pincode}
+                aria-required={isFieldRequired(formFields, 'pincode')}
+                aria-invalid={Boolean(errors.pincode)}
+                aria-describedby={errors.pincode ? 'pincode-error' : lookupState !== 'idle' ? 'pincode-status' : undefined}
+                onChange={(event) => patchDetails({ pincode: event.target.value.replace(/\D/g, '').slice(0, 6) })}
+              />
+              {lookupState === 'loading' ? (
+                <p id="pincode-status" className="mt-2 text-sm text-muted">
+                  {t(lang, 'findingLocation')}
+                </p>
+              ) : lookup?.found ? (
+                <div id="pincode-status" className="mt-2 text-sm text-ink">
+                  <p className="font-semibold text-accent">
+                    ✓ {locationLine}
+                  </p>
+                  {lookup.common.postOffice || lookup.common.region ? (
+                    <p className="mt-1 text-body">
+                      {lookup.common.postOffice ? `${lookup.common.postOffice}` : ''}
+                      {lookup.common.postOffice && lookup.common.region ? ' · ' : ''}
+                      {lookup.common.region ? `${t(lang, 'postalRegion')}: ${lookup.common.region}` : ''}
+                    </p>
+                  ) : null}
+                  {lookup.askPostOffice ? (
+                    <div className="mt-3">
+                      <p className="text-body">{t(lang, 'multiplePostOffices')}</p>
+                      <label htmlFor="post-office" className={`${labelClass} mt-2`}>
+                        {t(lang, 'postOffice')}
+                        <select
+                          id="post-office"
+                          className={inputClass}
+                          value={officeName}
+                          onChange={(event) => {
+                            const name = event.target.value
+                            setOfficeName(name)
+                            setDetails((prev) => detailsFromLookup(prev, lookup, name))
+                          }}
+                        >
+                          <option value="">{t(lang, 'selectPostOffice')}</option>
+                          {lookup.offices.map((office) => (
+                            <option key={office.officeName} value={office.officeName}>
+                              {office.officeName}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  ) : null}
+                </div>
+              ) : lookupState === 'done' && isValidPincode(details.pincode) ? (
+                <p id="pincode-status" className="mt-2 text-sm text-muted">
+                  {t(lang, 'pinNotFound')}
+                </p>
+              ) : null}
+              {errors.pincode ? (
+                <p id="pincode-error" className="mt-1 text-sm text-red-800" role="alert">
+                  {errors.pincode}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {isFieldEnabled(formFields, 'phone') && !privacyOn ? (
             <Field
               lang={lang}
               fields={formFields}
