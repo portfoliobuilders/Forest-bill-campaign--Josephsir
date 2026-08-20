@@ -54,23 +54,6 @@ export function withCampaignClauses(campaign: Campaign, clauses: ObjectionClause
   }))
 }
 
-async function loadDistricts(): Promise<DistrictOption[]> {
-  try {
-    const supabase = createServiceClient()
-    const { data } = await supabase
-      .from('constituencies')
-      .select('district, name_ml, name_en')
-      .eq('is_active', true)
-      .order('district')
-    if (data && data.length > 0) {
-      return uniqueDistricts(data as Pick<Constituency, 'district' | 'name_ml' | 'name_en'>[])
-    }
-  } catch {
-    // Static Kerala list is enough for the public walkthrough.
-  }
-  return KERALA_DISTRICTS
-}
-
 export async function loadCampaignBundle(campaign: Campaign): Promise<{
   campaign: Campaign
   clauses: ObjectionClause[]

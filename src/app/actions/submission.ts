@@ -108,7 +108,7 @@ async function composeCanonicalLetter(input: LetterFields): Promise<ActionResult
       village: input.village,
       district: input.district,
       pincode: input.pincode,
-      phone,
+      phone: phone ?? '',
       email: input.email,
       customText: input.customText,
       extraConcerns,

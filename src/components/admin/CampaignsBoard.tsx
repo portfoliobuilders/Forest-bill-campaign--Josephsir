@@ -15,7 +15,7 @@ import {
 import { ConfirmDialog, EmptyState, KpiCard } from '@/components/admin/AdminPrimitives'
 import { adminBtnDanger, adminBtnPrimary, adminBtnSecondary, adminFocus, adminInput } from '@/components/admin/admin-ui'
 import { formatAdminDate } from '@/lib/admin/format'
-import { CAMPAIGN_STATUS_LABEL, type CampaignStatus } from '@/lib/campaign-status'
+import { CAMPAIGN_STATUS_LABEL } from '@/lib/campaign-status'
 
 const FILTERS = ['all', 'active', 'draft', 'inactive', 'expired', 'archived'] as const
 

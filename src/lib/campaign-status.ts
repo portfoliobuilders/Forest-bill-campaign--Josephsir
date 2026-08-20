@@ -1,5 +1,7 @@
 import type { Campaign, CampaignStatus, PublishStatus } from '@/types/database'
 
+export type { CampaignStatus }
+
 export const CAMPAIGN_STATUSES = ['draft', 'active', 'inactive', 'expired', 'archived'] as const
 
 export const CAMPAIGN_STATUS_LABEL: Record<CampaignStatus, string> = {
