@@ -1,5 +1,4 @@
 import { CampaignFlow, NoActiveCampaign } from '@/components/campaign/CampaignFlow'
-import { aiServerConfigured } from '@/lib/ai/provider'
 import { resolvePublicCampaign } from '@/lib/campaign'
 import { loadObjectionData } from '@/lib/campaigns'
 

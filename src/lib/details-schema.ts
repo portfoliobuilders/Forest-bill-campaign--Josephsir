@@ -1,13 +1,12 @@
 import { z } from 'zod'
 
-import { identityRequired, parseFeatureSettings } from '@/lib/campaign-features'
 import { isFieldEnabled, isFieldRequired } from '@/lib/form-fields'
 import { t, type Lang } from '@/lib/i18n'
+import { normalizeIndianPhone } from '@/lib/phone'
 import { PINCODE_RE } from '@/lib/postal'
-import type { Campaign, CampaignFormField } from '@/types/database'
+import type { CampaignFormField } from '@/types/database'
 
 export const MAX_CUSTOM_CHARS = 1000
-const PINCODE_RE = /^[1-9][0-9]{5}$/
 
 export type DetailsFields = {
   fullName: string
@@ -57,7 +56,7 @@ export function createDetailsSchema(lang: Lang, districts: string[], fields: Cam
         .refine((value) => !value || normalizeIndianPhone(value) !== null, t(lang, 'errorPhone'))
 
   const districtEnabled = isFieldEnabled(fields, 'district')
-  const districtRequired = districtEnabled && isFieldRequired(fields, 'district') && !privacy
+  const districtRequired = isFieldRequired(fields, 'district')
   const district = districtEnabled
     ? districtRequired
       ? z
@@ -69,7 +68,17 @@ export function createDetailsSchema(lang: Lang, districts: string[], fields: Cam
           .string()
           .trim()
           .refine((value) => !value || districts.length === 0 || districts.includes(value), t(lang, 'errorDistrict'))
-    : optionalText()
+    : optionalText
+
+  const address = isFieldRequired(fields, 'address')
+    ? z.string().trim().min(1, t(lang, 'errorAddress'))
+    : optionalText
+
+  const panchayat = isFieldRequired(fields, 'local_body')
+    ? z.string().trim().min(1, t(lang, 'panchayat'))
+    : optionalText
+
+  const village = isFieldRequired(fields, 'village') ? z.string().trim().min(1, t(lang, 'village')) : optionalText
 
   const pincodeRequired = isFieldRequired(fields, 'pincode')
   const pincodeEnabled = isFieldEnabled(fields, 'pincode')

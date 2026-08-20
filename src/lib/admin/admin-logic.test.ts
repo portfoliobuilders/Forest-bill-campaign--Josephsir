@@ -165,11 +165,11 @@ test('composed emails cannot interpolate campaign sources or newspaper clippings
   assert.deepEqual(listUnknownPlaceholders('{{sources}} {{clipping}}'), ['sources', 'clipping'])
   const result = composeEmail({
     campaign: {
-      ...demoCampaign,
+      ...fixtureCampaign,
       intro_en: 'Approved ESA wording only.',
       body_template_en: '{{intro}}\n\n{{sources}}\n\n{{concerns}}\n\n{{closing}}',
     },
-    clauses: [demoClauses[0]],
+    clauses: [fixtureClauses[0]],
     details: {
       fullName: 'Ravi Kumar',
       addressLine: 'House',

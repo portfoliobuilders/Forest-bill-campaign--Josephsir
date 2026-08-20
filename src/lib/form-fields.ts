@@ -1,5 +1,7 @@
 import type { CampaignFormField, FormFieldKey } from '@/types/database'
 
+export type FieldMode = 'required' | 'optional' | 'disabled'
+
 export const FORM_FIELD_KEYS: FormFieldKey[] = [
   'name',
   'pincode',
