@@ -6,6 +6,8 @@ import {
   formatCompleteEmailCopy,
   androidSendIntent,
   formatUnsentEml,
+  gmailAppComposeUrl,
+  androidGmailAppIntent,
   gmailComposeUrl,
   liveMailTargets,
   mailtoUrl,
@@ -135,6 +137,18 @@ assert.doesNotMatch(gmail, /Forest/)
 assert.doesNotMatch(gmail, /undefined/)
 assert.match(mail, /mailto:min\.for%40kerala\.gov\.in/)
 assert.doesNotMatch(mail, /esz-mef@nic\.in/)
+assert.ok(mail.includes(encodeURIComponent(selected.body)), 'mailto must include the full letter body')
+
+const longBody = `${full.body}\n${'കൂടുതൽ '.repeat(600)}`
+const longParams = {
+  to: targets.to,
+  cc: targets.cc,
+  bcc: targets.bcc,
+  subject: full.subject,
+  body: longBody,
+}
+assert.ok(mailtoUrl(longParams).includes(encodeURIComponent(longBody)))
+assert.ok(formatUnsentEml(longParams).includes(longBody.replace(/\n/g, '\r\n')))
 
 const copied = formatCompleteEmailCopy({
   to: targets.to,
@@ -172,6 +186,26 @@ const headersOnly = gmailComposeUrl(
   { includeBody: false },
 )
 assert.doesNotMatch(headersOnly, /[?&]body=/)
+
+const appUrl = gmailAppComposeUrl({
+  to: targets.to,
+  cc: targets.cc,
+  subject: full.subject,
+  body: selected.body,
+})
+assert.match(appUrl, /^googlegmail:\/\/\/co\?/)
+assert.match(appUrl, /to=min\.for%40kerala\.gov\.in/)
+assert.match(appUrl, /cc=prlsecy\.forest%40kerala\.gov\.in/)
+assert.match(appUrl, /subject=/)
+assert.doesNotMatch(appUrl, /undefined/)
+assert.ok(appUrl.includes(encodeURIComponent(selected.body)))
+
+const appIntent = androidGmailAppIntent(gmail)
+assert.match(appIntent, /^intent:\/\/mail\.google\.com\/mail\//)
+assert.match(appIntent, /package=com\.google\.android\.gm/)
+assert.match(appIntent, /scheme=https/)
+assert.ok(appIntent.includes(encodeURIComponent(gmail)))
+assert.ok(appIntent.endsWith(';end'))
 
 const withBcc = {
   ...fixtureCampaign,
