@@ -30,6 +30,10 @@ export const DEFAULT_BODY_TEMPLATE_ML = `{{intro}}
 
 {{closing}}
 
+പേര്: {{full_name}}
+പിൻകോഡ്: {{pincode}}
+ജില്ല: {{district}}
+
 ആദരപൂർവ്വം,
 {{identity_block}}`
 
@@ -40,6 +44,10 @@ export const DEFAULT_BODY_TEMPLATE_EN = `{{intro}}
 {{custom_text}}
 
 {{closing}}
+
+Name: {{full_name}}
+PIN: {{pincode}}
+District: {{district}}
 
 Regards,
 {{identity_block}}`

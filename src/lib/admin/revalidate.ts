@@ -1,6 +1,7 @@
 import { revalidatePath } from 'next/cache'
 
 export function revalidatePublicCampaign(): void {
+  revalidatePath('/', 'layout')
   revalidatePath('/')
   revalidatePath('/campaign/[slug]', 'page')
   revalidatePath('/objection')

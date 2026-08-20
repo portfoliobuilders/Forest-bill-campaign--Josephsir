@@ -9,8 +9,6 @@ import { adminBtnPrimary, adminBtnSecondary, adminInput, adminLabel } from '@/co
 import { composeEmail } from '@/lib/compose'
 import type { Campaign, ObjectionClause } from '@/types/database'
 
-const EMAIL_MAX = 220
-
 export function ConcernEditor({
   campaign,
   concern,
@@ -45,7 +43,6 @@ export function ConcernEditor({
 
   const emailMlCount = [...form.email_ml].length
   const emailEnCount = [...form.email_en].length
-  const invalid = emailMlCount > EMAIL_MAX || emailEnCount > EMAIL_MAX
 
   const preview = useMemo(() => {
     const clause: ObjectionClause = {
@@ -70,11 +67,11 @@ export function ConcernEditor({
       clauses: [clause],
       details: {
         fullName: 'Ravi Kumar',
-        addressLine: 'Example house',
-        panchayat: 'Vandiperiyar',
+        addressLine: '',
+        panchayat: '',
         district: 'Idukki',
         pincode: '685533',
-        phone: '9876543210',
+        phone: '',
         email: 'citizen@example.com',
       },
       lang: previewLang,
@@ -82,8 +79,8 @@ export function ConcernEditor({
   }, [campaign, concern.id, form, previewLang])
 
   async function handleSave() {
-    if (invalid) {
-      setError('Email copy is over 220 characters.')
+    if (!form.code.trim() || !form.title_ml.trim() || !form.title_en.trim()) {
+      setError('Code and titles are required.')
       return
     }
     setSaveState('saving')
@@ -110,7 +107,7 @@ export function ConcernEditor({
         title={concern.id ? 'Edit concern' : 'New concern'}
         description={concern.usage_count ? `Selected in ${concern.usage_count} submissions. Disabling keeps history.` : undefined}
         actions={
-          <button type="button" className={adminBtnPrimary} onClick={() => void handleSave()} disabled={invalid || saveState === 'saving'}>
+          <button type="button" className={adminBtnPrimary} onClick={() => void handleSave()} disabled={saveState === 'saving'}>
             Save changes
           </button>
         }
@@ -146,16 +143,12 @@ export function ConcernEditor({
         <label className={adminLabel}>
           Email version — Malayalam
           <textarea className={`${adminInput} min-h-24 py-2`} value={form.email_ml} onChange={(e) => patch('email_ml', e.target.value)} />
-          <span className={`mt-1 block text-xs ${emailMlCount > EMAIL_MAX ? 'text-red-700' : 'text-stone-500'}`}>
-            {emailMlCount} / {EMAIL_MAX}
-          </span>
+          <span className="mt-1 block text-xs text-stone-500">{emailMlCount} characters</span>
         </label>
         <label className={adminLabel}>
           Email version — English
           <textarea className={`${adminInput} min-h-24 py-2`} value={form.email_en} onChange={(e) => patch('email_en', e.target.value)} />
-          <span className={`mt-1 block text-xs ${emailEnCount > EMAIL_MAX ? 'text-red-700' : 'text-stone-500'}`}>
-            {emailEnCount} / {EMAIL_MAX}
-          </span>
+          <span className="mt-1 block text-xs text-stone-500">{emailEnCount} characters</span>
         </label>
         <label className={adminLabel}>
           Full source text — Malayalam

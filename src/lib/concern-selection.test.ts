@@ -8,7 +8,7 @@ import {
   validatePredefinedSelection,
 } from './concern-selection'
 import { composeEmail } from './compose'
-import { demoCampaign, demoClauses } from './demo-data'
+import { fixtureCampaign, fixtureClauses } from './campaign-fixtures'
 
 const details = {
   fullName: 'Ravi Kumar',
@@ -70,8 +70,8 @@ test('maximum selection blocks a further predefined concern', () => {
 
 test('single mode email includes only the selected concern plus custom text', () => {
   const result = composeEmail({
-    campaign: { ...demoCampaign, concern_selection_mode: 'single' },
-    clauses: [demoClauses[2]],
+    campaign: { ...fixtureCampaign, concern_selection_mode: 'single' },
+    clauses: [fixtureClauses[2]],
     details: {
       ...details,
       extraConcerns: ['My property has been excluded incorrectly...'],
@@ -79,18 +79,18 @@ test('single mode email includes only the selected concern plus custom text', ()
     lang: 'en',
   })
   assert.match(result.body, /Selected Concern:/)
-  assert.ok(result.body.includes(demoClauses[2].title_en))
-  assert.ok(result.body.includes(demoClauses[2].email_en))
-  assert.ok(!result.body.includes(demoClauses[0].title_en))
-  assert.ok(!result.body.includes(demoClauses[1].title_en))
+  assert.ok(result.body.includes(fixtureClauses[2].title_en))
+  assert.ok(result.body.includes(fixtureClauses[2].email_en))
+  assert.ok(!result.body.includes(fixtureClauses[0].title_en))
+  assert.ok(!result.body.includes(fixtureClauses[1].title_en))
   assert.match(result.body, /Additional Concern:/)
   assert.match(result.body, /My property has been excluded incorrectly/)
 })
 
 test('multiple mode email includes every selected concern then the custom concern', () => {
-  const selected = [demoClauses[0], demoClauses[1], demoClauses[3]]
+  const selected = [fixtureClauses[0], fixtureClauses[1], fixtureClauses[3]]
   const result = composeEmail({
-    campaign: { ...demoCampaign, concern_selection_mode: 'multiple' },
+    campaign: { ...fixtureCampaign, concern_selection_mode: 'multiple' },
     clauses: selected,
     details: { ...details, extraConcerns: ['A farm-specific note'] },
     lang: 'en',
@@ -99,7 +99,7 @@ test('multiple mode email includes every selected concern then the custom concer
   assert.ok(result.body.includes(`1. ${selected[0].title_en}`))
   assert.ok(result.body.includes(`2. ${selected[1].title_en}`))
   assert.ok(result.body.includes(`3. ${selected[2].title_en}`))
-  assert.ok(!result.body.includes(demoClauses[2].title_en))
+  assert.ok(!result.body.includes(fixtureClauses[2].title_en))
   assert.match(result.body, /Additional Concern:/)
   assert.match(result.body, /A farm-specific note/)
 })
@@ -108,13 +108,13 @@ test('custom concern formatting stays available in both selection modes', () => 
   const extra = ['Keep this extra note']
   const single = formatConcernsForEmail({
     mode: 'single',
-    clauses: [demoClauses[0]],
+    clauses: [fixtureClauses[0]],
     extraConcerns: extra,
     lang: 'en',
   })
   const multiple = formatConcernsForEmail({
     mode: 'multiple',
-    clauses: [demoClauses[0], demoClauses[1]],
+    clauses: [fixtureClauses[0], fixtureClauses[1]],
     extraConcerns: extra,
     lang: 'en',
   })

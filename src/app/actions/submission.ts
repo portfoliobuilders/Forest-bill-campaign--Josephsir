@@ -1,5 +1,6 @@
 'use server'
 
+import { randomUUID } from 'crypto'
 import { headers } from 'next/headers'
 import { z } from 'zod'
 
@@ -24,12 +25,16 @@ import type { ActionResult } from '@/lib/submission-types'
 const uuidSchema = z.uuid()
 const langSchema = z.enum(['ml', 'en'])
 const sendMethodSchema = z.enum(['gmail_web', 'mailto', 'copy', 'server', 'print'])
-const letterModeSchema = z.enum(['selected', 'all'])
+const letterModeSchema = z.enum(['selected']).default('selected')
 
 const letterInputSchema = z.object({
   campaignSlug: z.string().min(1),
-  fullName: z.string().trim().optional().default(''),
-  email: z.string().trim().optional().default(''),
+  fullName: z.string().trim().min(1),
+  email: z
+    .string()
+    .trim()
+    .default('')
+    .refine((value) => !value || z.email().safeParse(value).success, 'invalid_email'),
   phone: z.string().trim().optional().default(''),
   address: z.string().trim().optional().default(''),
   panchayat: z.string().trim().optional().default(''),
@@ -40,7 +45,7 @@ const letterInputSchema = z.object({
   customText: z.string().max(1000).optional().default(''),
   extraConcerns: z.array(z.string().max(1000)).max(12).default([]),
   clauseCodes: z.array(z.string().min(1)).max(50).default([]),
-  letterMode: letterModeSchema.default('selected'),
+  letterMode: letterModeSchema,
   constituencyId: z.uuid().nullable(),
   ccRepIds: z.array(z.uuid()),
   privacyMode: z.boolean().optional().default(false),
@@ -83,14 +88,12 @@ async function composeCanonicalLetter(input: LetterFields): Promise<ActionResult
   let sourceClauses: ObjectionClause[] = []
   try {
     const supabase = createServiceClient()
-    let query = supabase
+    const query = supabase
       .from('objection_clauses')
       .select('*')
       .eq('campaign_id', campaign.id)
       .eq('is_active', true)
-    if (input.letterMode === 'selected') {
-      query = query.in('code', input.clauseCodes)
-    }
+      .in('code', input.clauseCodes)
     const { data } = await query
     sourceClauses = withCampaignClauses(campaign, (data ?? []) as ObjectionClause[])
   } catch {
@@ -195,8 +198,8 @@ async function storeCanonicalLetter(
 
     const rpcArgs = {
       p_campaign_slug: slug,
-      p_full_name: input.fullName.trim() || 'Citizen',
-      p_email: input.email.trim() || `none+${crypto.randomUUID()}@invalid.local`,
+      p_full_name: input.fullName,
+      p_email: input.email.trim() || `unspecified.${randomUUID()}@invalid.local`,
       p_phone: phone,
       p_address: input.address,
       p_panchayat: input.panchayat || null,

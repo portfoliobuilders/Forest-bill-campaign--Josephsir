@@ -1,15 +1,32 @@
-import { redirect } from 'next/navigation'
+import { EmailTemplateEditor } from '@/components/admin/EmailTemplateEditor'
+import { EmptyState } from '@/components/admin/AdminPrimitives'
+import { requireAdminCampaign } from '@/lib/admin/context'
+import { createServiceClient } from '@/lib/supabase/server'
+import { assertAdminEnv } from '@/lib/env'
+import type { ObjectionClause } from '@/types/database'
 
-import { fetchCampaignBoard } from '@/app/admin/campaign-actions'
+export const dynamic = 'force-dynamic'
 
-export default async function AdminEmailTemplateRedirectPage() {
-  const board = await fetchCampaignBoard()
-  const preferred =
-    board.find((c) => c.status === 'active') ?? board.find((c) => c.status === 'draft') ?? board[0]
+export async function generateMetadata() {
+  return { title: 'Email template — Admin', robots: { index: false, follow: false } }
+}
 
-  if (preferred) {
-    redirect(`/admin/campaigns/${preferred.id}?tab=english`)
-  }
-
-  redirect('/admin/campaigns')
+export default async function EmailTemplatePage() {
+  assertAdminEnv()
+  const { campaign, email } = await requireAdminCampaign()
+  if (!campaign) return <EmptyState title="No campaign selected." body="Create a campaign first." />
+  const supabase = createServiceClient()
+  const { data: clauses } = await supabase
+    .from('objection_clauses')
+    .select('*')
+    .eq('campaign_id', campaign.id)
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true })
+  return (
+    <EmailTemplateEditor
+      campaign={campaign}
+      clauses={(clauses ?? []) as ObjectionClause[]}
+      adminEmail={email}
+    />
+  )
 }

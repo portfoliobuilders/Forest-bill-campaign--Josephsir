@@ -7,7 +7,7 @@ import { flagsForPublishStatus, requiresLiveConfirmation, slugFromTitle } from '
 import { flagsForCampaignStatus, requiresPublishConfirmation } from '../campaign-status'
 import { listUnknownPlaceholders, renderSafeTemplate, EMAIL_PLACEHOLDERS } from '../email-template'
 import { composeEmail, liveMailTargets, resolveMailTargets } from '../compose'
-import { demoCampaign, demoClauses } from '../demo-data'
+import { fixtureCampaign, fixtureClauses } from '../campaign-fixtures'
 
 test('displayStage maps backend statuses to business labels', () => {
   assert.equal(displayStage('draft'), 'started')
@@ -52,10 +52,10 @@ test('safe templates replace known placeholders and ignore unknown ones', () => 
 test('compose uses template placeholders and does not eval javascript', () => {
   const result = composeEmail({
     campaign: {
-      ...demoCampaign,
+      ...fixtureCampaign,
       body_template_en: '{{intro}}\n\n{{concerns}}\n\nName: {{full_name}} {{constructor}}',
     },
-    clauses: [demoClauses[0]],
+    clauses: [fixtureClauses[0]],
     details: {
       fullName: 'Ravi Kumar',
       addressLine: 'House',
@@ -93,12 +93,12 @@ test('campaign status flags stay aligned with legacy publish_status', () => {
 })
 
 test('slug generation is campaign-safe', () => {
-  assert.equal(slugFromTitle('Kerala Forest Bill'), 'kerala-forest-bill')
+  assert.equal(slugFromTitle('Ecologically Sensitive Area Draft'), 'ecologically-sensitive-area-draft')
 })
 
 test('preview and admin test mail never address government recipients', () => {
   const targets = resolveMailTargets({
-    campaign: demoCampaign,
+    campaign: fixtureCampaign,
     mode: 'preview',
     testerEmail: 'admin@janashabdam.example',
   })
@@ -110,7 +110,7 @@ test('preview and admin test mail never address government recipients', () => {
 })
 
 test('live mail keeps BCC off TO/CC, and empty TO falls back to CC', () => {
-  const withBcc = { ...demoCampaign, bcc_emails: ['archive@example.test'] }
+  const withBcc = { ...fixtureCampaign, bcc_emails: ['archive@example.test'] }
   const live = resolveMailTargets({
     campaign: withBcc,
     mode: 'live',
@@ -128,7 +128,7 @@ test('live mail keeps BCC off TO/CC, and empty TO falls back to CC', () => {
   assert.deepEqual(preview.liveBcc, ['archive@example.test'])
 
   const ccAsTo = liveMailTargets({
-    ...demoCampaign,
+    ...fixtureCampaign,
     recipient_emails: [],
     recipient_email: '',
     cc_emails: ['cc@example.test'],

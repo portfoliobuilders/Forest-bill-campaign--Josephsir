@@ -1,7 +1,7 @@
 import type { Lang } from '@/lib/i18n'
-import type { Campaign, ObjectionClause } from '@/types/database'
+import type { Campaign, ObjectionClause, ConcernSelectionMode } from '@/types/database'
 
-export type ConcernSelectionMode = 'single' | 'multiple'
+export type { ConcernSelectionMode }
 
 export const MAX_CUSTOM_CONCERN_BOXES = 6
 

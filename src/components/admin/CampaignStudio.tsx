@@ -39,6 +39,7 @@ const TABS = [
 
 type ConcernDraft = {
   id?: string
+  code?: string
   title_en: string
   title_ml: string
   content_en: string
@@ -77,6 +78,7 @@ function emptyConcern(order: number): ConcernDraft {
 function fromClause(clause: ObjectionClause): ConcernDraft {
   return {
     id: clause.id,
+    code: clause.code,
     title_en: clause.title_en,
     title_ml: clause.title_ml,
     content_en: clause.full_text_en || clause.explain_en,
@@ -375,7 +377,8 @@ export function CampaignStudio({
             {clauseDrafts.map((clause, index) => (
               <li key={clause.id ?? `new-${index}`} className="rounded-md border border-stone-200 bg-white p-3">
                 <p className="font-medium text-stone-900">
-                  {index + 1}. {clause.title_en}
+                  {String(index + 1).padStart(2, '0')} {clause.code ? `${clause.code} · ` : ''}
+                  {clause.title_en}
                 </p>
                 <p className="text-sm text-stone-600">{clause.title_ml}</p>
                 <p className="mt-1 text-xs text-stone-500">{clause.is_active ? 'Active' : 'Inactive'}</p>

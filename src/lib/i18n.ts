@@ -95,7 +95,7 @@ export const dictionary = {
     daysRemaining: '{n} ദിവസം ബാക്കി',
     ctaPreview: 'എതിർപ്പ് തയ്യാറാക്കുക',
     demoClosedNote:
-      'ഇത് 2024-ലെ ഫോറസ്റ്റ് ബിൽ ഉപയോഗിച്ചുള്ള ഒരു ഡെമോ ആണ്. തത്സമയ കൂടിയാലോചനയല്ല. സർക്കാർ ഓഫീസിലേക്ക് ഒന്നും അയയ്ക്കില്ല.',
+      'ഇത് ഒരു ഡെമോ ആണ്. തത്സമയ കൂടിയാലോചനയല്ല. സർക്കാർ ഓഫീസിലേക്ക് ഒന്നും അയയ്ക്കില്ല.',
     tryDemo: 'ഡെമോ പരീക്ഷിക്കുക',
     fillSample: 'മാതൃകാ വിവരം നിറയ്ക്കുക',
     sampleHint: 'ഡെമോയ്ക്ക് മാത്രം. ഇത് യഥാർത്ഥ വ്യക്തിയല്ല.',
@@ -117,7 +117,7 @@ export const dictionary = {
     demoLetterHint:
       'ഡ്രൈ റൺ — കത്ത് നിങ്ങളുടെ സ്വന്തം ഇമെയിലിലേക്ക് മാത്രം തുറക്കും. സർക്കാർ ഓഫീസിലേക്ക് അയയ്ക്കില്ല.',
     volunteerLetter: 'യഥാർത്ഥ കത്ത്',
-    gazetteBill: 'ഗസറ്റ് ബിൽ 228',
+    gazetteBill: 'ഔദ്യോഗിക വിജ്ഞാപനം',
     footerData: 'പൊതു വിവരം',
     footerPrivacy: 'സ്വകാര്യത',
     footerDelete: 'വിവരം മായ്ക്കുക',
@@ -190,7 +190,7 @@ export const dictionary = {
     campaignInactivePublic: 'ഈ ക്യാമ്പെയ്ൻ ഇപ്പോൾ സജീവമല്ല.',
     campaignExpiredPublic: 'ഈ ക്യാമ്പെയ്ൻ അവസാനിച്ചിരിക്കുന്നു.',
     campaignExpiredThanks: 'ഈ ക്യാമ്പെയ്ൻ അവസാനിച്ചിരിക്കുന്നു. നിങ്ങളുടെ പങ്കാളിത്തത്തിന് നന്ദി.',
-    noActiveCampaign: 'നിലവിൽ സജീവമായ ക്യാമ്പെയ്ൻ ഒന്നുമില്ല. ദയവായി പിന്നീട് വീണ്ടും പരിശോധിക്കുക.',
+    noActiveCampaign: 'നിലവിൽ സജീവമായ ക്യാമ്പെയ്ൻ ഒന്നുമില്ല.',
     stepCampaign: 'ക്യാമ്പെയ്ൻ',
     stepConcern: 'വിഷയം',
     stepYourDetails: 'വിവരങ്ങൾ',
@@ -362,7 +362,7 @@ export const dictionary = {
     daysRemaining: '{n} days remaining',
     ctaPreview: 'Prepare an objection',
     demoClosedNote:
-      'This walkthrough uses the 2024 Forest Bill so you can see how Janashabdam works. It is not a live consultation. Nothing is sent to a government office.',
+      'This is a walkthrough of how Janashabdam works. It is not a live consultation. Nothing is sent to a government office.',
     tryDemo: 'Try the demo',
     fillSample: 'Fill sample details',
     sampleHint: 'For the demo only. This is not a real person.',
@@ -384,7 +384,7 @@ export const dictionary = {
     demoLetterHint:
       'Dry run — this opens only to your own email. Nothing is sent to a government office.',
     volunteerLetter: 'Original letter',
-    gazetteBill: 'Gazette Bill 228',
+    gazetteBill: 'Official notification',
     footerData: 'Public data',
     footerPrivacy: 'Privacy',
     footerDelete: 'Delete my data',
@@ -460,7 +460,7 @@ export const dictionary = {
     campaignInactivePublic: 'This campaign is currently inactive.',
     campaignExpiredPublic: 'This campaign has ended.',
     campaignExpiredThanks: 'This campaign has ended. Thank you for your participation.',
-    noActiveCampaign: 'There is currently no active campaign. Please check again later.',
+    noActiveCampaign: 'There is currently no active campaign.',
     stepCampaign: 'Campaign',
     stepConcern: 'Concern',
     stepYourDetails: 'Your Details',

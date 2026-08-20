@@ -1,3 +1,8 @@
+import {
+  campaignConcernConfig,
+  formatConcernsForEmail,
+  selectedClausesForLetter,
+} from '@/lib/concern-selection'
 import { uniqueEmails } from '@/lib/compose-emails'
 import { selectedClausesForLetter } from '@/lib/concern-selection'
 import { defaultBodyTemplate, renderSafeTemplate, type EmailTemplateValues } from '@/lib/email-template'
@@ -178,13 +183,15 @@ function senderValues(
 }
 
 export function composeSubject(campaign: Campaign, clauses: ObjectionClause[], lang: Lang): string {
+  const campaignSubject = pick(lang, campaign.subject_ml, campaign.subject_en).trim()
+  if (campaignSubject) return campaignSubject
   if (clauses.length === 1) {
     const custom = pick(lang, clauses[0].email_subject_ml ?? '', clauses[0].email_subject_en ?? '').trim()
     if (custom) return custom
     const title = concernTitle(clauses[0], lang)
     if (title) return title
   }
-  return pick(lang, campaign.subject_ml, campaign.subject_en)
+  return campaignSubject
 }
 
 function assembleBody(
@@ -207,6 +214,8 @@ function assembleBody(
   const extras = details.extraConcerns ?? []
   const stored = pick(lang, campaign.body_template_ml ?? '', campaign.body_template_en ?? '').trim()
   const template = stored || defaultBodyTemplate(lang)
+  const config = campaignConcernConfig(campaign)
+  const sender = senderValues(details)
   const values: EmailTemplateValues = {
     intro,
     closing,
@@ -216,7 +225,8 @@ function assembleBody(
       extraConcerns: extras,
       lang,
     }),
-    ...senderValues(details, identity),
+    ...sender,
+    custom_text: extras.length > 0 ? '' : sender.custom_text,
   }
   return renderSafeTemplate(template, values)
 }

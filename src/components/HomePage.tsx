@@ -7,7 +7,6 @@ import { IconClock, IconList, IconPencil, IconPeople, IconPerson, IconPlane } fr
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useLang } from '@/components/LanguageProvider'
 import { cx } from '@/lib/cx'
-import { demoCampaign } from '@/lib/demo-data'
 import { formatCampaignDate } from '@/lib/format-date'
 import { t, tReplace } from '@/lib/i18n'
 import { btnPrimary } from '@/lib/ui'
@@ -32,7 +31,22 @@ export function HomePage({
 }) {
   const { lang } = useLang()
 
-  const shown = campaign ?? demoCampaign
+  if (!campaign || mode === 'dormant') {
+    return (
+      <PageContainer width="wide">
+        <section className="max-w-3xl pt-2 sm:pt-6">
+          <h1 className="font-display mt-3 text-[1.85rem] text-ink sm:text-4xl md:text-[2.75rem]">
+            {t(lang, 'noActiveCampaign')}
+          </h1>
+          <section className="mt-8 max-w-xl border-t border-rule pt-8">
+            <NotifySignup />
+          </section>
+        </section>
+      </PageContainer>
+    )
+  }
+
+  const shown = campaign
   const isLive = mode === 'live'
   const isClosed = !isLive || !shown.deadline_at || new Date(shown.deadline_at).getTime() < Date.now()
   const title = lang === 'en' ? shown.title_en : shown.title_ml
@@ -52,9 +66,6 @@ export function HomePage({
         </p>
         <h1 className="font-display mt-3 text-[1.85rem] text-ink sm:text-4xl md:text-[2.75rem]">{title}</h1>
         <p className="mt-4 max-w-2xl text-base leading-relaxed text-body sm:text-lg">{stake}</p>
-        {mode !== 'live' ? (
-          <p className="mt-3 max-w-2xl text-base leading-relaxed text-body">{t(lang, 'demoClosedNote')}</p>
-        ) : null}
 
         <Link href={ctaHref} className={cx(btnPrimary, 'mt-8 w-full sm:w-auto')}>
           <IconPencil className="size-4 shrink-0" />
@@ -92,9 +103,6 @@ export function HomePage({
                 {confirmedCount.toLocaleString('en-IN')}
               </p>
               <p className="mt-2 text-sm leading-relaxed text-muted">{t(lang, 'counterMethodologyLine')}</p>
-              {mode !== 'live' ? (
-                <p className="mt-1 text-sm leading-relaxed text-muted">{t(lang, 'demoCountNote')}</p>
-              ) : null}
             </div>
           </div>
         </section>
@@ -133,12 +141,6 @@ export function HomePage({
           <p className="mt-6 text-base leading-relaxed text-ink">{t(lang, 'howEmphasis')}</p>
         </section>
       </div>
-
-      {mode === 'dormant' ? (
-        <section className="mt-8 max-w-xl border-t border-rule pt-8">
-          <NotifySignup />
-        </section>
-      ) : null}
     </PageContainer>
   )
 }
