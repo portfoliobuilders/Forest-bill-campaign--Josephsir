@@ -4,7 +4,8 @@ import {
   selectedClausesForLetter,
 } from '@/lib/concern-selection'
 import { uniqueEmails } from '@/lib/compose-emails'
-import { campaignConcernConfig, formatConcernsForEmail, selectedClausesForLetter } from '@/lib/concern-selection'
+import { concernTitle } from '@/lib/compose-concerns'
+import { identityBlock, privacyLetter } from '@/lib/compose-identity'
 import { defaultBodyTemplate, renderSafeTemplate, type EmailTemplateValues } from '@/lib/email-template'
 import type { Lang } from '@/lib/i18n'
 import type { WizardMode } from '@/lib/wizard-mode'
@@ -215,7 +216,6 @@ function assembleBody(
   const stored = pick(lang, campaign.body_template_ml ?? '', campaign.body_template_en ?? '').trim()
   const template = stored || defaultBodyTemplate(lang)
   const config = campaignConcernConfig(campaign)
-  const sender = senderValues(details)
   const values: EmailTemplateValues = {
     intro,
     closing,
@@ -225,7 +225,7 @@ function assembleBody(
       extraConcerns: extras,
       lang,
     }),
-    ...senderValues(details),
+    ...senderValues(details, identityBlock(details, lang)),
   }
   return renderSafeTemplate(template, values)
 }
