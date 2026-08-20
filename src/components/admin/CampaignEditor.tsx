@@ -124,9 +124,12 @@ export function CampaignEditor({ campaign }: { campaign: Campaign }) {
     <div className="space-y-6">
       <AdminPageHeader
         title="Campaign"
-        description="Edit public copy, dates, and publishing. Recipients and email wording live under Email Template."
+        description="Edit public copy, dates, and publishing. Recipients and email wording live under Email Template. Concern selection lives under Concerns."
         actions={
           <>
+            <Link href="/admin/concerns" className={adminBtnSecondary}>
+              Concerns
+            </Link>
             <Link href="/admin/campaign/new" className={adminBtnSecondary}>
               New campaign
             </Link>

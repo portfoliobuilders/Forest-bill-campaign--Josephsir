@@ -15,5 +15,5 @@ export default async function ConcernsPage() {
   const { campaign } = await requireAdminCampaign()
   if (!campaign) return <EmptyState title="No campaign selected." body="Create a campaign first." />
   const rows = await fetchConcerns(campaign.id)
-  return <ConcernsList campaignId={campaign.id} rows={rows} />
+  return <ConcernsList campaign={campaign} rows={rows} />
 }

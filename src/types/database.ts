@@ -12,6 +12,8 @@ export type RepLevel = 'mla' | 'mp_lok_sabha' | 'mp_rajya_sabha' | 'minister' | 
 
 export type PublishStatus = 'draft' | 'preview' | 'live' | 'closed' | 'archived'
 
+export type ConcernSelectionMode = 'single' | 'multiple'
+
 export type Campaign = {
   id: string
   slug: string
@@ -40,6 +42,13 @@ export type Campaign = {
   publish_status: PublishStatus
   explainer_ml: string[]
   explainer_en: string[]
+  concern_selection_mode: ConcernSelectionMode
+  max_concern_selections: number | null
+  allow_custom_concern: boolean
+  custom_concern_label_en: string | null
+  custom_concern_label_ml: string | null
+  custom_concern_placeholder_en: string | null
+  custom_concern_placeholder_ml: string | null
   created_at: string
   updated_at?: string
   updated_by?: string | null

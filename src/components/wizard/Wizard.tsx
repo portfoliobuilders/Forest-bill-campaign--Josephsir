@@ -6,16 +6,19 @@ import { prepareDemoLetter } from '@/app/actions/submission'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { IconChevronRight } from '@/components/ui/icons'
 import { Progress } from '@/components/wizard/Progress'
-import {
-  flattenCustomConcerns,
-  MAX_SELECTED_CLAUSES,
-  selectedConcernCount,
-  Step1_ClauseSelector,
-} from '@/components/wizard/Step1_ClauseSelector'
+import { ConcernSelector } from '@/components/wizard/ConcernSelector'
 import { emptyRouting, Step2_DetailsForm } from '@/components/wizard/Step2_DetailsForm'
 import { Step3_Preview, type CanonicalLetter } from '@/components/wizard/Step3_Preview'
 import { useLang } from '@/components/LanguageProvider'
-import { clausesForLetter, composeEmail, type LetterMode } from '@/lib/compose'
+import {
+  applyPredefinedConcernClick,
+  campaignConcernConfig,
+  flattenCustomConcerns,
+  MAX_CUSTOM_CONCERN_BOXES,
+  selectedClausesForLetter,
+  validatePredefinedSelection,
+} from '@/lib/concern-selection'
+import { composeEmail } from '@/lib/compose'
 import { cx } from '@/lib/cx'
 import { FOREST_BILL_SOURCE_URL, FOREST_BILL_VOLUNTEER_URL, type DistrictOption } from '@/lib/demo-data'
 import {
@@ -34,7 +37,6 @@ type Step = 1 | 2 | 3
 
 type WizardState = {
   step: Step
-  letterMode: LetterMode
   selectedClauseIds: string[]
   customConcerns: string[]
   details: DetailsFields
@@ -42,12 +44,12 @@ type WizardState = {
   submissionId: string | null
   detailsErrors: FieldErrors
   clauseError: boolean
+  maxError: boolean
   canonicalLetter: CanonicalLetter | null
 }
 
 type WizardAction =
-  | { type: 'toggle_clause'; id: string }
-  | { type: 'set_letter_mode'; mode: LetterMode }
+  | { type: 'select_clause'; id: string; mode: 'single' | 'multiple'; maxSelections: number | null }
   | { type: 'set_details'; details: Partial<DetailsFields> }
   | { type: 'set_custom_concern'; index: number; text: string }
   | { type: 'add_custom_concern' }
@@ -90,24 +92,18 @@ function withCustomConcerns(state: WizardState, customConcerns: string[]): Wizar
 
 function reducer(state: WizardState, action: WizardAction): WizardState {
   switch (action.type) {
-    case 'set_letter_mode':
-      return { ...state, letterMode: action.mode, clauseError: false }
-    case 'toggle_clause': {
-      const selected = state.selectedClauseIds.includes(action.id)
-      if (selected) {
-        return {
-          ...state,
-          clauseError: false,
-          selectedClauseIds: state.selectedClauseIds.filter((id) => id !== action.id),
-        }
-      }
-      if (selectedConcernCount(state.selectedClauseIds, state.customConcerns) >= MAX_SELECTED_CLAUSES) {
-        return state
-      }
+    case 'select_clause': {
+      const next = applyPredefinedConcernClick({
+        mode: action.mode,
+        selectedIds: state.selectedClauseIds,
+        id: action.id,
+        maxSelections: action.maxSelections,
+      })
       return {
         ...state,
         clauseError: false,
-        selectedClauseIds: [...state.selectedClauseIds, action.id],
+        maxError: next.limited,
+        selectedClauseIds: next.selectedIds,
       }
     }
     case 'set_details': {
@@ -123,23 +119,11 @@ function reducer(state: WizardState, action: WizardAction): WizardState {
     }
     case 'set_custom_concern': {
       const next = [...state.customConcerns]
-      const text = action.text.slice(0, 300)
-      const wasEmpty = (next[action.index] ?? '').trim().length === 0
-      if (
-        wasEmpty &&
-        text.trim().length > 0 &&
-        selectedConcernCount(state.selectedClauseIds, state.customConcerns) >= MAX_SELECTED_CLAUSES
-      ) {
-        return state
-      }
-      next[action.index] = text
+      next[action.index] = action.text.slice(0, 300)
       return withCustomConcerns(state, next)
     }
     case 'add_custom_concern': {
-      if (selectedConcernCount(state.selectedClauseIds, state.customConcerns) >= MAX_SELECTED_CLAUSES) {
-        return state
-      }
-      if (state.customConcerns.length >= MAX_SELECTED_CLAUSES) {
+      if (state.customConcerns.length >= MAX_CUSTOM_CONCERN_BOXES) {
         return state
       }
       return { ...state, customConcerns: [...state.customConcerns, ''] }
@@ -188,9 +172,9 @@ export function Wizard({
   testerEmail: string | null
 }) {
   const { lang } = useLang()
+  const config = campaignConcernConfig(campaign)
   const [state, dispatch] = useReducer(reducer, {
     step: 1,
-    letterMode: 'selected',
     selectedClauseIds: [],
     customConcerns: [''],
     details: emptyDetails,
@@ -198,17 +182,20 @@ export function Wizard({
     submissionId: null,
     detailsErrors: {},
     clauseError: false,
+    maxError: false,
     canonicalLetter: null,
   })
 
   const extraConcerns = flattenCustomConcerns(state.customConcerns)
-    .split('\n')
-    .map((item) => item.trim())
-    .filter(Boolean)
-  const selectedClauses = clausesForLetter(clauses, state.selectedClauseIds, state.letterMode)
+  const selectedClauses = selectedClausesForLetter(clauses, state.selectedClauseIds)
 
   function goNextFromStep1() {
-    if (state.letterMode === 'selected' && selectedConcernCount(state.selectedClauseIds, state.customConcerns) < 1) {
+    const validity = validatePredefinedSelection({
+      mode: config.mode,
+      selectedIds: state.selectedClauseIds,
+      maxSelections: config.maxSelections,
+    })
+    if (validity !== 'ok') {
       dispatch({ type: 'clause_error' })
       return
     }
@@ -239,9 +226,8 @@ export function Wizard({
         pincode: details.pincode,
         language: lang,
         customText: details.customText,
-        extraConcerns,
+        extraConcerns: config.allowCustomConcern ? extraConcerns : [],
         clauseCodes: selectedClauses.map((clause) => clause.code),
-        letterMode: state.letterMode,
         constituencyId: state.routing.constituencyId,
         ccRepIds: state.routing.ccRepresentativeIds,
       })
@@ -271,7 +257,7 @@ export function Wizard({
         phone,
         email: details.email,
         customText: details.customText,
-        extraConcerns,
+        extraConcerns: config.allowCustomConcern ? extraConcerns : [],
       },
       lang,
     })
@@ -311,14 +297,21 @@ export function Wizard({
       <Progress step={state.step} />
 
       {state.step === 1 ? (
-        <Step1_ClauseSelector
+        <ConcernSelector
+          campaign={campaign}
           clauses={clauses}
           selectedIds={state.selectedClauseIds}
           customConcerns={state.customConcerns}
           customError={state.detailsErrors.customText}
-          letterMode={state.letterMode}
-          onLetterMode={(letterMode) => dispatch({ type: 'set_letter_mode', mode: letterMode })}
-          onToggle={(id) => dispatch({ type: 'toggle_clause', id })}
+          maxError={state.maxError}
+          onSelect={(id) =>
+            dispatch({
+              type: 'select_clause',
+              id,
+              mode: config.mode,
+              maxSelections: config.maxSelections,
+            })
+          }
           onCustomChange={(index, text) => dispatch({ type: 'set_custom_concern', index, text })}
           onAddCustom={() => dispatch({ type: 'add_custom_concern' })}
           onRemoveCustom={(index) => dispatch({ type: 'remove_custom_concern', index })}
@@ -347,7 +340,7 @@ export function Wizard({
           mode={mode}
           testerEmail={testerEmail}
           canonicalLetter={state.canonicalLetter}
-          extraConcerns={extraConcerns}
+          extraConcerns={config.allowCustomConcern ? extraConcerns : []}
           onEditDetails={() => dispatch({ type: 'goto', step: 2 })}
           onEditObjections={() => dispatch({ type: 'goto', step: 1 })}
         />
@@ -355,7 +348,7 @@ export function Wizard({
 
       {state.step === 1 && state.clauseError ? (
         <p className="mt-3 text-sm text-red-800" role="alert" aria-live="assertive">
-          {t(lang, 'minClausesHint')}
+          {config.mode === 'single' ? t(lang, 'minClausesHint') : t(lang, 'minClausesHintMultiple')}
         </p>
       ) : null}
 
@@ -386,7 +379,7 @@ export function Wizard({
 
       {state.step > 2 ? (
         <div className="mt-8 flex justify-center">
-          <button type="button" onClick={() => dispatch({ type: 'back' })} className={btnGhost}>
+          <button type="button" onClick={() => dispatch({ type: 'back' })} className={cx(btnGhost)}>
             {t(lang, 'back')}
           </button>
         </div>

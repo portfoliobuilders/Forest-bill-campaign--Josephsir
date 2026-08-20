@@ -1,3 +1,4 @@
+import { campaignConcernConfig, formatConcernsForEmail, selectedClausesForLetter } from '@/lib/concern-selection'
 import { defaultBodyTemplate, renderSafeTemplate, type EmailTemplateValues } from '@/lib/email-template'
 import type { Lang } from '@/lib/i18n'
 import type { WizardMode } from '@/lib/wizard-mode'
@@ -7,8 +8,6 @@ export const MAX_BODY_CHARS = 1500
 export const URL_LENGTH_WARN = 1900
 export const GMAIL_URL_WARN = 7000
 export const MAILTO_URL_WARN = 1900
-
-export type LetterMode = 'selected' | 'full'
 
 export type ComposeDetails = {
   fullName: string
@@ -112,15 +111,8 @@ export function resolveMailTargets({
   }
 }
 
-export function clausesForLetter(
-  clauses: ObjectionClause[],
-  selectedIds: string[],
-  letterMode: LetterMode,
-): ObjectionClause[] {
-  const sorted = [...clauses].sort((a, b) => a.sort_order - b.sort_order)
-  if (letterMode === 'full') return sorted
-  const selected = new Set(selectedIds)
-  return sorted.filter((clause) => selected.has(clause.id))
+export function clausesForLetter(clauses: ObjectionClause[], selectedIds: string[]): ObjectionClause[] {
+  return selectedClausesForLetter(clauses, selectedIds)
 }
 
 function senderValues(details: ComposeDetails, extra?: { constituency?: string }): Pick<
@@ -140,17 +132,6 @@ function senderValues(details: ComposeDetails, extra?: { constituency?: string }
   }
 }
 
-function numberedConcerns(clauses: ObjectionClause[], extraConcerns: string[], lang: Lang): string {
-  const sorted = [...clauses].sort((a, b) => a.sort_order - b.sort_order)
-  const lines = sorted.map((clause, index) => `${index + 1}. ${pick(lang, clause.email_ml, clause.email_en)}`)
-  for (const extra of extraConcerns) {
-    const text = extra.replace(/\s+/g, ' ').trim()
-    if (!text) continue
-    lines.push(`${lines.length + 1}. ${text}`)
-  }
-  return lines.join('\n')
-}
-
 function assembleBody(
   campaign: Campaign,
   clauses: ObjectionClause[],
@@ -159,13 +140,19 @@ function assembleBody(
 ): string {
   const intro = pick(lang, campaign.intro_ml, campaign.intro_en)
   const closing = pick(lang, campaign.closing_ml, campaign.closing_en)
-  const extras = (details.extraConcerns ?? []).map((item) => item.replace(/\s+/g, ' ').trim()).filter(Boolean)
+  const extras = details.extraConcerns ?? []
   const stored = pick(lang, campaign.body_template_ml ?? '', campaign.body_template_en ?? '').trim()
   const template = stored || defaultBodyTemplate(lang)
+  const config = campaignConcernConfig(campaign)
   const values: EmailTemplateValues = {
     intro,
     closing,
-    concerns: numberedConcerns(clauses, extras, lang),
+    concerns: formatConcernsForEmail({
+      mode: config.mode,
+      clauses,
+      extraConcerns: extras,
+      lang,
+    }),
     ...senderValues(details),
   }
   return renderSafeTemplate(template, values)

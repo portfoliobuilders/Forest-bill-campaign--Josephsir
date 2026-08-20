@@ -3,6 +3,7 @@ import 'server-only'
 import { timingSafeEqual } from 'crypto'
 import { cookies } from 'next/headers'
 
+import { campaignConcernConfig } from '@/lib/concern-selection'
 import { defaultBodyTemplate } from '@/lib/email-template'
 import { PREVIEW_COOKIE } from '@/lib/preview-cookie'
 import { createAnonServerClient } from '@/lib/supabase/anon-server'
@@ -48,6 +49,14 @@ export function publicCampaign(row: Campaign & { preview_token?: string | null }
   campaign.body_template_ml = campaign.body_template_ml || defaultBodyTemplate('ml')
   campaign.body_template_en = campaign.body_template_en || defaultBodyTemplate('en')
   campaign.reference_url = campaign.reference_url ?? null
+  const concernConfig = campaignConcernConfig(campaign)
+  campaign.concern_selection_mode = concernConfig.mode
+  campaign.max_concern_selections = concernConfig.maxSelections
+  campaign.allow_custom_concern = concernConfig.allowCustomConcern
+  campaign.custom_concern_label_en = campaign.custom_concern_label_en ?? null
+  campaign.custom_concern_label_ml = campaign.custom_concern_label_ml ?? null
+  campaign.custom_concern_placeholder_en = campaign.custom_concern_placeholder_en ?? null
+  campaign.custom_concern_placeholder_ml = campaign.custom_concern_placeholder_ml ?? null
   campaign.explainer_ml = Array.isArray(campaign.explainer_ml) ? campaign.explainer_ml : []
   campaign.explainer_en = Array.isArray(campaign.explainer_en) ? campaign.explainer_en : []
   const status = campaign.publish_status as PublishStatus | undefined
