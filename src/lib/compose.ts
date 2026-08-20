@@ -1,11 +1,7 @@
+import { concernTitle } from '@/lib/compose-concerns'
 import { uniqueEmails } from '@/lib/compose-emails'
 import { identityBlock, privacyLetter } from '@/lib/compose-identity'
-import { concernTitle } from '@/lib/compose-concerns'
-import {
-  campaignConcernConfig,
-  formatConcernsForEmail,
-  selectedClausesForLetter,
-} from '@/lib/concern-selection'
+import { campaignConcernConfig, formatConcernsForEmail, selectedClausesForLetter } from '@/lib/concern-selection'
 import { defaultBodyTemplate, renderSafeTemplate, type EmailTemplateValues } from '@/lib/email-template'
 import type { Lang } from '@/lib/i18n'
 import type { WizardMode } from '@/lib/wizard-mode'
@@ -16,9 +12,9 @@ export { concernBody, concernShort, concernTitle } from '@/lib/compose-concerns'
 
 export const MAX_BODY_CHARS = 1500
 export const URL_LENGTH_WARN = 1900
-export const GMAIL_URL_WARN = 7000
-/** Generous cap so typical Malayalam letters still open via mailto with the full body. */
-export const MAILTO_URL_WARN = 80_000
+export const GMAIL_URL_WARN = 8192
+/** Windows ShellExecute / mailto practical cap. Unicode letters percent-encode to ~9x. */
+export const MAILTO_URL_WARN = 30_000
 
 export type ComposeDetails = {
   fullName: string
@@ -228,6 +224,20 @@ function assembleBody(
   const stored = pick(lang, campaign.body_template_ml ?? '', campaign.body_template_en ?? '').trim()
   const template = stored || defaultBodyTemplate(lang)
   const config = campaignConcernConfig(campaign)
+  const identity = identityBlock(
+    {
+      fullName: details.fullName,
+      pincode: details.pincode,
+      phone: details.phone,
+      addressLine: details.addressLine,
+      postOffice: details.postOffice,
+      district: details.district,
+      state: details.state,
+      postalRegion: details.postalRegion,
+      taluk: details.taluk,
+    },
+    lang,
+  )
   const values: EmailTemplateValues = {
     intro,
     closing,
@@ -237,7 +247,7 @@ function assembleBody(
       extraConcerns: extras,
       lang,
     }),
-    ...senderValues(details, lang),
+    ...senderValues(details, identity),
   }
   return renderSafeTemplate(template, values)
 }

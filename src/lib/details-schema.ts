@@ -99,16 +99,6 @@ export function createDetailsSchema(
           .refine((value) => !value || districts.length === 0 || districts.includes(value), t(lang, 'errorDistrict'))
     : optionalText
 
-  const address = isFieldRequired(fields, 'address')
-    ? z.string().trim().min(1, t(lang, 'errorAddress'))
-    : optionalText
-
-  const panchayat = isFieldRequired(fields, 'local_body')
-    ? z.string().trim().min(1, t(lang, 'panchayat'))
-    : optionalText
-
-  const village = isFieldRequired(fields, 'village') ? z.string().trim().min(1, t(lang, 'village')) : optionalText
-
   const address = isFieldRequired(fields, 'address') && !privacy ? requiredText(t(lang, 'errorAddress')) : optionalText()
   const panchayat = isFieldRequired(fields, 'local_body') && !privacy ? requiredText(t(lang, 'panchayat')) : optionalText()
   const village = isFieldRequired(fields, 'village') && !privacy ? requiredText(t(lang, 'village')) : optionalText()
