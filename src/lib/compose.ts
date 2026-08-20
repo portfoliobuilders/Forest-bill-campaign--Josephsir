@@ -1,6 +1,11 @@
 import { uniqueEmails } from '@/lib/compose-emails'
-import { concernTitle } from '@/lib/compose-concerns'
 import { identityBlock, privacyLetter } from '@/lib/compose-identity'
+import { concernTitle } from '@/lib/compose-concerns'
+import {
+  campaignConcernConfig,
+  formatConcernsForEmail,
+  selectedClausesForLetter,
+} from '@/lib/concern-selection'
 import { defaultBodyTemplate, renderSafeTemplate, type EmailTemplateValues } from '@/lib/email-template'
 import type { Lang } from '@/lib/i18n'
 import type { WizardMode } from '@/lib/wizard-mode'
@@ -12,7 +17,8 @@ export { concernBody, concernShort, concernTitle } from '@/lib/compose-concerns'
 export const MAX_BODY_CHARS = 1500
 export const URL_LENGTH_WARN = 1900
 export const GMAIL_URL_WARN = 7000
-export const MAILTO_URL_WARN = 1900
+/** Generous cap so typical Malayalam letters still open via mailto with the full body. */
+export const MAILTO_URL_WARN = 80_000
 
 export type ComposeDetails = {
   fullName: string
@@ -142,7 +148,7 @@ export function clausesForLetter(clauses: ObjectionClause[], selectedIds: string
 
 function senderValues(
   details: ComposeDetails,
-  identity: string,
+  lang: Lang,
 ): Pick<
   EmailTemplateValues,
   | 'full_name'
@@ -174,7 +180,20 @@ function senderValues(
     post_office: details.postOffice ?? '',
     state: details.state ?? '',
     postal_region: details.postalRegion ?? '',
-    identity_block: identity,
+    identity_block: identityBlock(
+      {
+        fullName: details.fullName,
+        pincode: details.pincode,
+        phone: details.phone,
+        addressLine: details.addressLine,
+        postOffice: details.postOffice,
+        district: details.district,
+        state: details.state,
+        postalRegion: details.postalRegion,
+        taluk: details.taluk,
+      },
+      lang,
+    ),
   }
 }
 
@@ -218,7 +237,7 @@ function assembleBody(
       extraConcerns: extras,
       lang,
     }),
-    ...senderValues(details, identityBlock(details, lang)),
+    ...senderValues(details, lang),
   }
   return renderSafeTemplate(template, values)
 }
