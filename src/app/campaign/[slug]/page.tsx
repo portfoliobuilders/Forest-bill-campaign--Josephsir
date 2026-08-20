@@ -50,7 +50,7 @@ export default async function CampaignPage({ params, searchParams }: Props) {
       districts={data.districts}
       mode={data.mode}
       view={view}
-      aiConfigured={aiServerConfigured()}
+      sources={data.sources}
     />
   )
 }

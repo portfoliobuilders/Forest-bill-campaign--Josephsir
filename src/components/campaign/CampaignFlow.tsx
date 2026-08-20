@@ -3,10 +3,9 @@
 import { useEffect, useMemo, useRef, useState, type HTMLAttributes } from 'react'
 import { useRouter } from 'next/navigation'
 
-import { markHandoff, prepareDemoLetter } from '@/app/actions/submission'
-import { ReadAloudControls } from '@/components/campaign/ReadAloudControls'
-import { StatusRegion } from '@/components/campaign/StatusRegion'
-import { VoiceInputButton } from '@/components/campaign/VoiceInputButton'
+import { prepareDemoLetter, markHandoff } from '@/app/actions/submission'
+import { CampaignProgress } from '@/components/campaign/CampaignProgress'
+import { CampaignSources } from '@/components/campaign/CampaignSources'
 import { LanguageToggle } from '@/components/LanguageToggle'
 import { useLang } from '@/components/LanguageProvider'
 import { IconCheck, IconCopy, IconEnvelope, IconSparkle } from '@/components/ui/icons'
@@ -54,7 +53,76 @@ import {
 import { btnGhost, btnPrimary, btnSecondary, focusRing, inputClass, labelClass } from '@/lib/ui'
 import type { WizardMode } from '@/lib/wizard-mode'
 import { isDryRun } from '@/lib/wizard-mode'
-import type { Campaign, CampaignFormField, ObjectionClause } from '@/types/database'
+import type { Campaign, CampaignFormField, CampaignSource, ObjectionClause } from '@/types/database'
+import type { DistrictOption } from '@/lib/demo-data'
+
+type Step = 1 | 2 | 3 | 4 | 5
+type CanonicalLetter = { subject: string; body: string }
+
+type FlowState = {
+  step: Step
+  selectedIds: string[]
+  details: DetailsFields
+  detailsErrors: FieldErrors
+  concernError: boolean
+  expandedId: string | null
+  letter: CanonicalLetter | null
+  submissionId: string | null
+}
+
+type Action =
+  | { type: 'select'; id: string; multiple: boolean }
+  | { type: 'toggle_expand'; id: string }
+  | { type: 'set_details'; details: Partial<DetailsFields> }
+  | { type: 'details_invalid'; errors: FieldErrors }
+  | { type: 'goto'; step: Step }
+  | { type: 'concern_error' }
+  | {
+      type: 'ready_review'
+      details: DetailsFields
+      letter: CanonicalLetter
+      submissionId: string | null
+    }
+
+function reducer(state: FlowState, action: Action): FlowState {
+  switch (action.type) {
+    case 'select': {
+      if (action.multiple) {
+        const on = state.selectedIds.includes(action.id)
+        return {
+          ...state,
+          concernError: false,
+          selectedIds: on ? state.selectedIds.filter((id) => id !== action.id) : [...state.selectedIds, action.id],
+        }
+      }
+      return { ...state, concernError: false, selectedIds: [action.id] }
+    }
+    case 'toggle_expand':
+      return { ...state, expandedId: state.expandedId === action.id ? null : action.id }
+    case 'set_details': {
+      const detailsErrors = { ...state.detailsErrors }
+      for (const key of Object.keys(action.details) as Array<keyof DetailsFields>) delete detailsErrors[key]
+      return { ...state, details: { ...state.details, ...action.details }, detailsErrors }
+    }
+    case 'details_invalid':
+      return { ...state, detailsErrors: action.errors }
+    case 'goto':
+      return { ...state, step: action.step }
+    case 'concern_error':
+      return { ...state, concernError: true }
+    case 'ready_review':
+      return {
+        ...state,
+        details: action.details,
+        detailsErrors: {},
+        letter: action.letter,
+        submissionId: action.submissionId,
+        step: 4,
+      }
+    default:
+      return state
+  }
+}
 
 function pick(lang: Lang, ml: string, en: string) {
   return lang === 'en' ? en : ml
@@ -76,7 +144,7 @@ export function CampaignFlow({
   districts,
   mode,
   view,
-  aiConfigured = false,
+  sources = [],
 }: {
   campaign: Campaign
   clauses: ObjectionClause[]
@@ -84,7 +152,7 @@ export function CampaignFlow({
   districts: { value: string; labelEn: string; labelMl: string }[]
   mode: WizardMode
   view: 'live' | 'preview' | 'inactive' | 'expired'
-  aiConfigured?: boolean
+  sources?: CampaignSource[]
 }) {
   const { lang } = useLang()
   const router = useRouter()
@@ -435,11 +503,15 @@ export function CampaignFlow({
         <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted">{t(lang, 'trustLine')}</p>
       </section>
 
-      {view === 'inactive' ? (
-        <p className="mt-8 rounded-[8px] border border-rule bg-raised px-4 py-4 text-base text-ink">{t(lang, 'campaignInactivePublic')}</p>
-      ) : null}
-      {view === 'expired' ? (
-        <p className="mt-8 rounded-[8px] border border-rule bg-raised px-4 py-4 text-base text-ink">{t(lang, 'campaignExpiredThanks')}</p>
+          {actionable ? (
+            <button type="button" className={cx(btnPrimary, 'mt-8 w-full sm:w-auto')} onClick={goConcern}>
+              {t(lang, 'selectYourConcern')}
+              <IconChevronRight className="size-4 shrink-0" />
+            </button>
+          ) : null}
+          <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted">{t(lang, 'trustLine')}</p>
+          <CampaignSources sources={sources} />
+        </section>
       ) : null}
 
       {actionable ? (

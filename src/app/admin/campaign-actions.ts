@@ -9,8 +9,16 @@ import { requireAdminSession } from '@/lib/admin/auth'
 import { ADMIN_CAMPAIGN_COOKIE } from '@/lib/admin/context'
 import { flagsForCampaignStatus, isCampaignStatus, requiresPublishConfirmation, slugFromTitle, type CampaignStatus } from '@/lib/campaign-status'
 import { revalidateAfterCmsSave, revalidateAdmin } from '@/lib/admin/revalidate'
-import { improveCampaignConcern } from '@/lib/ai/improve'
-import { DEFAULT_FEATURE_SETTINGS, parseFeatureSettings } from '@/lib/campaign-features'
+import {
+  ALLOWED_SOURCE_MIME,
+  CAMPAIGN_SOURCES_BUCKET,
+  MAX_SOURCE_FILE_BYTES,
+  isAllowedSourceMime,
+  mimeFromFileName,
+  parseOptionalHttpUrl,
+  parsePublicationDate,
+  sanitizeSourceFileName,
+} from '@/lib/campaign-sources'
 import { DEFAULT_BODY_TEMPLATE_EN, DEFAULT_BODY_TEMPLATE_ML } from '@/lib/email-template'
 import { DEFAULT_FORM_FIELDS } from '@/lib/form-fields'
 import { invalidEmails, parseEmailList, rowsFromLists } from '@/lib/recipients'
@@ -474,10 +482,11 @@ export async function duplicateCampaignFull(campaignId: string): Promise<ActionR
     .maybeSingle()
   if (error || !created) return { ok: false, error: 'Could not duplicate campaign.' }
 
-  const [{ data: clauses }, { data: recipients }, { data: fields }] = await Promise.all([
+  const [{ data: clauses }, { data: recipients }, { data: fields }, { data: sources }] = await Promise.all([
     supabase.from('objection_clauses').select('*').eq('campaign_id', campaignId),
     supabase.from('campaign_recipients').select('*').eq('campaign_id', campaignId),
     supabase.from('campaign_form_fields').select('*').eq('campaign_id', campaignId),
+    supabase.from('campaign_sources').select('*').eq('campaign_id', campaignId),
   ])
 
   if (clauses && clauses.length > 0) {
@@ -533,6 +542,27 @@ export async function duplicateCampaignFull(campaignId: string): Promise<ActionR
     )
   } else {
     await supabase.from('campaign_form_fields').insert(DEFAULT_FORM_FIELDS.map((field) => ({ campaign_id: created.id, ...field })))
+  }
+  if (sources && sources.length > 0) {
+    await supabase.from('campaign_sources').insert(
+      sources.map((row) => ({
+        campaign_id: created.id,
+        publication_name: row.publication_name,
+        publication_date: row.publication_date,
+        title_ml: row.title_ml,
+        title_en: row.title_en,
+        description_ml: row.description_ml,
+        description_en: row.description_en,
+        source_url: row.source_url,
+        file_url: row.file_url,
+        file_path: row.file_path,
+        file_mime: row.file_mime,
+        file_name: row.file_name,
+        is_public: row.is_public,
+        sort_order: row.sort_order,
+        created_by: session.email,
+      })),
+    )
   }
 
   await writeAdminAudit({
@@ -726,25 +756,176 @@ export async function uploadBrandingFile(formData: FormData): Promise<ActionResu
   return { ok: true, url: data.publicUrl }
 }
 
-export async function generateAiConcernDraft(
+async function removeSourceFile(
+  supabase: ReturnType<typeof createServiceClient>,
+  path: string | null | undefined,
+): Promise<void> {
+  if (!path) return
+  await supabase.storage.from(CAMPAIGN_SOURCES_BUCKET).remove([path])
+}
+
+async function storeSourceFile(
+  supabase: ReturnType<typeof createServiceClient>,
   campaignId: string,
-  concernId: string,
-  language: 'ml' | 'en',
-): Promise<ActionResult & { body?: string }> {
-  await requireAdminSession()
-  const result = await improveCampaignConcern({
-    campaignId,
-    concernId,
-    language,
-    forceLive: true,
+  sourceId: string,
+  file: File,
+): Promise<{ ok: true; path: string; url: string; mime: string; name: string } | ActionErr> {
+  if (file.size > MAX_SOURCE_FILE_BYTES) return { ok: false, error: 'File must be 10 MB or smaller.' }
+  const fromName = mimeFromFileName(file.name)
+  const mime = isAllowedSourceMime(file.type) ? file.type : fromName
+  if (!mime || !ALLOWED_SOURCE_MIME.includes(mime)) {
+    return { ok: false, error: 'Use a PNG, JPG, WebP, or PDF clipping.' }
+  }
+  const safeName = sanitizeSourceFileName(file.name)
+  const path = `${campaignId}/${sourceId}/${Date.now()}-${safeName}`
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  const { error } = await supabase.storage.from(CAMPAIGN_SOURCES_BUCKET).upload(path, bytes, {
+    contentType: mime,
+    upsert: true,
   })
-  if (!result.ok) return { ok: false, error: 'AI draft is unavailable. The original concern is unchanged.' }
+  if (error) {
+    return { ok: false, error: 'Could not upload the file. Check that the campaign-sources storage bucket exists.' }
+  }
+  const { data } = supabase.storage.from(CAMPAIGN_SOURCES_BUCKET).getPublicUrl(path)
+  return { ok: true, path, url: data.publicUrl, mime, name: safeName }
+}
+
+export async function saveCampaignSource(formData: FormData): Promise<ActionResult> {
+  const session = await requireAdminSession()
+  const campaignId = String(formData.get('campaign_id') || '').trim()
+  const id = String(formData.get('id') || '').trim()
+  if (!campaignId) return { ok: false, error: 'Campaign is required.' }
+
+  const publicationName = String(formData.get('publication_name') || '').trim()
+  if (!publicationName) return { ok: false, error: 'Publication name is required.' }
+
+  const titleEn = String(formData.get('title_en') || '').trim()
+  const titleMl = String(formData.get('title_ml') || '').trim()
+  if (!titleEn && !titleMl) return { ok: false, error: 'Add a title in English or Malayalam.' }
+
+  const parsedDate = parsePublicationDate(String(formData.get('publication_date') || ''))
+  if (!parsedDate.ok) return parsedDate
+  const parsedUrl = parseOptionalHttpUrl(String(formData.get('source_url') || ''))
+  if (!parsedUrl.ok) return parsedUrl
+
+  const isPublic = String(formData.get('is_public') || '') !== 'false'
+  const removeFile = String(formData.get('remove_file') || '') === 'true'
+  const sortOrderRaw = Number(formData.get('sort_order') || '0')
+  const sortOrder = Number.isFinite(sortOrderRaw) ? sortOrderRaw : 0
+  const file = formData.get('file')
+  const upload = file instanceof File && file.size > 0 ? file : null
+
+  const row = {
+    campaign_id: campaignId,
+    publication_name: publicationName,
+    publication_date: parsedDate.date,
+    title_en: titleEn,
+    title_ml: titleMl,
+    description_en: String(formData.get('description_en') || '').trim(),
+    description_ml: String(formData.get('description_ml') || '').trim(),
+    source_url: parsedUrl.url,
+    is_public: isPublic,
+    sort_order: sortOrder,
+    updated_at: new Date().toISOString(),
+    created_by: session.email,
+  }
+
   const supabase = createServiceClient()
-  const patch =
-    language === 'en'
-      ? { ai_body_en: result.body, ai_body_en_status: 'draft' }
-      : { ai_body_ml: result.body, ai_body_ml_status: 'draft' }
-  await supabase.from('objection_clauses').update(patch).eq('id', concernId)
+  let sourceId = id
+  let previousPath: string | null = null
+
+  if (sourceId) {
+    const { data: existing } = await supabase
+      .from('campaign_sources')
+      .select('id, file_path')
+      .eq('id', sourceId)
+      .eq('campaign_id', campaignId)
+      .maybeSingle()
+    if (!existing) return { ok: false, error: 'Source not found.' }
+    previousPath = (existing.file_path as string | null) ?? null
+    const { error } = await supabase.from('campaign_sources').update(row).eq('id', sourceId)
+    if (error) return { ok: false, error: 'Could not save this source. Apply the campaign_sources migration if the table is missing.' }
+  } else {
+    const { data, error } = await supabase.from('campaign_sources').insert(row).select('id').maybeSingle()
+    if (error || !data) {
+      return { ok: false, error: 'Could not save this source. Apply the campaign_sources migration if the table is missing.' }
+    }
+    sourceId = data.id as string
+  }
+
+  if (upload) {
+    const stored = await storeSourceFile(supabase, campaignId, sourceId, upload)
+    if (!stored.ok) return stored
+    const { error } = await supabase
+      .from('campaign_sources')
+      .update({
+        file_url: stored.url,
+        file_path: stored.path,
+        file_mime: stored.mime,
+        file_name: stored.name,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', sourceId)
+    if (error) return { ok: false, error: 'Saved the details but could not record the uploaded file.' }
+    if (previousPath && previousPath !== stored.path) await removeSourceFile(supabase, previousPath)
+  } else if (removeFile && previousPath) {
+    await removeSourceFile(supabase, previousPath)
+    const { error } = await supabase
+      .from('campaign_sources')
+      .update({
+        file_url: null,
+        file_path: null,
+        file_mime: null,
+        file_name: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', sourceId)
+    if (error) return { ok: false, error: 'Could not remove the stored clipping.' }
+  }
+
+  await writeAdminAudit({
+    adminEmail: session.email,
+    action: id ? 'campaign_source_updated' : 'campaign_source_created',
+    entityType: 'campaign_source',
+    entityId: sourceId,
+    after: { campaign_id: campaignId, publication_name: publicationName, is_public: isPublic },
+  })
   revalidateAfterCmsSave()
-  return { ok: true, id: concernId, body: result.body }
+  return { ok: true, id: sourceId }
+}
+
+export async function deleteCampaignSource(id: string): Promise<ActionResult> {
+  const session = await requireAdminSession()
+  if (!id.trim()) return { ok: false, error: 'Source is required.' }
+  const supabase = createServiceClient()
+  const { data: existing } = await supabase.from('campaign_sources').select('id, file_path, campaign_id').eq('id', id).maybeSingle()
+  if (!existing) return { ok: false, error: 'Source not found.' }
+  const { error } = await supabase.from('campaign_sources').delete().eq('id', id)
+  if (error) return { ok: false, error: 'Could not delete this source.' }
+  await removeSourceFile(supabase, existing.file_path as string | null)
+  await writeAdminAudit({
+    adminEmail: session.email,
+    action: 'campaign_source_deleted',
+    entityType: 'campaign_source',
+    entityId: id,
+    before: { campaign_id: existing.campaign_id },
+  })
+  revalidateAfterCmsSave()
+  return { ok: true, id }
+}
+
+export async function reorderCampaignSources(campaignId: string, ids: string[]): Promise<ActionResult> {
+  await requireAdminSession()
+  if (!campaignId || ids.length === 0) return { ok: false, error: 'Nothing to reorder.' }
+  const supabase = createServiceClient()
+  for (let index = 0; index < ids.length; index += 1) {
+    const { error } = await supabase
+      .from('campaign_sources')
+      .update({ sort_order: index + 1, updated_at: new Date().toISOString() })
+      .eq('id', ids[index])
+      .eq('campaign_id', campaignId)
+    if (error) return { ok: false, error: 'Could not reorder sources.' }
+  }
+  revalidateAfterCmsSave()
+  return { ok: true }
 }

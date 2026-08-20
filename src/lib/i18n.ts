@@ -263,6 +263,12 @@ export const dictionary = {
     sendAnyway: 'ഇമെയിൽ അയയ്ക്കുക',
     previewEmail: 'തയ്യാറാക്കിയ ഇമെയിൽ',
     portfolixCredit: 'Portfolix.tech വികസിപ്പിച്ച വെബ്‌സൈറ്റ്',
+    sourcesHeading: 'വാർത്തകളും അവലംബങ്ങളും / Sources & References',
+    sourcesView: 'View',
+    sourcesSupportNote:
+      'ഇവ പിന്തുണയ്ക്കുന്ന വാർത്തകളും അവലംബങ്ങളുമാണ്. ഇമെയിൽ കത്തിൽ ഇവ യാന്ത്രികമായി ചേരില്ല.',
+    sourcesOpenFile: 'ക്ലിപ്പിംഗ് കാണുക',
+    sourcesOpenLink: 'ലേഖനം തുറക്കുക',
   },
   en: {
     siteName: 'Janashabdam',
@@ -526,6 +532,11 @@ export const dictionary = {
     sendAnyway: 'Send Email',
     previewEmail: 'Prepared email',
     portfolixCredit: 'Website developed by Portfolix.tech',
+    sourcesHeading: 'Sources & References',
+    sourcesView: 'View',
+    sourcesSupportNote: 'These are supporting news items and references. They are not copied into the email.',
+    sourcesOpenFile: 'View clipping',
+    sourcesOpenLink: 'Open article',
   },
 } as const
 
