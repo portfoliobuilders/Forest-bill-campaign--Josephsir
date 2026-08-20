@@ -60,25 +60,43 @@ async function loadPublicSiteSettings() {
   }
 }
 
-export const metadata: Metadata = {
-  title: 'ജനശബ്ദം',
-  description: 'നിങ്ങളുടെ സ്വന്തം ഇമെയിൽ വിലാസത്തിൽ നിന്ന് കൂടിയാലോചനയോടുള്ള വ്യക്തിഗത എതിർപ്പ് അയയ്ക്കുക.',
-  openGraph: {
-    title: 'ജനശബ്ദം — നിങ്ങളുടെ വിലാസത്തിൽ നിന്നുള്ള എതിർപ്പ്',
-    description:
-      'കേരളത്തിലെ കൂടിയാലോചനകളോട് നിങ്ങളുടെ സ്വന്തം ഇമെയിൽ വിലാസത്തിൽ നിന്ന് വ്യക്തിഗത എതിർപ്പ് തയ്യാറാക്കി അയയ്ക്കുക.',
-    url: siteUrl,
-    siteName: 'ജനശബ്ദം',
-    locale: 'ml_IN',
-    type: 'website',
-    images: [{ url: `${siteUrl}/og-image.svg`, width: 1200, height: 630, alt: 'ജനശബ്ദം' }],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'ജനശബ്ദം — നിങ്ങളുടെ വിലാസത്തിൽ നിന്നുള്ള എതിർപ്പ്',
-    description: 'കൂടിയാലോചനയോടുള്ള വ്യക്തിഗത എതിർപ്പ് — നിങ്ങളുടെ ഇമെയിൽ, നിങ്ങളുടെ ശബ്ദം.',
-    images: [`${siteUrl}/og-image.svg`],
-  },
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await loadPublicSiteSettings()
+  let campaignTitle = settings?.site_title_ml || 'ജനശബ്ദം'
+  let campaignDescription =
+    'നിങ്ങളുടെ സ്വന്തം ഇമെയിൽ വിലാസത്തിൽ നിന്ന് കൂടിയാലോചനയോടുള്ള വ്യക്തിഗത എതിർപ്പ് അയയ്ക്കുക.'
+  let ogImage = settings?.og_image_url || `${siteUrl}/og-image.svg`
+  try {
+    const state = await resolveCampaignState()
+    if (state.state !== 'dormant') {
+      campaignTitle = state.campaign.og_title_ml || state.campaign.title_ml
+      campaignDescription = state.campaign.og_description_ml || state.campaign.summary_ml
+      ogImage = state.campaign.social_image_url || ogImage
+    }
+  } catch {
+    // Branding-only metadata is enough if the campaign query fails.
+  }
+  const brand = settings?.site_title_ml || 'ജനശബ്ദം'
+  return {
+    title: campaignTitle,
+    description: campaignDescription,
+    icons: settings?.favicon_url ? [{ url: settings.favicon_url }] : undefined,
+    openGraph: {
+      title: campaignTitle,
+      description: campaignDescription,
+      url: siteUrl,
+      siteName: brand,
+      locale: 'ml_IN',
+      type: 'website',
+      images: [{ url: ogImage, width: 1200, height: 630, alt: campaignTitle }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: campaignTitle,
+      description: campaignDescription,
+      images: [ogImage],
+    },
+  }
 }
 
 export default async function RootLayout({
@@ -100,8 +118,15 @@ export default async function RootLayout({
       <body className="flex min-h-dvh flex-col bg-surface text-base text-ink antialiased">
         <LanguageProvider initialLang={lang}>
           <AuthErrorCatcher />
+          {admin ? null : <DemoBannerGate active={campaignState.state === 'preview'} />}
           {admin ? null : (
-            <Header titleMl={settings?.site_title_ml} titleEn={settings?.site_title_en} />
+            <Header
+              titleMl={settings?.site_title_ml}
+              titleEn={settings?.site_title_en}
+              taglineMl={settings?.tagline_ml}
+              taglineEn={settings?.tagline_en}
+              logoUrl={settings?.logo_url}
+            />
           )}
           <div className="flex-1">{children}</div>
           {admin ? null : (

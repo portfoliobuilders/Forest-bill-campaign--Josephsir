@@ -10,9 +10,23 @@ export type SubmissionStatus =
 
 export type RepLevel = 'mla' | 'mp_lok_sabha' | 'mp_rajya_sabha' | 'minister' | 'local_body'
 
+/** Legacy publish_status values kept in sync with `status`. */
 export type PublishStatus = 'draft' | 'preview' | 'live' | 'closed' | 'archived'
 
-export type ConcernSelectionMode = 'single' | 'multiple'
+export type CampaignStatus = 'draft' | 'active' | 'inactive' | 'expired' | 'archived'
+
+export type RecipientType = 'to' | 'cc' | 'bcc'
+
+export type FormFieldKey =
+  | 'name'
+  | 'email'
+  | 'phone'
+  | 'district'
+  | 'village'
+  | 'local_body'
+  | 'address'
+  | 'custom_message'
+  | 'pincode'
 
 export type Campaign = {
   id: string
@@ -26,6 +40,8 @@ export type Campaign = {
   recipient_email: string
   recipient_emails: string[]
   cc_emails: string[]
+  bcc_emails: string[]
+  reply_to_email: string | null
   subject_ml: string
   subject_en: string
   intro_ml: string
@@ -37,9 +53,16 @@ export type Campaign = {
   source_url: string
   reference_url: string | null
   opens_at: string
-  deadline_at: string
+  deadline_at: string | null
   is_active: boolean
+  status: CampaignStatus
   publish_status: PublishStatus
+  allow_multiple_concerns: boolean
+  og_title_en: string
+  og_title_ml: string
+  og_description_en: string
+  og_description_ml: string
+  social_image_url: string | null
   explainer_ml: string[]
   explainer_en: string[]
   concern_selection_mode: ConcernSelectionMode
@@ -52,6 +75,7 @@ export type Campaign = {
   created_at: string
   updated_at?: string
   updated_by?: string | null
+  created_by?: string | null
 }
 
 export type ObjectionClause = {
@@ -67,9 +91,49 @@ export type ObjectionClause = {
   email_en: string
   full_text_ml: string
   full_text_en: string
+  email_subject_ml?: string
+  email_subject_en?: string
+  email_body_ml?: string
+  email_body_en?: string
   full_url: string | null
   sort_order: number
   is_active: boolean
+}
+
+export type CampaignRecipient = {
+  id: string
+  campaign_id: string
+  recipient_type: RecipientType
+  email: string
+  display_order: number
+  is_active: boolean
+}
+
+export type CampaignFormField = {
+  id: string
+  campaign_id: string
+  field_key: FormFieldKey
+  label_en: string
+  label_ml: string
+  is_enabled: boolean
+  is_required: boolean
+  display_order: number
+}
+
+export type SiteBranding = {
+  brand_name_en: string
+  brand_name_ml: string
+  tagline_en: string
+  tagline_ml: string
+  logo_url: string | null
+  favicon_url: string | null
+  og_image_url: string | null
+  default_language: string
+  public_disclaimer_ml: string
+  public_disclaimer_en: string
+  public_footer_ml: string
+  public_footer_en: string
+  support_email: string | null
 }
 
 export type Submission = {
@@ -81,6 +145,7 @@ export type Submission = {
   phone_e164: string | null
   address_line: string
   panchayat: string | null
+  village: string | null
   district: string
   pincode: string | null
   language: string
@@ -89,6 +154,7 @@ export type Submission = {
   generated_body: string
   generated_to: string[]
   generated_cc: string[]
+  generated_bcc: string[]
   send_method: SendMethod | null
   status: SubmissionStatus
   show_name_public: boolean

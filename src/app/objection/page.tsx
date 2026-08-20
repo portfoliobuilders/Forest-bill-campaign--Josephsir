@@ -1,6 +1,6 @@
-import { Wizard } from '@/components/wizard/Wizard'
-import { resolveCampaignState } from '@/lib/campaign'
-import { loadObjectionData } from '@/lib/campaigns'
+import { redirect } from 'next/navigation'
+
+import { resolvePublicCampaign } from '@/lib/campaign'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,18 +8,10 @@ type Props = {
   searchParams: Promise<{ preview?: string }>
 }
 
-export default async function ObjectionPage({ searchParams }: Props) {
+export default async function ObjectionRedirect({ searchParams }: Props) {
   const params = await searchParams
-  const state = await resolveCampaignState(params.preview)
-  const data = await loadObjectionData(state)
-
-  return (
-    <Wizard
-      campaign={data.campaign}
-      clauses={data.clauses}
-      districts={data.districts}
-      mode={data.mode}
-      testerEmail={null}
-    />
-  )
+  const state = await resolvePublicCampaign(params.preview)
+  if (state.state === 'dormant') redirect('/')
+  const preview = params.preview ? `?preview=${encodeURIComponent(params.preview)}` : ''
+  redirect(`/campaign/${state.campaign.slug}${preview}`)
 }

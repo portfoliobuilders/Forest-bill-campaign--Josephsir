@@ -8,6 +8,7 @@ export const EMAIL_PLACEHOLDERS = [
   'phone',
   'address',
   'panchayat',
+  'village',
   'district',
   'pincode',
   'constituency',
@@ -17,9 +18,7 @@ export type EmailPlaceholder = (typeof EMAIL_PLACEHOLDERS)[number]
 
 export type EmailTemplateValues = Record<EmailPlaceholder, string>
 
-export const DEFAULT_BODY_TEMPLATE_ML = `Sir,
-
-{{intro}}
+export const DEFAULT_BODY_TEMPLATE_ML = `{{intro}}
 
 {{concerns}}
 
@@ -28,18 +27,9 @@ export const DEFAULT_BODY_TEMPLATE_ML = `Sir,
 {{closing}}
 
 ആദരപൂർവ്വം,
+{{full_name}}`
 
-പേര്: {{full_name}}
-വിലാസം: {{address}}
-പഞ്ചായത്ത് / മുനിസിപ്പാലിറ്റി: {{panchayat}}
-ജില്ല: {{district}}
-പിൻകോഡ്: {{pincode}}
-ഫോൺ: {{phone}}
-ഇമെയിൽ: {{email}}`
-
-export const DEFAULT_BODY_TEMPLATE_EN = `Sir,
-
-{{intro}}
+export const DEFAULT_BODY_TEMPLATE_EN = `{{intro}}
 
 {{concerns}}
 
@@ -48,14 +38,7 @@ export const DEFAULT_BODY_TEMPLATE_EN = `Sir,
 {{closing}}
 
 Regards,
-
-Name: {{full_name}}
-Address: {{address}}
-Panchayat / Municipality: {{panchayat}}
-District: {{district}}
-PIN: {{pincode}}
-Phone: {{phone}}
-Email: {{email}}`
+{{full_name}}`
 
 const PLACEHOLDER_RE = /\{\{\s*([a-z_]+)\s*\}\}/gi
 const ALLOWED = new Set<string>(EMAIL_PLACEHOLDERS)
@@ -75,6 +58,7 @@ export function emptyTemplateValues(): EmailTemplateValues {
     phone: '',
     address: '',
     panchayat: '',
+    village: '',
     district: '',
     pincode: '',
     constituency: '',

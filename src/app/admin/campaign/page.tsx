@@ -1,19 +1,15 @@
-import { CampaignEditor } from '@/components/admin/CampaignEditor'
-import { EmptyState } from '@/components/admin/AdminPrimitives'
-import { requireAdminCampaign } from '@/lib/admin/context'
-import { assertAdminEnv } from '@/lib/env'
+import { redirect } from 'next/navigation'
 
-export const dynamic = 'force-dynamic'
+import { fetchCampaignBoard } from '@/app/admin/campaign-actions'
 
-export async function generateMetadata() {
-  return { title: 'Campaign — Admin', robots: { index: false, follow: false } }
-}
+export default async function AdminCampaignRedirectPage() {
+  const board = await fetchCampaignBoard()
+  const preferred =
+    board.find((c) => c.status === 'active') ?? board.find((c) => c.status === 'draft') ?? board[0]
 
-export default async function AdminCampaignPage() {
-  assertAdminEnv()
-  const { campaign } = await requireAdminCampaign()
-  if (!campaign) {
-    return <EmptyState title="No campaign selected." body="Create a campaign first." />
+  if (preferred) {
+    redirect(`/admin/campaigns/${preferred.id}`)
   }
-  return <CampaignEditor campaign={campaign} />
+
+  redirect('/admin/campaigns')
 }

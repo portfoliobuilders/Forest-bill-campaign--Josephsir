@@ -76,6 +76,7 @@ assert.doesNotMatch(single.body, /^2\. /m)
 const targets = liveMailTargets(demoCampaign)
 assert.deepEqual(targets.to, ['esz-mef@nic.in', 'prlsecy.forest@kerala.gov.in'])
 assert.deepEqual(targets.cc, ['emailkifa@gmail.com'])
+assert.deepEqual(targets.bcc, [])
 assert.deepEqual(uniqueEmails([...targets.to, ...targets.cc]), [
   'esz-mef@nic.in',
   'prlsecy.forest@kerala.gov.in',
@@ -89,9 +90,11 @@ const dry = resolveMailTargets({
 })
 assert.deepEqual(dry.to, ['test@example.com'])
 assert.deepEqual(dry.cc, [])
+assert.deepEqual(dry.bcc, [])
 assert.equal(dry.dryRun, true)
 assert.deepEqual(dry.liveTo, targets.to)
 assert.deepEqual(dry.liveCc, targets.cc)
+assert.deepEqual(dry.liveBcc, targets.bcc)
 
 const live = resolveMailTargets({
   campaign: demoCampaign,
@@ -100,6 +103,7 @@ const live = resolveMailTargets({
 })
 assert.deepEqual(live.to, ['esz-mef@nic.in', 'prlsecy.forest@kerala.gov.in'])
 assert.deepEqual(live.cc, ['emailkifa@gmail.com'])
+assert.deepEqual(live.bcc, demoCampaign.bcc_emails)
 assert.equal(live.dryRun, false)
 assert.doesNotMatch(live.to.join(','), /test@example\.com/)
 
@@ -166,6 +170,29 @@ const headersOnly = gmailComposeUrl(
   { includeBody: false },
 )
 assert.doesNotMatch(headersOnly, /[?&]body=/)
+
+const withBcc = {
+  ...demoCampaign,
+  bcc_emails: ['archive@example.test'],
+}
+const bccTargets = liveMailTargets(withBcc)
+assert.deepEqual(bccTargets.bcc, ['archive@example.test'])
+const gmailBcc = gmailComposeUrl({
+  to: bccTargets.to,
+  cc: bccTargets.cc,
+  bcc: bccTargets.bcc,
+  subject: full.subject,
+  body: selected.body,
+})
+assert.match(gmailBcc, /bcc=archive%40example\.test/)
+const copiedBcc = formatCompleteEmailCopy({
+  to: bccTargets.to,
+  cc: bccTargets.cc,
+  bcc: bccTargets.bcc,
+  subject: full.subject,
+  body: full.body,
+})
+assert.match(copiedBcc, /BCC:\narchive@example\.test/)
 
 console.log('compose checks passed')
 console.log(`full body chars: ${full.charCount}`)

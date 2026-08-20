@@ -72,6 +72,7 @@ const emptyDetails: DetailsFields = {
   fullName: '',
   addressLine: '',
   panchayat: '',
+  village: '',
   district: '',
   pincode: '',
   phone: '',
@@ -206,6 +207,7 @@ export function Wizard({
     const parsed = createDetailsSchema(
       lang,
       districts.map((d) => d.value),
+      [],
     ).safeParse(state.details)
     if (!parsed.success) {
       dispatch({ type: 'details_invalid', errors: fieldErrorsFromZod(parsed.error) })
@@ -222,6 +224,7 @@ export function Wizard({
         phone,
         address: details.addressLine,
         panchayat: details.panchayat,
+        village: details.village,
         district: details.district,
         pincode: details.pincode,
         language: lang,
@@ -252,6 +255,7 @@ export function Wizard({
         fullName: details.fullName,
         addressLine: details.addressLine,
         panchayat: details.panchayat,
+        village: details.village,
         district: details.district,
         pincode: details.pincode,
         phone,

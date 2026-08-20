@@ -1,19 +1,15 @@
-import { ConcernsList } from '@/components/admin/ConcernsList'
-import { EmptyState } from '@/components/admin/AdminPrimitives'
-import { requireAdminCampaign } from '@/lib/admin/context'
-import { fetchConcerns } from '@/lib/admin/queries'
-import { assertAdminEnv } from '@/lib/env'
+import { redirect } from 'next/navigation'
 
-export const dynamic = 'force-dynamic'
+import { fetchCampaignBoard } from '@/app/admin/campaign-actions'
 
-export async function generateMetadata() {
-  return { title: 'Concerns — Admin', robots: { index: false, follow: false } }
-}
+export default async function AdminConcernsRedirectPage() {
+  const board = await fetchCampaignBoard()
+  const preferred =
+    board.find((c) => c.status === 'active') ?? board.find((c) => c.status === 'draft') ?? board[0]
 
-export default async function ConcernsPage() {
-  assertAdminEnv()
-  const { campaign } = await requireAdminCampaign()
-  if (!campaign) return <EmptyState title="No campaign selected." body="Create a campaign first." />
-  const rows = await fetchConcerns(campaign.id)
-  return <ConcernsList campaign={campaign} rows={rows} />
+  if (preferred) {
+    redirect(`/admin/campaigns/${preferred.id}?tab=concerns`)
+  }
+
+  redirect('/admin/campaigns')
 }

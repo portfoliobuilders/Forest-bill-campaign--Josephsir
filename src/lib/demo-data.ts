@@ -46,6 +46,8 @@ export const demoCampaign: Campaign = {
   recipient_email: 'esz-mef@nic.in',
   recipient_emails: ['esz-mef@nic.in', 'prlsecy.forest@kerala.gov.in'],
   cc_emails: ['emailkifa@gmail.com'],
+  bcc_emails: [],
+  reply_to_email: null,
   subject_ml: 'No_to_Kerala_Forest(Amendment)_Bill_2024',
   subject_en: 'No_to_Kerala_Forest(Amendment)_Bill_2024',
   intro_ml:
@@ -60,12 +62,55 @@ export const demoCampaign: Campaign = {
   reference_url: FOREST_BILL_VOLUNTEER_URL,
   closing_ml: 'ദയവായി ഈ ആശങ്കകൾ പരിഗണിച്ച് ബിൽ പിൻവലിക്കുക. നന്ദി.',
   closing_en: 'Please consider these concerns and withdraw the Bill. Thank you.',
-  body_template_ml: '',
-  body_template_en: '',
+  body_template_ml: `Sir,
+
+{{intro}}
+
+{{concerns}}
+
+{{custom_text}}
+
+{{closing}}
+
+ആദരപൂർവ്വം,
+
+പേര്: {{full_name}}
+വിലാസം: {{address}}
+പഞ്ചായത്ത് / മുനിസിപ്പാലിറ്റി: {{panchayat}}
+ജില്ല: {{district}}
+പിൻകോഡ്: {{pincode}}
+ഫോൺ: {{phone}}
+ഇമെയിൽ: {{email}}`,
+  body_template_en: `Sir,
+
+{{intro}}
+
+{{concerns}}
+
+{{custom_text}}
+
+{{closing}}
+
+Regards,
+
+Name: {{full_name}}
+Address: {{address}}
+Panchayat / Municipality: {{panchayat}}
+District: {{district}}
+PIN: {{pincode}}
+Phone: {{phone}}
+Email: {{email}}`,
   opens_at: '2024-11-01T00:00:00+05:30',
   deadline_at: '2024-12-31T23:59:59+05:30',
   is_active: true,
+  status: 'active',
   publish_status: 'live',
+  allow_multiple_concerns: true,
+  og_title_en: '',
+  og_title_ml: '',
+  og_description_en: '',
+  og_description_ml: '',
+  social_image_url: null,
   explainer_ml: [
     'വാച്ചർമാരെ ഫോറസ്റ്റ് ഓഫീസറാക്കി നിയമാധികാരം നൽകും.',
     'വീടിനടുത്തുള്ള പുഴകളെ വനപുഴയായി കാണാം.',
@@ -352,6 +397,7 @@ export function sampleDemoDetails(lang: Lang): DetailsFields {
       fullName: 'Demo farmer',
       addressLine: 'Example house, Ward 7',
       panchayat: 'Example panchayat',
+      village: '',
       district: 'Idukki',
       pincode: '685531',
       phone: '9876543210',
@@ -365,6 +411,7 @@ export function sampleDemoDetails(lang: Lang): DetailsFields {
     fullName: 'മാതൃകാ കർഷകൻ',
     addressLine: 'മാതൃകാ വീട്, വാർഡ് 7',
     panchayat: 'മാതൃകാ പഞ്ചായത്ത്',
+    village: '',
     district: 'Idukki',
     pincode: '685531',
     phone: '9876543210',

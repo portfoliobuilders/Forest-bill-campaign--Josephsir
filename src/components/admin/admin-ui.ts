@@ -14,9 +14,7 @@ export const adminBtnDanger = `inline-flex min-h-11 items-center justify-center 
 
 export const NAV_ITEMS = [
   { href: '/admin', label: 'Dashboard', exact: true },
-  { href: '/admin/campaign', label: 'Campaign' },
-  { href: '/admin/concerns', label: 'Concerns' },
-  { href: '/admin/email-template', label: 'Email Template' },
+  { href: '/admin/campaigns', label: 'Campaigns' },
   { href: '/admin/submissions', label: 'Submissions' },
   { href: '/admin/analytics', label: 'Analytics' },
   { href: '/admin/public-data', label: 'Public Data' },

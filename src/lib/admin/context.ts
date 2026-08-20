@@ -3,7 +3,7 @@ import 'server-only'
 import { cookies } from 'next/headers'
 
 import { requireAdminSession } from '@/lib/admin/auth'
-import { publishStatusFromRow } from '@/lib/admin/publish'
+import { statusFromLegacy } from '@/lib/campaign-status'
 import { getDefaultCampaignSlug, publicCampaign } from '@/lib/campaign'
 import { createServiceClient } from '@/lib/supabase/server'
 import type { Campaign } from '@/types/database'
@@ -16,6 +16,7 @@ export type CampaignListItem = {
   title_ml: string
   title_en: string
   publish_status: string
+  status: string
   is_active: boolean
 }
 
@@ -23,7 +24,7 @@ export async function listAdminCampaigns(): Promise<CampaignListItem[]> {
   const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('campaigns')
-    .select('id, slug, title_ml, title_en, publish_status, is_active, created_at')
+    .select('id, slug, title_ml, title_en, publish_status, status, is_active, created_at')
     .order('created_at', { ascending: false })
   if (error) throw error
   return (data ?? []).map((row) => ({
@@ -31,7 +32,8 @@ export async function listAdminCampaigns(): Promise<CampaignListItem[]> {
     slug: row.slug as string,
     title_ml: row.title_ml as string,
     title_en: row.title_en as string,
-    publish_status: publishStatusFromRow(row),
+    publish_status: row.publish_status as string,
+    status: statusFromLegacy(row),
     is_active: Boolean(row.is_active),
   }))
 }

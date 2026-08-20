@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useState, useTransition } from 'react'
 
 import { adminSignOut } from '@/app/admin/actions'
-import { selectAdminCampaign } from '@/app/admin/cms-actions'
+import { selectAdminCampaign } from '@/app/admin/campaign-actions'
 import { NAV_ITEMS, adminFocus } from '@/components/admin/admin-ui'
 import type { CampaignListItem } from '@/lib/admin/context'
 
@@ -78,8 +78,9 @@ export function AdminShellClient({
                   disabled={campaigns.length === 0}
                   onChange={(event) => {
                     const id = event.target.value
+                    const next = pathname.startsWith('/admin/campaigns') ? `/admin/campaigns/${id}` : pathname
                     startTransition(() => {
-                      void selectAdminCampaign(id)
+                      void selectAdminCampaign(id, next)
                     })
                   }}
                 >
@@ -113,8 +114,9 @@ export function AdminShellClient({
               disabled={campaigns.length === 0}
               onChange={(event) => {
                 const id = event.target.value
+                const next = pathname.startsWith('/admin/campaigns') ? `/admin/campaigns/${id}` : pathname
                 startTransition(() => {
-                  void selectAdminCampaign(id)
+                  void selectAdminCampaign(id, next)
                 })
               }}
             >
