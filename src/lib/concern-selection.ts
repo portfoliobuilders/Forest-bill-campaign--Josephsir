@@ -1,3 +1,4 @@
+import { concernBody, concernTitle } from '@/lib/compose-concerns'
 import type { Lang } from '@/lib/i18n'
 import type { Campaign, ConcernSelectionMode, ObjectionClause } from '@/types/database'
 
@@ -122,10 +123,7 @@ export function selectedClausesForLetter(
 }
 
 export function pickClauseText(clause: ObjectionClause, lang: Lang): { title: string; body: string } {
-  if (lang === 'en') {
-    return { title: clause.title_en, body: clause.email_en }
-  }
-  return { title: clause.title_ml, body: clause.email_ml }
+  return { title: concernTitle(clause, lang), body: concernBody(clause, lang) }
 }
 
 export function formatConcernsForEmail(args: {
