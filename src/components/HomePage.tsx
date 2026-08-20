@@ -31,17 +31,11 @@ export function HomePage({
 }) {
   const { lang } = useLang()
 
-  if (!campaign || mode === 'dormant') {
+  if (!campaign) {
     return (
       <PageContainer width="wide">
-        <section className="max-w-3xl pt-2 sm:pt-6">
-          <h1 className="font-display mt-3 text-[1.85rem] text-ink sm:text-4xl md:text-[2.75rem]">
-            {t(lang, 'noActiveCampaign')}
-          </h1>
-          <section className="mt-8 max-w-xl border-t border-rule pt-8">
-            <NotifySignup />
-          </section>
-        </section>
+        <h1 className="font-display mt-6 text-2xl text-ink sm:text-3xl">{t(lang, 'noActiveCampaignTitle')}</h1>
+        <p className="mt-4 max-w-2xl text-base leading-relaxed text-body sm:text-lg">{t(lang, 'noActiveCampaign')}</p>
       </PageContainer>
     )
   }

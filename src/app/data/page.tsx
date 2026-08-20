@@ -1,7 +1,8 @@
-import { resolveCampaignState } from '@/lib/campaign'
-import { publicCampaignSlug } from '@/lib/campaigns'
+import { resolvePublicCampaign } from '@/lib/campaign'
 import { DataPageContent } from '@/components/DataPageContent'
 import { createServiceClientOrNull } from '@/lib/supabase/server'
+
+export const dynamic = 'force-dynamic'
 
 export async function generateMetadata() {
   return {
@@ -11,8 +12,8 @@ export async function generateMetadata() {
 }
 
 export default async function DataPage() {
-  await resolveCampaignState()
-  const slug = publicCampaignSlug()
+  const state = await resolvePublicCampaign()
+  const slug = state.state === 'dormant' ? '' : state.campaign.slug
   const supabase = createServiceClientOrNull()
 
   let stats = { confirmed: 0, opened: 0, districts: 0 }

@@ -1,5 +1,5 @@
 import type { Lang } from '@/lib/i18n'
-import type { Campaign, ObjectionClause, ConcernSelectionMode } from '@/types/database'
+import type { Campaign, ConcernSelectionMode, ObjectionClause } from '@/types/database'
 
 export type { ConcernSelectionMode }
 

@@ -1,5 +1,7 @@
 import { AboutPageContent } from '@/components/AboutPageContent'
-import { resolveCampaignState } from '@/lib/campaign'
+import { resolvePublicCampaign } from '@/lib/campaign'
+
+export const dynamic = 'force-dynamic'
 
 export async function generateMetadata() {
   return {
@@ -9,7 +11,7 @@ export async function generateMetadata() {
 }
 
 export default async function AboutPage() {
-  const state = await resolveCampaignState()
+  const state = await resolvePublicCampaign()
   const sourceUrl = state.state === 'dormant' ? null : state.campaign.source_url
   const campaignTitle = state.state === 'dormant' ? null : state.campaign.title_ml
 

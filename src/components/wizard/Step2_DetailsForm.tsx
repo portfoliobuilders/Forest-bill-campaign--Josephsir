@@ -5,9 +5,9 @@ import { useEffect, useRef, useState } from 'react'
 import { SelectField, TextAreaField, TextField } from '@/components/ui/FormField'
 import { useLang } from '@/components/LanguageProvider'
 import { cx } from '@/lib/cx'
-import { type DistrictOption } from '@/lib/demo-data'
 import { MAX_CUSTOM_CHARS, type DetailsFields, type FieldErrors } from '@/lib/details-schema'
 import { t } from '@/lib/i18n'
+import type { DistrictOption } from '@/lib/kerala-districts'
 import { focusRing } from '@/lib/ui'
 import type { ConstituencyMatch, WizardRouting } from '@/types/database'
 
@@ -143,6 +143,9 @@ export function Step2_DetailsForm({
           {t(lang, 'footerPrivacy')}
         </a>
       </p>
+      {allowSample ? (
+        <p className="mt-4 text-sm text-muted">{t(lang, 'sampleHint')}</p>
+      ) : null}
 
       <div className="mt-6 rounded-[8px] border border-rule bg-raised p-4">
         <TextAreaField

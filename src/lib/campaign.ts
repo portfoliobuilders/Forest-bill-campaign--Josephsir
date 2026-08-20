@@ -4,6 +4,7 @@ import { timingSafeEqual } from 'crypto'
 import { cookies } from 'next/headers'
 
 import { statusFromLegacy } from '@/lib/campaign-status'
+import { normalizeConcernSelectionMode } from '@/lib/concern-selection'
 import { defaultBodyTemplate } from '@/lib/email-template'
 import { PREVIEW_COOKIE } from '@/lib/preview-cookie'
 import { createAnonServerClient } from '@/lib/supabase/anon-server'
@@ -50,7 +51,16 @@ export function publicCampaign(row: Campaign & { preview_token?: string | null }
   campaign.social_image_url = campaign.social_image_url ?? null
   campaign.explainer_ml = Array.isArray(campaign.explainer_ml) ? campaign.explainer_ml : []
   campaign.explainer_en = Array.isArray(campaign.explainer_en) ? campaign.explainer_en : []
-  campaign.allow_multiple_concerns = Boolean(campaign.allow_multiple_concerns)
+  campaign.concern_selection_mode = normalizeConcernSelectionMode(
+    campaign.concern_selection_mode ?? (campaign.allow_multiple_concerns ? 'multiple' : 'single'),
+  )
+  campaign.allow_multiple_concerns = campaign.concern_selection_mode === 'multiple'
+  campaign.allow_custom_concern = campaign.allow_custom_concern !== false
+  campaign.max_concern_selections = campaign.max_concern_selections ?? null
+  campaign.custom_concern_label_en = campaign.custom_concern_label_en ?? null
+  campaign.custom_concern_label_ml = campaign.custom_concern_label_ml ?? null
+  campaign.custom_concern_placeholder_en = campaign.custom_concern_placeholder_en ?? null
+  campaign.custom_concern_placeholder_ml = campaign.custom_concern_placeholder_ml ?? null
   campaign.og_title_en = campaign.og_title_en || campaign.title_en
   campaign.og_title_ml = campaign.og_title_ml || campaign.title_ml
   campaign.og_description_en = campaign.og_description_en || campaign.summary_en
@@ -113,35 +123,22 @@ async function findActiveCampaign(): Promise<CampaignRow | null> {
     .select('*')
     .eq('status', 'active')
     .order('opens_at', { ascending: false })
+    .order('updated_at', { ascending: false })
+    .limit(8)
 
-  const rows = !byStatus.error
-    ? ((byStatus.data ?? []) as CampaignRow[])
-    : await (async () => {
-        const fallbackQuery = await supabase
-          .from('campaigns')
-          .select('*')
-          .eq('is_active', true)
-          .order('created_at', { ascending: false })
-        if (fallbackQuery.error) throw fallbackQuery.error
-        return (fallbackQuery.data ?? []) as CampaignRow[]
-      })()
+  if (byStatus.error) {
+    // Missing status column means the repair migration has not been applied.
+    // Do not fall back to legacy is_active rows — those include the archived Forest Bill.
+    return null
+  }
 
+  const rows = (byStatus.data ?? []) as CampaignRow[]
   const match = rows.find((row) => {
     const deadlineOk = !row.deadline_at || new Date(row.deadline_at).getTime() >= now
     const opensOk = !row.opens_at || new Date(row.opens_at).getTime() <= now
     return deadlineOk && opensOk
   })
-  if (match) return match
-
-  const fallback = await supabase
-    .from('campaigns')
-    .select('*')
-    .eq('is_active', true)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  if (fallback.error) throw fallback.error
-  return (fallback.data as CampaignRow | null) ?? null
+  return match ?? rows[0] ?? null
 }
 
 async function getCampaignStateFromService(

@@ -15,14 +15,13 @@ import { reorderConcerns } from '@/app/admin/cms-actions'
 import { AdminPageHeader, ConfirmDialog, SaveStatus, SuccessBanner } from '@/components/admin/AdminPrimitives'
 import { CampaignSourcesEditor } from '@/components/admin/CampaignSourcesEditor'
 import { adminBtnDanger, adminBtnPrimary, adminBtnSecondary, adminInput, adminLabel } from '@/components/admin/admin-ui'
-import { CampaignFeaturesPanel } from '@/components/admin/CampaignFeaturesPanel'
-import { ConcernSelectionSettings, draftFromCampaign, type ConcernSelectionDraft } from '@/components/admin/ConcernSelectionSettings'
+import { ConcernSelectionSettings } from '@/components/admin/ConcernSelectionSettings'
 import { formatDatetimeLocal } from '@/lib/admin/format'
 import { CAMPAIGN_STATUS_LABEL, type CampaignStatus } from '@/lib/campaign-status'
 import { parseFeatureSettings, type CampaignFeatureSettings } from '@/lib/campaign-features'
 import { applyFieldMode, DEFAULT_FORM_FIELDS, type FieldMode } from '@/lib/form-fields'
 import { recipientsOfType } from '@/lib/recipients'
-import type { Campaign, CampaignFormField, CampaignRecipient, CampaignSource, ObjectionClause } from '@/types/database'
+import type { Campaign, CampaignFormField, CampaignRecipient, ConcernSelectionMode, ObjectionClause } from '@/types/database'
 
 const TABS = [
   'Basic Details',
@@ -136,6 +135,13 @@ export function CampaignStudio({
     opens_at: formatDatetimeLocal(campaign.opens_at),
     deadline_at: formatDatetimeLocal(campaign.deadline_at),
     allow_multiple_concerns: campaign.allow_multiple_concerns,
+    concern_selection_mode: (campaign.concern_selection_mode === 'multiple' ? 'multiple' : 'single') as ConcernSelectionMode,
+    max_concern_selections: campaign.max_concern_selections,
+    allow_custom_concern: campaign.allow_custom_concern !== false,
+    custom_concern_label_en: campaign.custom_concern_label_en ?? '',
+    custom_concern_label_ml: campaign.custom_concern_label_ml ?? '',
+    custom_concern_placeholder_en: campaign.custom_concern_placeholder_en ?? '',
+    custom_concern_placeholder_ml: campaign.custom_concern_placeholder_ml ?? '',
     subject_en: campaign.subject_en,
     subject_ml: campaign.subject_ml,
     intro_en: campaign.intro_en,
@@ -319,15 +325,26 @@ export function CampaignStudio({
           <Field label="Campaign name — English" value={form.title_en} onChange={(v) => patch({ title_en: v })} />
           <Field label="Campaign name — Malayalam" value={form.title_ml} onChange={(v) => patch({ title_ml: v })} />
           <Field label="Slug" value={form.slug} onChange={(v) => patch({ slug: v })} />
-          <label className={adminLabel}>
-            Allow multiple concerns
-            <input
-              type="checkbox"
-              className="ml-2"
-              checked={form.allow_multiple_concerns}
-              onChange={(e) => patch({ allow_multiple_concerns: e.target.checked })}
+          <div className="lg:col-span-2">
+            <ConcernSelectionSettings
+              value={{
+                concern_selection_mode: form.concern_selection_mode,
+                max_concern_selections: form.max_concern_selections,
+                allow_custom_concern: form.allow_custom_concern,
+                custom_concern_label_en: form.custom_concern_label_en,
+                custom_concern_label_ml: form.custom_concern_label_ml,
+                custom_concern_placeholder_en: form.custom_concern_placeholder_en,
+                custom_concern_placeholder_ml: form.custom_concern_placeholder_ml,
+              }}
+              onChange={(next) =>
+                patch({
+                  ...next,
+                  allow_multiple_concerns:
+                    (next.concern_selection_mode ?? form.concern_selection_mode) === 'multiple',
+                })
+              }
             />
-          </label>
+          </div>
           <Area label="Short description — English" value={form.summary_en} onChange={(v) => patch({ summary_en: v })} />
           <Area label="Short description — Malayalam" value={form.summary_ml} onChange={(v) => patch({ summary_ml: v })} />
         </div>

@@ -20,7 +20,6 @@ import {
 } from '@/lib/concern-selection'
 import { composeEmail } from '@/lib/compose'
 import { cx } from '@/lib/cx'
-import { type DistrictOption } from '@/lib/demo-data'
 import {
   createDetailsSchema,
   fieldErrorsFromZod,
@@ -28,6 +27,7 @@ import {
   type FieldErrors,
 } from '@/lib/details-schema'
 import { t } from '@/lib/i18n'
+import type { DistrictOption } from '@/lib/kerala-districts'
 import { normalizeIndianPhone } from '@/lib/phone'
 import { btnGhost, btnPrimary, focusRing } from '@/lib/ui'
 import type { WizardMode } from '@/lib/wizard-mode'

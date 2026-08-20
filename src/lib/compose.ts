@@ -4,7 +4,7 @@ import {
   selectedClausesForLetter,
 } from '@/lib/concern-selection'
 import { uniqueEmails } from '@/lib/compose-emails'
-import { selectedClausesForLetter } from '@/lib/concern-selection'
+import { campaignConcernConfig, formatConcernsForEmail, selectedClausesForLetter } from '@/lib/concern-selection'
 import { defaultBodyTemplate, renderSafeTemplate, type EmailTemplateValues } from '@/lib/email-template'
 import type { Lang } from '@/lib/i18n'
 import type { WizardMode } from '@/lib/wizard-mode'
@@ -183,15 +183,15 @@ function senderValues(
 }
 
 export function composeSubject(campaign: Campaign, clauses: ObjectionClause[], lang: Lang): string {
-  const campaignSubject = pick(lang, campaign.subject_ml, campaign.subject_en).trim()
-  if (campaignSubject) return campaignSubject
+  const fromCampaign = pick(lang, campaign.subject_ml, campaign.subject_en).trim()
+  if (fromCampaign) return fromCampaign
   if (clauses.length === 1) {
     const custom = pick(lang, clauses[0].email_subject_ml ?? '', clauses[0].email_subject_en ?? '').trim()
     if (custom) return custom
     const title = concernTitle(clauses[0], lang)
     if (title) return title
   }
-  return campaignSubject
+  return pick(lang, campaign.title_ml, campaign.title_en)
 }
 
 function assembleBody(
@@ -225,8 +225,7 @@ function assembleBody(
       extraConcerns: extras,
       lang,
     }),
-    ...sender,
-    custom_text: extras.length > 0 ? '' : sender.custom_text,
+    ...senderValues(details),
   }
   return renderSafeTemplate(template, values)
 }

@@ -7,6 +7,7 @@ import { PINCODE_RE } from '@/lib/postal'
 import type { Campaign, CampaignFormField } from '@/types/database'
 
 export const MAX_CUSTOM_CHARS = 1000
+const PINCODE_RE = /^[1-9][0-9]{5}$/
 
 export type DetailsFields = {
   fullName: string
@@ -35,6 +36,7 @@ export const emptyDetails = (): DetailsFields => ({
 export function createDetailsSchema(lang: Lang, districts: string[], fields: CampaignFormField[]) {
   const optionalText = z.string().trim()
   const name = z.string().trim().min(1, t(lang, 'errorFullName'))
+
   const emailRequired = isFieldRequired(fields, 'email')
   const email = emailRequired
     ? z.email(t(lang, 'errorEmail'))
@@ -42,17 +44,6 @@ export function createDetailsSchema(lang: Lang, districts: string[], fields: Cam
         .string()
         .trim()
         .refine((value) => !value || z.email().safeParse(value).success, t(lang, 'errorEmail'))
-
-  const pincodeRequired = isFieldRequired(fields, 'pincode')
-  const pincode = pincodeRequired
-    ? z
-        .string()
-        .trim()
-        .regex(/^[1-9][0-9]{5}$/, t(lang, 'errorPincode'))
-    : z
-        .string()
-        .trim()
-        .refine((value) => !value || /^[1-9][0-9]{5}$/.test(value), t(lang, 'errorPincode'))
 
   const phone = isFieldRequired(fields, 'phone')
     ? z
@@ -80,9 +71,17 @@ export function createDetailsSchema(lang: Lang, districts: string[], fields: Cam
           .refine((value) => !value || districts.length === 0 || districts.includes(value), t(lang, 'errorDistrict'))
     : optionalText()
 
-  const address = isFieldRequired(fields, 'address') && !privacy ? requiredText(t(lang, 'errorAddress')) : optionalText()
-  const panchayat = isFieldRequired(fields, 'local_body') && !privacy ? requiredText(t(lang, 'panchayat')) : optionalText()
-  const village = isFieldRequired(fields, 'village') && !privacy ? requiredText(t(lang, 'village')) : optionalText()
+  const pincodeRequired = isFieldRequired(fields, 'pincode')
+  const pincodeEnabled = isFieldEnabled(fields, 'pincode')
+  const pincode = pincodeRequired
+    ? z.string().trim().regex(PINCODE_RE, t(lang, 'errorPincode'))
+    : pincodeEnabled
+      ? z
+          .string()
+          .trim()
+          .refine((value) => !value || PINCODE_RE.test(value), t(lang, 'errorPincode'))
+      : optionalText
+
   const customText = z.string().max(MAX_CUSTOM_CHARS, t(lang, 'errorCustomText'))
 
   return z.object({

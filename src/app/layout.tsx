@@ -14,6 +14,8 @@ import { parseLang } from '@/lib/lang'
 
 import './globals.css'
 
+export const dynamic = 'force-dynamic'
+
 const inter = Inter({
   subsets: ['latin'],
   display: 'swap',
@@ -63,21 +65,31 @@ async function loadPublicSiteSettings() {
 
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await loadPublicSiteSettings()
-  let campaignTitle = settings?.site_title_ml || 'ജനശബ്ദം'
+  const cookieStore = await cookies()
+  const lang = parseLang(cookieStore.get('lang')?.value)
+  let campaignTitle = lang === 'en' ? settings?.site_title_en || 'Janashabdam' : settings?.site_title_ml || 'ജനശബ്ദം'
   let campaignDescription =
-    'നിങ്ങളുടെ സ്വന്തം ഇമെയിൽ വിലാസത്തിൽ നിന്ന് കൂടിയാലോചനയോടുള്ള വ്യക്തിഗത എതിർപ്പ് അയയ്ക്കുക.'
+    lang === 'en'
+      ? 'Send a personal representation from your own email address.'
+      : 'നിങ്ങളുടെ സ്വന്തം ഇമെയിൽ വിലാസത്തിൽ നിന്ന് കൂടിയാലോചനയോടുള്ള വ്യക്തിഗത എതിർപ്പ് അയയ്ക്കുക.'
   let ogImage = settings?.og_image_url || `${siteUrl}/og-image.svg`
   try {
     const state = await resolveCampaignState()
     if (state.state !== 'dormant') {
-      campaignTitle = state.campaign.og_title_ml || state.campaign.title_ml
-      campaignDescription = state.campaign.og_description_ml || state.campaign.summary_ml
+      campaignTitle =
+        lang === 'en'
+          ? state.campaign.og_title_en || state.campaign.title_en
+          : state.campaign.og_title_ml || state.campaign.title_ml
+      campaignDescription =
+        lang === 'en'
+          ? state.campaign.og_description_en || state.campaign.summary_en
+          : state.campaign.og_description_ml || state.campaign.summary_ml
       ogImage = state.campaign.social_image_url || ogImage
     }
   } catch {
     // Branding-only metadata is enough if the campaign query fails.
   }
-  const brand = settings?.site_title_ml || 'ജനശബ്ദം'
+  const brand = lang === 'en' ? settings?.site_title_en || 'Janashabdam' : settings?.site_title_ml || 'ജനശബ്ദം'
   return {
     title: campaignTitle,
     description: campaignDescription,
