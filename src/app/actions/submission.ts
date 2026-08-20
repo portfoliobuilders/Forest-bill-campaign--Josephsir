@@ -41,13 +41,13 @@ const letterInputSchema = z.object({
   extraConcerns: z.array(z.string().max(1000)).max(12).default([]),
   clauseCodes: z.array(z.string().min(1)).max(50).default([]),
   letterMode: letterModeSchema.default('selected'),
-  constituencyId: z.uuid().nullable(),
-  ccRepIds: z.array(z.uuid()),
+  constituencyId: z.uuid().nullable().optional().default(null),
+  ccRepIds: z.array(z.uuid()).optional().default([]),
   privacyMode: z.boolean().optional().default(false),
-  postOffice: z.string().trim().max(80).optional().default(''),
-  state: z.string().trim().max(80).optional().default(''),
-  postalRegion: z.string().trim().max(80).optional().default(''),
-  taluk: z.string().trim().max(80).optional().default(''),
+  postOffice: z.string().trim().optional().default(''),
+  state: z.string().trim().optional().default(''),
+  postalRegion: z.string().trim().optional().default(''),
+  taluk: z.string().trim().optional().default(''),
 })
 
 type LetterFields = z.infer<typeof letterInputSchema>

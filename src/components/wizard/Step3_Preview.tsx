@@ -7,20 +7,17 @@ import { markHandoff } from '@/app/actions/submission'
 import { IconCopy, IconEnvelope, IconGmail } from '@/components/ui/icons'
 import { useLang } from '@/components/LanguageProvider'
 import {
-  androidSendIntent,
   composeEmail,
   formatCompleteEmailCopy,
-  formatUnsentEml,
-  mailtoUrl,
-  mailtoUrlTooLong,
   resolveMailTargets,
   withRepresentativeCc,
   type MailComposeParams,
 } from '@/lib/compose'
-import { applyGmailHandoff, clientPlatform, planGmailHandoff } from '@/lib/gmail-handoff'
 import { cx } from '@/lib/cx'
 import type { DetailsFields } from '@/lib/details-schema'
 import { t } from '@/lib/i18n'
+import { applyGmailHandoff, clientPlatform, planGmailHandoff } from '@/lib/gmail-handoff'
+import { launchMailCompose } from '@/lib/open-mail'
 import { PDF_LETTER_AVAILABLE } from '@/lib/pdf-available'
 import { normalizeIndianPhone } from '@/lib/phone'
 import { btnGhost, btnPrimary, btnSecondary } from '@/lib/ui'
@@ -53,19 +50,6 @@ async function copyPlainText(text: string): Promise<void> {
     document.body.removeChild(field)
     if (!ok) throw new Error('copy failed')
   }
-}
-
-function downloadUnsentEml(content: string) {
-  const blob = new Blob([content], { type: 'message/rfc822' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = 'janashabdam-objection.eml'
-  link.rel = 'noopener'
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  window.setTimeout(() => URL.revokeObjectURL(url), 2000)
 }
 
 function hasIdentity(details: DetailsFields): boolean {
@@ -106,7 +90,6 @@ export function Step3_Preview({
   const { lang } = useLang()
   const router = useRouter()
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
-  const [pasteHint, setPasteHint] = useState(false)
   const [emlHint, setEmlHint] = useState(false)
 
   const local = useMemo(() => {
@@ -151,6 +134,7 @@ export function Step3_Preview({
     {
       to: targets.to,
       cc: targets.cc,
+      bcc: targets.bcc,
       subject,
       body,
     },
@@ -158,28 +142,14 @@ export function Step3_Preview({
     optedIn,
   )
 
-  const mailtoTooLong = mailtoUrlTooLong(mailParams)
   const identityReady = hasIdentity(details)
   const sendDisabled = !identityReady || mailParams.to.length === 0
-  const mailtoHref = mailtoUrl(mailParams)
-  const mailtoHeadersOnly = mailtoUrl(mailParams, { includeBody: false })
   const completeCopy = formatCompleteEmailCopy(mailParams)
 
   async function recordHandoff(method: 'gmail_web' | 'mailto' | 'copy', goSent: boolean) {
     if (!submissionId) return
     await markHandoff(submissionId, method)
     if (goSent) router.push(`/sent?id=${submissionId}`)
-  }
-
-  async function copyBodyQuiet(): Promise<boolean> {
-    try {
-      await copyPlainText(body)
-      setCopyState('copied')
-      return true
-    } catch {
-      setCopyState('failed')
-      return false
-    }
   }
 
   async function copyComplete() {
@@ -192,54 +162,22 @@ export function Step3_Preview({
     }
   }
 
-  async function openGmail() {
+  function openGmail() {
     setEmlHint(false)
-    setPasteHint(false)
     const plan = planGmailHandoff(
       mailParams,
       clientPlatform(navigator.userAgent, navigator.maxTouchPoints),
       navigator.userAgent,
     )
-    if (!plan.includeBody) {
-      const copied = await copyBodyQuiet()
-      if (copied) setPasteHint(true)
-    }
     applyGmailHandoff(plan)
-    await recordHandoff('gmail_web', plan.openInNewTab && plan.includeBody)
+    void recordHandoff('gmail_web', plan.openInNewTab && plan.includeBody)
   }
 
-  async function openMailApp() {
+  function openMailApp() {
     setEmlHint(false)
-    setPasteHint(false)
-    const platform = clientPlatform(navigator.userAgent, navigator.maxTouchPoints)
-
-    if (platform === 'android') {
-      const copied = copyBodyQuiet()
-      window.location.href = androidSendIntent(mailParams, { fallbackUrl: mailtoHeadersOnly })
-      await copied
-      await recordHandoff('mailto', false)
-      return
-    }
-
-    if (platform === 'other') {
-      const copied = copyBodyQuiet()
-      downloadUnsentEml(formatUnsentEml(mailParams))
-      setEmlHint(true)
-      await copied
-      await recordHandoff('mailto', false)
-      return
-    }
-
-    if (mailtoTooLong) {
-      const copied = copyBodyQuiet()
-      window.location.href = mailtoHeadersOnly
-      if (await copied) setPasteHint(true)
-      await recordHandoff('mailto', false)
-      return
-    }
-
-    window.location.href = mailtoHref
-    await recordHandoff('mailto', false)
+    const result = launchMailCompose(mailParams, 'mail_app')
+    setEmlHint(result === 'eml')
+    void recordHandoff('mailto', false)
   }
 
   return (
@@ -370,11 +308,6 @@ export function Step3_Preview({
         </button>
       </div>
 
-      {pasteHint ? (
-        <p className="mt-3 text-sm leading-relaxed text-ink" role="status">
-          {t(lang, 'pasteHint')}
-        </p>
-      ) : null}
       {emlHint ? (
         <p className="mt-3 text-sm leading-relaxed text-ink" role="status">
           {t(lang, 'emlHint')}
