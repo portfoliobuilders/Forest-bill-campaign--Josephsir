@@ -12,12 +12,13 @@ import {
 } from '@/app/admin/campaign-actions'
 import { reorderConcerns } from '@/app/admin/cms-actions'
 import { AdminPageHeader, ConfirmDialog, SaveStatus, SuccessBanner } from '@/components/admin/AdminPrimitives'
+import { CampaignSourcesEditor } from '@/components/admin/CampaignSourcesEditor'
 import { adminBtnDanger, adminBtnPrimary, adminBtnSecondary, adminInput, adminLabel } from '@/components/admin/admin-ui'
 import { formatDatetimeLocal } from '@/lib/admin/format'
 import { CAMPAIGN_STATUS_LABEL, type CampaignStatus } from '@/lib/campaign-status'
 import { DEFAULT_FORM_FIELDS } from '@/lib/form-fields'
 import { recipientsOfType } from '@/lib/recipients'
-import type { Campaign, CampaignFormField, CampaignRecipient, ObjectionClause } from '@/types/database'
+import type { Campaign, CampaignFormField, CampaignRecipient, CampaignSource, ObjectionClause } from '@/types/database'
 
 const TABS = [
   'Basic Details',
@@ -27,6 +28,7 @@ const TABS = [
   'Email Recipients',
   'Form Fields',
   'Schedule & Status',
+  'Sources / References',
   'Preview',
 ] as const
 
@@ -65,12 +67,16 @@ export function CampaignStudio({
   concerns,
   recipients,
   formFields,
+  sources,
+  sourcesLoadError,
   initialTab = 0,
 }: {
   campaign: Campaign
   concerns: ObjectionClause[]
   recipients: CampaignRecipient[]
   formFields: CampaignFormField[]
+  sources: CampaignSource[]
+  sourcesLoadError?: string | null
   initialTab?: number
 }) {
   const router = useRouter()
@@ -468,6 +474,10 @@ export function CampaignStudio({
       ) : null}
 
       {tab === 7 ? (
+        <CampaignSourcesEditor campaignId={campaign.id} sources={sources} loadError={sourcesLoadError} />
+      ) : null}
+
+      {tab === 8 ? (
         <div className="space-y-4 rounded-md border border-stone-200 bg-white p-4">
           <p className="font-mono text-xs text-stone-500">{status.toUpperCase()}</p>
           <h2 className="text-2xl font-semibold text-stone-900">{preview.title}</h2>
@@ -478,6 +488,10 @@ export function CampaignStudio({
           <p className="text-sm text-stone-600">CC: {preview.cc || '—'}</p>
           <p className="text-sm text-stone-600">BCC: {form.bcc_emails || '—'}</p>
           <p className="text-sm text-stone-600">Concerns: {clauseDrafts.filter((c) => c.is_active).length} active</p>
+          <p className="text-sm text-stone-600">
+            Sources / references: {sources.filter((source) => source.is_public).length} public, {sources.length} total
+            (supporting material only — not copied into emails)
+          </p>
         </div>
       ) : null}
 

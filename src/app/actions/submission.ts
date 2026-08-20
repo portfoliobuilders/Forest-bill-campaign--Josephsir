@@ -6,6 +6,12 @@ import { z } from 'zod'
 import { composeEmail, liveMailTargets, resolveMailTargets } from '@/lib/compose'
 import { getCampaignState, publicCampaign, readPreviewToken } from '@/lib/campaign'
 import { withCampaignClauses } from '@/lib/campaigns'
+import {
+  campaignConcernConfig,
+  flattenCustomConcerns,
+  selectedClausesForLetter,
+  validatePredefinedSelection,
+} from '@/lib/concern-selection'
 import { getClientIp, hashIp } from '@/lib/security'
 import { createServiceClient } from '@/lib/supabase/server'
 import { normalizeIndianPhone } from '@/lib/phone'
@@ -17,6 +23,7 @@ import type { ActionResult } from '@/lib/submission-types'
 const uuidSchema = z.uuid()
 const langSchema = z.enum(['ml', 'en'])
 const sendMethodSchema = z.enum(['gmail_web', 'mailto', 'copy', 'server', 'print'])
+const letterModeSchema = z.enum(['selected', 'all'])
 
 const letterInputSchema = z.object({
   campaignSlug: z.string().min(1),
@@ -226,7 +233,7 @@ async function storeCanonicalLetter(
 }
 
 export async function prepareDemoLetter(
-  input: z.infer<typeof letterInputSchema>,
+  input: z.input<typeof letterInputSchema>,
 ): Promise<ActionResult<{ id: string | null; subject: string; body: string }>> {
   const parsed = letterInputSchema.safeParse(input)
   if (!parsed.success) {

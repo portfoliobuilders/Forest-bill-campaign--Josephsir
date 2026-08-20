@@ -1,4 +1,5 @@
 import { uniqueEmails } from '@/lib/compose-emails'
+import { selectedClausesForLetter } from '@/lib/concern-selection'
 import { defaultBodyTemplate, renderSafeTemplate, type EmailTemplateValues } from '@/lib/email-template'
 import type { Lang } from '@/lib/i18n'
 import type { WizardMode } from '@/lib/wizard-mode'
@@ -211,7 +212,6 @@ function assembleBody(
   const extras = details.extraConcerns ?? []
   const stored = pick(lang, campaign.body_template_ml ?? '', campaign.body_template_en ?? '').trim()
   const template = stored || defaultBodyTemplate(lang)
-  const config = campaignConcernConfig(campaign)
   const values: EmailTemplateValues = {
     intro,
     closing,
@@ -221,6 +221,7 @@ function assembleBody(
   return renderSafeTemplate(template, values)
 }
 
+/** Composed from campaign intro, selected concerns, and the citizen's details. Campaign sources/references are never included. */
 export function composeEmail({ campaign, clauses, details, lang }: ComposeEmailInput): ComposeEmailResult {
   const subject = composeSubject(campaign, clauses, lang)
   const body = assembleBody(campaign, clauses, details, lang)

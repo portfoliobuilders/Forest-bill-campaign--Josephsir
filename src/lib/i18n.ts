@@ -221,6 +221,12 @@ export const dictionary = {
     emailBody: 'ഇമെയിൽ ഉള്ളടക്കം',
     errorGeneric: 'എന്തോ തെറ്റ് സംഭവിച്ചു. ദയവായി വീണ്ടും ശ്രമിക്കുക.',
     portfolixCredit: 'Portfolix.tech വികസിപ്പിച്ച വെബ്‌സൈറ്റ്',
+    sourcesHeading: 'വാർത്തകളും അവലംബങ്ങളും / Sources & References',
+    sourcesView: 'View',
+    sourcesSupportNote:
+      'ഇവ പിന്തുണയ്ക്കുന്ന വാർത്തകളും അവലംബങ്ങളുമാണ്. ഇമെയിൽ കത്തിൽ ഇവ യാന്ത്രികമായി ചേരില്ല.',
+    sourcesOpenFile: 'ക്ലിപ്പിംഗ് കാണുക',
+    sourcesOpenLink: 'ലേഖനം തുറക്കുക',
   },
   en: {
     siteName: 'Janashabdam',
@@ -443,6 +449,11 @@ export const dictionary = {
     emailBody: 'Email body',
     errorGeneric: 'Something went wrong. Please try again.',
     portfolixCredit: 'Website developed by Portfolix.tech',
+    sourcesHeading: 'Sources & References',
+    sourcesView: 'View',
+    sourcesSupportNote: 'These are supporting news items and references. They are not copied into the email.',
+    sourcesOpenFile: 'View clipping',
+    sourcesOpenLink: 'Open article',
   },
 } as const
 

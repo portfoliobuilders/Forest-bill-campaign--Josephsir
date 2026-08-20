@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 
 import { prepareDemoLetter, markHandoff } from '@/app/actions/submission'
 import { CampaignProgress } from '@/components/campaign/CampaignProgress'
+import { CampaignSources } from '@/components/campaign/CampaignSources'
 import { LanguageToggle } from '@/components/LanguageToggle'
 import { useLang } from '@/components/LanguageProvider'
 import { IconChevronRight, IconCopy, IconEnvelope, IconGmail } from '@/components/ui/icons'
@@ -40,7 +41,7 @@ import { normalizeIndianPhone } from '@/lib/phone'
 import { btnGhost, btnPrimary, btnSecondary, focusRing, inputClass, labelClass } from '@/lib/ui'
 import type { WizardMode } from '@/lib/wizard-mode'
 import { isDryRun } from '@/lib/wizard-mode'
-import type { Campaign, CampaignFormField, ObjectionClause } from '@/types/database'
+import type { Campaign, CampaignFormField, CampaignSource, ObjectionClause } from '@/types/database'
 import type { DistrictOption } from '@/lib/demo-data'
 
 type Step = 1 | 2 | 3 | 4 | 5
@@ -129,6 +130,7 @@ export function CampaignFlow({
   districts,
   mode,
   view,
+  sources = [],
 }: {
   campaign: Campaign
   clauses: ObjectionClause[]
@@ -136,6 +138,7 @@ export function CampaignFlow({
   districts: DistrictOption[]
   mode: WizardMode
   view: 'live' | 'preview' | 'inactive' | 'expired'
+  sources?: CampaignSource[]
 }) {
   const { lang } = useLang()
   const actionable = view === 'live' || view === 'preview'
@@ -281,6 +284,7 @@ export function CampaignFlow({
             </button>
           ) : null}
           <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted">{t(lang, 'trustLine')}</p>
+          <CampaignSources sources={sources} />
         </section>
       ) : null}
 

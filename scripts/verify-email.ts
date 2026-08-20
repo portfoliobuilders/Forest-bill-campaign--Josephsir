@@ -33,7 +33,7 @@ const full = composeEmail({
 
 assert.equal(full.subject, 'No_to_Kerala_Forest(Amendment)_Bill_2024')
 assert.match(full.body, /^Sir,\n\n/)
-assert.match(full.body, /വിഷയങ്ങൾ:/)
+assert.doesNotMatch(full.body, /Deepika|Mathrubhumi|\{\{sources\}\}/)
 for (let i = 1; i <= 12; i += 1) {
   assert.match(full.body, new RegExp(`^${i}\\. `, 'm'))
 }
@@ -66,12 +66,11 @@ const single = composeEmail({
   },
   lang: 'en',
 })
-assert.match(single.body, /Selected Concern:/)
-assert.match(single.body, /Additional Concern:/)
 assert.match(single.body, /My property has been excluded incorrectly/)
 assert.ok(single.body.includes(demoClauses[2].title_en))
 assert.ok(!single.body.includes(demoClauses[0].title_en))
-assert.doesNotMatch(single.body, /^2\. /m)
+assert.match(single.body, /^2\. /m)
+assert.doesNotMatch(single.body, /Deepika|Mathrubhumi/)
 
 const targets = liveMailTargets(demoCampaign)
 assert.deepEqual(targets.to, ['esz-mef@nic.in', 'prlsecy.forest@kerala.gov.in'])
