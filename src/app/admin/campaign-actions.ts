@@ -128,6 +128,15 @@ export async function setCampaignStatus(
     if (requiresPublishConfirmation(current, nextStatus) && !confirmed) {
       return { ok: false, error: 'publish_confirmation_required' }
     }
+    const inactive = flagsForCampaignStatus('inactive')
+    await supabase
+      .from('campaigns')
+      .update({
+        ...inactive,
+        updated_by: session.email,
+      })
+      .eq('status', 'active')
+      .neq('id', campaignId)
   }
 
   const flags = flagsForCampaignStatus(nextStatus)
@@ -198,6 +207,13 @@ export type StudioSaveInput = {
   opens_at: string
   deadline_at: string
   allow_multiple_concerns: boolean
+  concern_selection_mode?: 'single' | 'multiple'
+  max_concern_selections?: number | null
+  allow_custom_concern?: boolean
+  custom_concern_label_en?: string
+  custom_concern_label_ml?: string
+  custom_concern_placeholder_en?: string
+  custom_concern_placeholder_ml?: string
   subject_en: string
   subject_ml: string
   intro_en: string
@@ -264,7 +280,19 @@ export async function saveCampaignStudio(input: StudioSaveInput): Promise<Action
     reference_url: input.reference_url.trim() || null,
     opens_at: opens.toISOString(),
     deadline_at: deadline ? deadline.toISOString() : null,
-    allow_multiple_concerns: Boolean(input.allow_multiple_concerns),
+    allow_multiple_concerns: input.concern_selection_mode
+      ? input.concern_selection_mode === 'multiple'
+      : Boolean(input.allow_multiple_concerns),
+    concern_selection_mode: input.concern_selection_mode === 'multiple' ? 'multiple' : 'single',
+    max_concern_selections:
+      input.concern_selection_mode === 'multiple' && typeof input.max_concern_selections === 'number'
+        ? input.max_concern_selections
+        : null,
+    allow_custom_concern: input.allow_custom_concern !== false,
+    custom_concern_label_en: input.custom_concern_label_en?.trim() || null,
+    custom_concern_label_ml: input.custom_concern_label_ml?.trim() || null,
+    custom_concern_placeholder_en: input.custom_concern_placeholder_en?.trim() || null,
+    custom_concern_placeholder_ml: input.custom_concern_placeholder_ml?.trim() || null,
     subject_en: input.subject_en.trim() || input.title_en.trim(),
     subject_ml: input.subject_ml.trim() || input.title_ml.trim(),
     intro_en: input.intro_en.trim(),
@@ -302,7 +330,7 @@ export async function saveCampaignStudio(input: StudioSaveInput): Promise<Action
     label_en: field.label_en.trim() || field.field_key,
     label_ml: field.label_ml.trim() || field.field_key,
     is_enabled: field.is_enabled,
-    is_required: field.field_key === 'name' || field.field_key === 'email' ? true : field.is_required,
+    is_required: field.field_key === 'name' ? true : Boolean(field.is_enabled && field.is_required),
     display_order: field.display_order || index + 1,
   }))
   if (fieldRows.length > 0) {

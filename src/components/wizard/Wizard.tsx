@@ -20,7 +20,6 @@ import {
 } from '@/lib/concern-selection'
 import { composeEmail } from '@/lib/compose'
 import { cx } from '@/lib/cx'
-import { FOREST_BILL_SOURCE_URL, FOREST_BILL_VOLUNTEER_URL, type DistrictOption } from '@/lib/demo-data'
 import {
   createDetailsSchema,
   fieldErrorsFromZod,
@@ -28,6 +27,7 @@ import {
   type FieldErrors,
 } from '@/lib/details-schema'
 import { t } from '@/lib/i18n'
+import type { DistrictOption } from '@/lib/kerala-districts'
 import { normalizeIndianPhone } from '@/lib/phone'
 import { btnGhost, btnPrimary, focusRing } from '@/lib/ui'
 import type { WizardMode } from '@/lib/wizard-mode'
@@ -276,25 +276,29 @@ export function Wizard({
 
   return (
     <PageContainer>
-      {mode !== 'live' ? (
+      {mode !== 'live' && (campaign.source_url || campaign.reference_url) ? (
         <p className="mb-4 font-mono text-xs leading-relaxed text-muted sm:text-sm">
-          <a
-            href={campaign.source_url || FOREST_BILL_SOURCE_URL}
-            className={`font-medium text-accent underline ${focusRing}`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {t(lang, 'gazetteBill')}
-          </a>
-          {' · '}
-          <a
-            href={campaign.reference_url || FOREST_BILL_VOLUNTEER_URL}
-            className={`font-medium text-accent underline ${focusRing}`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {t(lang, 'volunteerLetter')}
-          </a>
+          {campaign.source_url ? (
+            <a
+              href={campaign.source_url}
+              className={`font-medium text-accent underline ${focusRing}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {t(lang, 'gazetteBill')}
+            </a>
+          ) : null}
+          {campaign.source_url && campaign.reference_url ? ' · ' : null}
+          {campaign.reference_url ? (
+            <a
+              href={campaign.reference_url}
+              className={`font-medium text-accent underline ${focusRing}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {t(lang, 'volunteerLetter')}
+            </a>
+          ) : null}
         </p>
       ) : null}
 

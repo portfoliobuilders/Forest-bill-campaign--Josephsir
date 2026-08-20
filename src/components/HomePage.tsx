@@ -7,7 +7,6 @@ import { IconClock, IconList, IconPencil, IconPeople, IconPerson, IconPlane } fr
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useLang } from '@/components/LanguageProvider'
 import { cx } from '@/lib/cx'
-import { demoCampaign } from '@/lib/demo-data'
 import { formatCampaignDate } from '@/lib/format-date'
 import { t, tReplace } from '@/lib/i18n'
 import { btnPrimary } from '@/lib/ui'
@@ -32,7 +31,16 @@ export function HomePage({
 }) {
   const { lang } = useLang()
 
-  const shown = campaign ?? demoCampaign
+  if (!campaign) {
+    return (
+      <PageContainer width="wide">
+        <h1 className="font-display mt-6 text-2xl text-ink sm:text-3xl">{t(lang, 'noActiveCampaignTitle')}</h1>
+        <p className="mt-4 max-w-2xl text-base leading-relaxed text-body sm:text-lg">{t(lang, 'noActiveCampaign')}</p>
+      </PageContainer>
+    )
+  }
+
+  const shown = campaign
   const isLive = mode === 'live'
   const isClosed = !isLive || !shown.deadline_at || new Date(shown.deadline_at).getTime() < Date.now()
   const title = lang === 'en' ? shown.title_en : shown.title_ml

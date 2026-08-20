@@ -1,9 +1,11 @@
-import { notFound } from 'next/navigation'
+import { redirect } from 'next/navigation'
+import type { Metadata } from 'next'
+import { cookies } from 'next/headers'
 
 import { CampaignFlow, NoActiveCampaign } from '@/components/campaign/CampaignFlow'
-import { resolveCampaignState } from '@/lib/campaign'
+import { resolveCampaignState, resolvePublicCampaign } from '@/lib/campaign'
 import { loadObjectionData } from '@/lib/campaigns'
-import type { Metadata } from 'next'
+import { parseLang } from '@/lib/lang'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,13 +18,17 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   const { slug } = await params
   const query = await searchParams
   const state = await resolveCampaignState(query.preview, slug)
+  const lang = parseLang((await cookies()).get('lang')?.value)
   if (state.state === 'dormant') {
-    return { title: 'Janashabdam' }
+    return { title: lang === 'en' ? 'Janashabdam' : 'ജനശബ്ദം' }
   }
   const campaign = state.campaign
+  const title = lang === 'en' ? campaign.og_title_en || campaign.title_en : campaign.og_title_ml || campaign.title_ml
+  const description =
+    lang === 'en' ? campaign.og_description_en || campaign.summary_en : campaign.og_description_ml || campaign.summary_ml
   return {
-    title: campaign.og_title_ml || campaign.title_ml,
-    description: campaign.og_description_ml || campaign.summary_ml,
+    title,
+    description,
     openGraph: {
       title: campaign.og_title_en || campaign.title_en,
       description: campaign.og_description_en || campaign.summary_en,
@@ -34,13 +40,21 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 export default async function CampaignPage({ params, searchParams }: Props) {
   const { slug } = await params
   const query = await searchParams
+  const preview = query.preview ? `?preview=${encodeURIComponent(query.preview)}` : ''
   const state = await resolveCampaignState(query.preview, slug)
   if (state.state === 'dormant') {
-    notFound()
+    const active = await resolvePublicCampaign(query.preview)
+    if (active.state !== 'dormant' && active.campaign.slug !== slug) {
+      redirect(`/campaign/${active.campaign.slug}${preview}`)
+    }
+    return <NoActiveCampaign />
   }
   const data = await loadObjectionData(state)
   if (!data) return <NoActiveCampaign />
-  const view = state.state === 'live' || state.state === 'preview' || state.state === 'inactive' || state.state === 'expired' ? state.state : 'expired'
+  const view =
+    state.state === 'live' || state.state === 'preview' || state.state === 'inactive' || state.state === 'expired'
+      ? state.state
+      : 'expired'
   return (
     <CampaignFlow
       campaign={data.campaign}

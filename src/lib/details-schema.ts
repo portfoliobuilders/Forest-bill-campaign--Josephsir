@@ -6,6 +6,7 @@ import { normalizeIndianPhone } from '@/lib/phone'
 import type { CampaignFormField } from '@/types/database'
 
 export const MAX_CUSTOM_CHARS = 1000
+const PINCODE_RE = /^[1-9][0-9]{5}$/
 
 export type DetailsFields = {
   fullName: string
@@ -34,7 +35,14 @@ export const emptyDetails = (): DetailsFields => ({
 export function createDetailsSchema(lang: Lang, districts: string[], fields: CampaignFormField[]) {
   const optionalText = z.string().trim()
   const name = z.string().trim().min(1, t(lang, 'errorFullName'))
-  const email = z.email(t(lang, 'errorEmail'))
+
+  const emailRequired = isFieldRequired(fields, 'email')
+  const email = emailRequired
+    ? z.email(t(lang, 'errorEmail'))
+    : z
+        .string()
+        .trim()
+        .refine((value) => !value || z.email().safeParse(value).success, t(lang, 'errorEmail'))
 
   const phone = isFieldRequired(fields, 'phone')
     ? z
@@ -72,6 +80,17 @@ export function createDetailsSchema(lang: Lang, districts: string[], fields: Cam
 
   const village = isFieldRequired(fields, 'village') ? z.string().trim().min(1, t(lang, 'village')) : optionalText
 
+  const pincodeRequired = isFieldRequired(fields, 'pincode')
+  const pincodeEnabled = isFieldEnabled(fields, 'pincode')
+  const pincode = pincodeRequired
+    ? z.string().trim().regex(PINCODE_RE, t(lang, 'errorPincode'))
+    : pincodeEnabled
+      ? z
+          .string()
+          .trim()
+          .refine((value) => !value || PINCODE_RE.test(value), t(lang, 'errorPincode'))
+      : optionalText
+
   const customText = z.string().max(MAX_CUSTOM_CHARS, t(lang, 'errorCustomText'))
 
   return z.object({
@@ -82,7 +101,7 @@ export function createDetailsSchema(lang: Lang, districts: string[], fields: Cam
     panchayat,
     village,
     district,
-    pincode: optionalText,
+    pincode,
     customText,
   })
 }

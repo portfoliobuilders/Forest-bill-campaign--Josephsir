@@ -7,7 +7,7 @@ import type { ConstituencyMatch } from '@/types/database'
 const querySchema = z.object({
   pincode: z.string().regex(/^[1-9][0-9]{5}$/),
   panchayat: z.string().optional().default(''),
-  district: z.string().trim().min(1),
+  district: z.string().trim().optional().default(''),
 })
 
 const CACHE_ONE_HOUR = 'public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400'

@@ -41,7 +41,7 @@ insert into campaigns (
   'https://prsindia.org/files/bills_acts/bills_states/kerala/2024/Bills228of2024KL.pdf',
   timestamptz '2024-11-01 00:00:00+05:30',
   timestamptz '2024-12-31 23:59:59+05:30',
-  true,
+  false,
   encode(gen_random_bytes(24), 'hex'),
   array[
     'വാച്ചർമാരെ ഫോറസ്റ്റ് ഓഫീസറാക്കി നിയമാധികാരം നൽകും.',
@@ -59,7 +59,8 @@ insert into campaigns (
     'Warrantless arrest could happen anywhere, not only in forest.',
     'Arrested people could be held at a forest station.'
   ]
-);
+)
+on conflict (slug) do nothing;
 
 insert into objection_clauses (
   campaign_id, code, section_ref, title_ml, title_en,
@@ -222,9 +223,7 @@ set
   concern_selection_mode = 'single',
   max_concern_selections = null,
   allow_custom_concern = true
-where slug = 'kerala-forest-amendment-2024'
-   or slug ilike '%esa%'
-   or title_en ilike '%ecologically sensitive%';
+where slug = 'kerala-forest-amendment-2024';
 
 insert into constituencies (code, name_en, name_ml, district, level) values
   ('KL-TVM', 'Thiruvananthapuram', 'തിരുവനന്തപുരം', 'Thiruvananthapuram', 'mla'),
@@ -246,3 +245,8 @@ insert into constituencies (code, name_en, name_ml, district, level) values
 -- (niyamasabha.org, ceo.kerala.gov.in). The 16th Kerala Assembly was seated
 -- 21 May 2026. Every row needs a real source_url and verified_at.
 -- Never invent names, emails, or party affiliations.
+
+-- If this seed runs after the ESA repair migration, keep Forest Bill archived.
+update public.campaigns
+set status = 'archived', is_active = false, publish_status = 'archived'
+where slug in ('kerala-forest-amendment-2024', 'demo');

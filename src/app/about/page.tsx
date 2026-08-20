@@ -1,6 +1,7 @@
 import { AboutPageContent } from '@/components/AboutPageContent'
-import { getDefaultCampaignSlug, resolveCampaignState } from '@/lib/campaign'
-import { createServiceClient } from '@/lib/supabase/server'
+import { resolvePublicCampaign } from '@/lib/campaign'
+
+export const dynamic = 'force-dynamic'
 
 export async function generateMetadata() {
   return {
@@ -10,28 +11,9 @@ export async function generateMetadata() {
 }
 
 export default async function AboutPage() {
-  const state = await resolveCampaignState()
-  let sourceUrl: string | null = null
-  let campaignTitle: string | null = null
-
-  if (state.state !== 'dormant') {
-    sourceUrl = state.campaign.source_url
-    campaignTitle = state.campaign.title_ml
-  } else {
-    try {
-      const supabase = createServiceClient()
-      const slug = getDefaultCampaignSlug()
-      const query = supabase.from('campaigns').select('source_url, title_ml')
-      const { data } = slug
-        ? await query.eq('slug', slug).maybeSingle()
-        : await query.order('created_at', { ascending: false }).limit(1).maybeSingle()
-      sourceUrl = (data?.source_url as string | undefined) ?? null
-      campaignTitle = (data?.title_ml as string | undefined) ?? null
-    } catch {
-      sourceUrl = null
-      campaignTitle = null
-    }
-  }
+  const state = await resolvePublicCampaign()
+  const sourceUrl = state.state === 'dormant' ? null : state.campaign.source_url
+  const campaignTitle = state.state === 'dormant' ? null : state.campaign.title_ml
 
   return <AboutPageContent sourceUrl={sourceUrl} campaignTitle={campaignTitle} />
 }

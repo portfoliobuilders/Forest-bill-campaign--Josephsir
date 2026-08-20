@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { publicCampaign, type CampaignState } from '@/lib/campaign'
-import { KERALA_DISTRICTS, type DistrictOption } from '@/lib/demo-data'
+import { KERALA_DISTRICTS, type DistrictOption } from '@/lib/kerala-districts'
 import { normalizeFormFields } from '@/lib/form-fields'
 import { applyRecipientsToCampaign } from '@/lib/recipients'
 import { createServiceClient } from '@/lib/supabase/server'
