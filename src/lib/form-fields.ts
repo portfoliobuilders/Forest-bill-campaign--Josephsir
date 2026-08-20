@@ -5,10 +5,11 @@ export const FORM_FIELD_KEYS: FormFieldKey[] = [
   'pincode',
   'email',
   'phone',
+  'address',
+  'email',
   'district',
   'local_body',
   'village',
-  'address',
   'custom_message',
 ]
 
@@ -27,7 +28,13 @@ export const DEFAULT_FORM_FIELDS: Array<Omit<CampaignFormField, 'id' | 'campaign
 
 export function normalizeFormFields(rows: CampaignFormField[] | null | undefined): CampaignFormField[] {
   if (rows && rows.length > 0) {
-    return [...rows].sort((a, b) => a.display_order - b.display_order)
+    const have = new Set(rows.map((row) => row.field_key))
+    const missing = DEFAULT_FORM_FIELDS.filter((field) => !have.has(field.field_key)).map((field) => ({
+      id: `default-${field.field_key}`,
+      campaign_id: rows[0]?.campaign_id || '',
+      ...field,
+    }))
+    return [...rows, ...missing].sort((a, b) => a.display_order - b.display_order)
   }
   return DEFAULT_FORM_FIELDS.map((field, index) => ({
     id: `default-${field.field_key}`,
@@ -52,4 +59,26 @@ export function isFieldRequired(fields: CampaignFormField[], key: FormFieldKey):
   const field = fieldByKey(fields, key)
   if (!field || !field.is_enabled) return false
   return field.is_required
+}
+
+export function fieldMode(fields: CampaignFormField[], key: FormFieldKey): FieldMode {
+  if (!isFieldEnabled(fields, key)) return 'disabled'
+  return isFieldRequired(fields, key) ? 'required' : 'optional'
+}
+
+export function applyFieldMode(
+  field: Omit<CampaignFormField, 'id' | 'campaign_id'> | CampaignFormField,
+  mode: FieldMode,
+) {
+  return {
+    ...field,
+    is_enabled: mode !== 'disabled',
+    is_required: mode === 'required',
+  }
+}
+
+export function labelForField(fields: CampaignFormField[], key: FormFieldKey, lang: 'ml' | 'en', fallback: string): string {
+  const field = fieldByKey(fields, key)
+  if (!field) return fallback
+  return (lang === 'en' ? field.label_en : field.label_ml) || fallback
 }

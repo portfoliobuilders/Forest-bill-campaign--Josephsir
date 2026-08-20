@@ -231,6 +231,7 @@ export function Wizard({
         customText: details.customText,
         extraConcerns: config.allowCustomConcern ? extraConcerns : [],
         clauseCodes: selectedClauses.map((clause) => clause.code),
+        letterMode: 'selected',
         constituencyId: state.routing.constituencyId,
         ccRepIds: state.routing.ccRepresentativeIds,
       })
@@ -332,7 +333,6 @@ export function Wizard({
           districts={districts}
           errors={state.detailsErrors}
           routing={state.routing}
-          allowSample={mode !== 'live'}
           onChange={(patch) => dispatch({ type: 'set_details', details: patch })}
           onRoutingChange={(routing) => dispatch({ type: 'set_routing', routing })}
         />

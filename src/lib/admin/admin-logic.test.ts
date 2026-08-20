@@ -5,9 +5,9 @@ import { isAdminEmail } from './allowlist'
 import { conversionPct, displayStage, dropOffPct, funnelFromStatusCounts, statusesForDisplayStage } from './stages'
 import { flagsForPublishStatus, requiresLiveConfirmation, slugFromTitle } from './publish'
 import { flagsForCampaignStatus, requiresPublishConfirmation } from '../campaign-status'
-import { listUnknownPlaceholders, renderSafeTemplate } from '../email-template'
+import { listUnknownPlaceholders, renderSafeTemplate, EMAIL_PLACEHOLDERS } from '../email-template'
 import { composeEmail, liveMailTargets, resolveMailTargets } from '../compose'
-import { demoCampaign, demoClauses } from '../demo-data'
+import { fixtureCampaign, fixtureClauses } from '../campaign-fixtures'
 
 test('displayStage maps backend statuses to business labels', () => {
   assert.equal(displayStage('draft'), 'started')
@@ -52,10 +52,10 @@ test('safe templates replace known placeholders and ignore unknown ones', () => 
 test('compose uses template placeholders and does not eval javascript', () => {
   const result = composeEmail({
     campaign: {
-      ...demoCampaign,
+      ...fixtureCampaign,
       body_template_en: '{{intro}}\n\n{{concerns}}\n\nName: {{full_name}} {{constructor}}',
     },
-    clauses: [demoClauses[0]],
+    clauses: [fixtureClauses[0]],
     details: {
       fullName: 'Ravi Kumar',
       addressLine: 'House',
@@ -93,12 +93,12 @@ test('campaign status flags stay aligned with legacy publish_status', () => {
 })
 
 test('slug generation is campaign-safe', () => {
-  assert.equal(slugFromTitle('Kerala Forest Bill'), 'kerala-forest-bill')
+  assert.equal(slugFromTitle('Ecologically Sensitive Area Draft'), 'ecologically-sensitive-area-draft')
 })
 
 test('preview and admin test mail never address government recipients', () => {
   const targets = resolveMailTargets({
-    campaign: demoCampaign,
+    campaign: fixtureCampaign,
     mode: 'preview',
     testerEmail: 'admin@janashabdam.example',
   })
@@ -110,7 +110,7 @@ test('preview and admin test mail never address government recipients', () => {
 })
 
 test('live mail keeps BCC off TO/CC, and empty TO falls back to CC', () => {
-  const withBcc = { ...demoCampaign, bcc_emails: ['archive@example.test'] }
+  const withBcc = { ...fixtureCampaign, bcc_emails: ['archive@example.test'] }
   const live = resolveMailTargets({
     campaign: withBcc,
     mode: 'live',
@@ -128,7 +128,7 @@ test('live mail keeps BCC off TO/CC, and empty TO falls back to CC', () => {
   assert.deepEqual(preview.liveBcc, ['archive@example.test'])
 
   const ccAsTo = liveMailTargets({
-    ...demoCampaign,
+    ...fixtureCampaign,
     recipient_emails: [],
     recipient_email: '',
     cc_emails: ['cc@example.test'],
@@ -158,4 +158,32 @@ test('admin allowlist comparison is exact after trim/lowercase', () => {
     if (prev === undefined) delete process.env.ADMIN_EMAILS
     else process.env.ADMIN_EMAILS = prev
   }
+})
+
+test('composed emails cannot interpolate campaign sources or newspaper clippings', () => {
+  assert.equal((EMAIL_PLACEHOLDERS as readonly string[]).includes('sources'), false)
+  assert.deepEqual(listUnknownPlaceholders('{{sources}} {{clipping}}'), ['sources', 'clipping'])
+  const result = composeEmail({
+    campaign: {
+      ...demoCampaign,
+      intro_en: 'Approved ESA wording only.',
+      body_template_en: '{{intro}}\n\n{{sources}}\n\n{{concerns}}\n\n{{closing}}',
+    },
+    clauses: [demoClauses[0]],
+    details: {
+      fullName: 'Ravi Kumar',
+      addressLine: 'House',
+      panchayat: 'Panchayat',
+      district: 'Idukki',
+      pincode: '685533',
+      phone: '9876543210',
+      email: 'ravi@example.com',
+    },
+    lang: 'en',
+  })
+  assert.match(result.body, /Approved ESA wording only/)
+  assert.doesNotMatch(result.body, /\{\{sources\}\}/)
+  assert.doesNotMatch(result.body, /Deepika/)
+  assert.doesNotMatch(result.body, /Mathrubhumi/)
+  assert.doesNotMatch(result.body, /56,825/)
 })

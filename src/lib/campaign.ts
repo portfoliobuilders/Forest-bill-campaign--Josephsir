@@ -69,6 +69,8 @@ export function publicCampaign(row: Campaign & { preview_token?: string | null }
   const status = campaign.publish_status as PublishStatus | undefined
   campaign.publish_status = status ?? (campaign.is_active ? 'live' : 'draft')
   campaign.deadline_at = campaign.deadline_at ?? null
+  campaign.feature_settings =
+    campaign.feature_settings && typeof campaign.feature_settings === 'object' ? campaign.feature_settings : {}
   return campaign
 }
 

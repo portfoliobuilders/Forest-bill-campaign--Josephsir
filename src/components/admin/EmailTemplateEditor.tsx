@@ -12,13 +12,13 @@ import type { Campaign, ObjectionClause } from '@/types/database'
 
 const SAMPLE = {
   fullName: 'Ravi Kumar',
-  addressLine: 'Ward 4, example house',
-  panchayat: 'Vandiperiyar',
+  addressLine: '',
+  panchayat: '',
   district: 'Idukki',
   pincode: '685533',
-  phone: '9876543210',
+  phone: '',
   email: 'citizen@example.com',
-  customText: 'Our farm is on the forest boundary.',
+  customText: 'My land is included in the draft ESA map in error.',
 }
 
 export function EmailTemplateEditor({
@@ -33,6 +33,7 @@ export function EmailTemplateEditor({
   const router = useRouter()
   const [to, setTo] = useState(campaign.recipient_emails.join('\n') || campaign.recipient_email)
   const [cc, setCc] = useState(campaign.cc_emails.join('\n'))
+  const [bcc, setBcc] = useState((campaign.bcc_emails ?? []).join('\n'))
   const [subjectMl, setSubjectMl] = useState(campaign.subject_ml)
   const [subjectEn, setSubjectEn] = useState(campaign.subject_en)
   const [introMl, setIntroMl] = useState(campaign.intro_ml)
@@ -54,6 +55,7 @@ export function EmailTemplateEditor({
       ...campaign,
       recipient_emails: to.split('\n'),
       cc_emails: cc.split('\n'),
+      bcc_emails: bcc.split('\n'),
       subject_ml: subjectMl,
       subject_en: subjectEn,
       intro_ml: introMl,
@@ -63,14 +65,14 @@ export function EmailTemplateEditor({
       body_template_ml: templateMl,
       body_template_en: templateEn,
     }),
-    [campaign, to, cc, subjectMl, subjectEn, introMl, introEn, closingMl, closingEn, templateMl, templateEn],
+    [campaign, to, cc, bcc, subjectMl, subjectEn, introMl, introEn, closingMl, closingEn, templateMl, templateEn],
   )
 
   const preview = useMemo(
     () =>
       composeEmail({
         campaign: draftCampaign,
-        clauses: clauses.slice(0, 3),
+        clauses: clauses.slice(0, 1),
         details: SAMPLE,
         lang,
       }),
@@ -86,6 +88,7 @@ export function EmailTemplateEditor({
       id: campaign.id,
       recipient_emails: to.split('\n'),
       cc_emails: cc.split('\n'),
+      bcc_emails: bcc.split('\n'),
       subject_ml: subjectMl,
       subject_en: subjectEn,
       intro_ml: introMl,
@@ -139,6 +142,10 @@ export function EmailTemplateEditor({
         <label className={adminLabel}>
           CC recipients (one email per line)
           <textarea className={`${adminInput} min-h-28 py-2`} value={cc} onChange={(e) => { setCc(e.target.value); mark() }} />
+        </label>
+        <label className={adminLabel}>
+          BCC recipients (one email per line)
+          <textarea className={`${adminInput} min-h-28 py-2`} value={bcc} onChange={(e) => { setBcc(e.target.value); mark() }} />
         </label>
         <label className={adminLabel}>
           Subject — Malayalam

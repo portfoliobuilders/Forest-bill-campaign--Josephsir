@@ -42,7 +42,6 @@ export function Step2_DetailsForm({
   districts,
   errors,
   routing,
-  allowSample,
   onChange,
   onRoutingChange,
 }: {
@@ -50,7 +49,6 @@ export function Step2_DetailsForm({
   districts: DistrictOption[]
   errors: FieldErrors
   routing: WizardRouting
-  allowSample?: boolean
   onChange: (patch: Partial<DetailsFields>) => void
   onRoutingChange: (routing: WizardRouting) => void
 }) {

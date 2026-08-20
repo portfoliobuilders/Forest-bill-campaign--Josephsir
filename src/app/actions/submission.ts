@@ -1,9 +1,11 @@
 'use server'
 
+import { randomUUID } from 'crypto'
 import { headers } from 'next/headers'
 import { z } from 'zod'
 
 import { composeEmail, liveMailTargets, resolveMailTargets } from '@/lib/compose'
+import { identityRequired, parseFeatureSettings } from '@/lib/campaign-features'
 import { getCampaignState, publicCampaign, readPreviewToken } from '@/lib/campaign'
 import { withCampaignClauses } from '@/lib/campaigns'
 import {
@@ -62,10 +64,7 @@ async function composeCanonicalLetter(input: LetterFields): Promise<ActionResult
     return { ok: false, error: 'invalid_clauses' }
   }
 
-  const phone = input.phone.trim() ? normalizeIndianPhone(input.phone) : ''
-  if (input.phone.trim() && !phone) {
-    return { ok: false, error: 'invalid_input' }
-  }
+  const phone = input.phone.trim() ? normalizeIndianPhone(input.phone) || input.phone.trim() : ''
 
   const campaignState = await getCampaignState(input.campaignSlug, await readPreviewToken())
   if (campaignState.state === 'dormant') {
@@ -114,6 +113,12 @@ async function composeCanonicalLetter(input: LetterFields): Promise<ActionResult
     return { ok: false, error: 'invalid_clauses' }
   }
 
+  const features = parseFeatureSettings(campaign.feature_settings)
+  const privacyMode = Boolean(input.privacyMode && features.allow_privacy_mode)
+  if (identityRequired(features, privacyMode) && !input.fullName.trim() && !privacyMode) {
+    return { ok: false, error: 'invalid_input' }
+  }
+
   const composed = composeEmail({
     campaign,
     clauses,
@@ -128,6 +133,11 @@ async function composeCanonicalLetter(input: LetterFields): Promise<ActionResult
       email: input.email,
       customText: input.customText,
       extraConcerns: config.allowCustomConcern ? extraConcerns : [],
+      postOffice: input.postOffice,
+      state: input.state,
+      postalRegion: input.postalRegion,
+      taluk: input.taluk,
+      privacyMode,
     },
     lang: input.language,
   })
@@ -152,7 +162,6 @@ async function storeCanonicalLetter(
 ): Promise<string | null> {
   if (!canonical.persistSlug) return null
   const phone = input.phone.trim() ? normalizeIndianPhone(input.phone) : null
-  if (input.phone.trim() && !phone) return null
 
   try {
     const supabase = createServiceClient()
@@ -232,7 +241,7 @@ async function storeCanonicalLetter(
 }
 
 export async function prepareDemoLetter(
-  input: z.infer<typeof letterInputSchema>,
+  input: z.input<typeof letterInputSchema>,
 ): Promise<ActionResult<{ id: string | null; subject: string; body: string }>> {
   const parsed = letterInputSchema.safeParse(input)
   if (!parsed.success) {

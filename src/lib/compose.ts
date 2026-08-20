@@ -1,3 +1,8 @@
+import {
+  campaignConcernConfig,
+  formatConcernsForEmail,
+  selectedClausesForLetter,
+} from '@/lib/concern-selection'
 import { uniqueEmails } from '@/lib/compose-emails'
 import { campaignConcernConfig, formatConcernsForEmail, selectedClausesForLetter } from '@/lib/concern-selection'
 import { defaultBodyTemplate, renderSafeTemplate, type EmailTemplateValues } from '@/lib/email-template'
@@ -6,6 +11,7 @@ import type { WizardMode } from '@/lib/wizard-mode'
 import type { Campaign, ObjectionClause } from '@/types/database'
 
 export { uniqueEmails } from '@/lib/compose-emails'
+export { concernBody, concernShort, concernTitle } from '@/lib/compose-concerns'
 
 export const MAX_BODY_CHARS = 1500
 export const URL_LENGTH_WARN = 1900
@@ -23,6 +29,11 @@ export type ComposeDetails = {
   email: string
   customText?: string
   extraConcerns?: string[]
+  postOffice?: string
+  state?: string
+  postalRegion?: string
+  taluk?: string
+  privacyMode?: boolean
 }
 
 export type ComposeEmailInput = {
@@ -117,9 +128,10 @@ export function resolveMailTargets({
       liveBcc: live.bcc,
     }
   }
+  const tester = uniqueEmails([testerEmail])
   return {
-    to: uniqueEmails([testerEmail]),
-    cc: [],
+    to: tester.length > 0 ? tester : live.to,
+    cc: tester.length > 0 ? [] : live.cc,
     bcc: [],
     dryRun: true,
     liveTo: live.to,
@@ -132,28 +144,25 @@ export function clausesForLetter(clauses: ObjectionClause[], selectedIds: string
   return selectedClausesForLetter(clauses, selectedIds)
 }
 
-export function concernTitle(clause: ObjectionClause, lang: Lang): string {
-  return pick(lang, clause.title_ml, clause.title_en).trim()
-}
-
-export function concernBody(clause: ObjectionClause, lang: Lang): string {
-  return (
-    pick(lang, clause.email_body_ml ?? '', clause.email_body_en ?? '').trim() ||
-    pick(lang, clause.full_text_ml ?? '', clause.full_text_en ?? '').trim() ||
-    pick(lang, clause.email_ml, clause.email_en).trim() ||
-    pick(lang, clause.explain_ml, clause.explain_en).trim()
-  )
-}
-
-export function concernShort(clause: ObjectionClause, lang: Lang): string {
-  return pick(lang, clause.explain_ml, clause.explain_en).trim() || concernBody(clause, lang)
-}
-
 function senderValues(
   details: ComposeDetails,
+  identity: string,
 ): Pick<
   EmailTemplateValues,
-  'full_name' | 'email' | 'phone' | 'address' | 'panchayat' | 'village' | 'district' | 'pincode' | 'constituency' | 'custom_text'
+  | 'full_name'
+  | 'email'
+  | 'phone'
+  | 'address'
+  | 'panchayat'
+  | 'village'
+  | 'district'
+  | 'pincode'
+  | 'constituency'
+  | 'custom_text'
+  | 'post_office'
+  | 'state'
+  | 'postal_region'
+  | 'identity_block'
 > {
   return {
     full_name: details.fullName,
@@ -166,6 +175,10 @@ function senderValues(
     pincode: details.pincode,
     constituency: '',
     custom_text: (details.customText ?? '').trim(),
+    post_office: details.postOffice ?? '',
+    state: details.state ?? '',
+    postal_region: details.postalRegion ?? '',
+    identity_block: identity,
   }
 }
 
@@ -187,12 +200,22 @@ function assembleBody(
   details: ComposeDetails,
   lang: Lang,
 ): string {
+  if (details.privacyMode) {
+    return privacyLetter({
+      campaign,
+      clauses,
+      extraConcerns: details.extraConcerns ?? [],
+      lang,
+    })
+  }
+
   const intro = pick(lang, campaign.intro_ml, campaign.intro_en)
   const closing = pick(lang, campaign.closing_ml, campaign.closing_en)
   const extras = details.extraConcerns ?? []
   const stored = pick(lang, campaign.body_template_ml ?? '', campaign.body_template_en ?? '').trim()
   const template = stored || defaultBodyTemplate(lang)
   const config = campaignConcernConfig(campaign)
+  const sender = senderValues(details)
   const values: EmailTemplateValues = {
     intro,
     closing,
@@ -207,6 +230,7 @@ function assembleBody(
   return renderSafeTemplate(template, values)
 }
 
+/** Composed from campaign intro, selected concerns, and the citizen's details. Campaign sources/references are never included. */
 export function composeEmail({ campaign, clauses, details, lang }: ComposeEmailInput): ComposeEmailResult {
   const subject = composeSubject(campaign, clauses, lang)
   const body = assembleBody(campaign, clauses, details, lang)

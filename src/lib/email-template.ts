@@ -12,6 +12,10 @@ export const EMAIL_PLACEHOLDERS = [
   'district',
   'pincode',
   'constituency',
+  'post_office',
+  'state',
+  'postal_region',
+  'identity_block',
 ] as const
 
 export type EmailPlaceholder = (typeof EMAIL_PLACEHOLDERS)[number]
@@ -26,8 +30,12 @@ export const DEFAULT_BODY_TEMPLATE_ML = `{{intro}}
 
 {{closing}}
 
+പേര്: {{full_name}}
+പിൻകോഡ്: {{pincode}}
+ജില്ല: {{district}}
+
 ആദരപൂർവ്വം,
-{{full_name}}`
+{{identity_block}}`
 
 export const DEFAULT_BODY_TEMPLATE_EN = `{{intro}}
 
@@ -37,8 +45,12 @@ export const DEFAULT_BODY_TEMPLATE_EN = `{{intro}}
 
 {{closing}}
 
+Name: {{full_name}}
+PIN: {{pincode}}
+District: {{district}}
+
 Regards,
-{{full_name}}`
+{{identity_block}}`
 
 const PLACEHOLDER_RE = /\{\{\s*([a-z_]+)\s*\}\}/gi
 const ALLOWED = new Set<string>(EMAIL_PLACEHOLDERS)
@@ -62,6 +74,10 @@ export function emptyTemplateValues(): EmailTemplateValues {
     district: '',
     pincode: '',
     constituency: '',
+    post_office: '',
+    state: '',
+    postal_region: '',
+    identity_block: '',
   }
 }
 
