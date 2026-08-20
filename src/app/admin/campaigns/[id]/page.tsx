@@ -2,8 +2,10 @@ import { notFound } from 'next/navigation'
 
 import { CampaignStudio } from '@/components/admin/CampaignStudio'
 import { requireAdminSession } from '@/lib/admin/auth'
+import { aiServerConfigured } from '@/lib/ai/provider'
 import { normalizeFormFields } from '@/lib/form-fields'
 import { publicCampaign } from '@/lib/campaign'
+import { postalDirectoryCount } from '@/lib/pin-lookup'
 import { createServiceClient } from '@/lib/supabase/server'
 import { assertAdminEnv } from '@/lib/env'
 import type { Campaign, CampaignFormField, CampaignRecipient, ObjectionClause } from '@/types/database'
@@ -14,7 +16,7 @@ export async function generateMetadata() {
   return { title: 'Edit campaign — Admin', robots: { index: false, follow: false } }
 }
 
-const TAB_KEYS = ['basic', 'english', 'malayalam', 'concerns', 'recipients', 'fields', 'schedule', 'preview'] as const
+const TAB_KEYS = ['basic', 'english', 'malayalam', 'concerns', 'recipients', 'fields', 'features', 'schedule', 'preview'] as const
 
 function tabIndexFromQuery(value: string | undefined): number {
   if (!value) return 0
@@ -41,6 +43,7 @@ export default async function EditCampaignPage({
     supabase.from('campaign_form_fields').select('*').eq('campaign_id', id).order('display_order', { ascending: true }),
   ])
   if (!campaign) notFound()
+  const [postalCount, aiConfigured] = await Promise.all([postalDirectoryCount(), Promise.resolve(aiServerConfigured())])
   return (
     <CampaignStudio
       campaign={publicCampaign(campaign as Campaign)}
@@ -48,6 +51,8 @@ export default async function EditCampaignPage({
       recipients={(recipients ?? []) as CampaignRecipient[]}
       formFields={normalizeFormFields((fields ?? []) as CampaignFormField[])}
       initialTab={tabIndexFromQuery(query.tab)}
+      postalCount={postalCount}
+      aiConfigured={aiConfigured}
     />
   )
 }

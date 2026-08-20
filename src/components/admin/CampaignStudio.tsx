@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 
 import {
   deleteConcernStudio,
+  generateAiConcernDraft,
   previewPathFor,
   saveCampaignStudio,
   saveConcernStudio,
@@ -13,9 +14,12 @@ import {
 import { reorderConcerns } from '@/app/admin/cms-actions'
 import { AdminPageHeader, ConfirmDialog, SaveStatus, SuccessBanner } from '@/components/admin/AdminPrimitives'
 import { adminBtnDanger, adminBtnPrimary, adminBtnSecondary, adminInput, adminLabel } from '@/components/admin/admin-ui'
+import { CampaignFeaturesPanel } from '@/components/admin/CampaignFeaturesPanel'
+import { ConcernSelectionSettings, draftFromCampaign, type ConcernSelectionDraft } from '@/components/admin/ConcernSelectionSettings'
 import { formatDatetimeLocal } from '@/lib/admin/format'
 import { CAMPAIGN_STATUS_LABEL, type CampaignStatus } from '@/lib/campaign-status'
-import { DEFAULT_FORM_FIELDS } from '@/lib/form-fields'
+import { parseFeatureSettings, type CampaignFeatureSettings } from '@/lib/campaign-features'
+import { applyFieldMode, DEFAULT_FORM_FIELDS, type FieldMode } from '@/lib/form-fields'
 import { recipientsOfType } from '@/lib/recipients'
 import type { Campaign, CampaignFormField, CampaignRecipient, ObjectionClause } from '@/types/database'
 
@@ -25,7 +29,8 @@ const TABS = [
   'Malayalam Content',
   'Concerns',
   'Email Recipients',
-  'Form Fields',
+  'Form Settings',
+  'Campaign Features',
   'Schedule & Status',
   'Preview',
 ] as const
@@ -40,8 +45,31 @@ type ConcernDraft = {
   email_subject_ml: string
   email_body_en: string
   email_body_ml: string
+  ai_body_en: string
+  ai_body_ml: string
+  ai_body_en_status: 'none' | 'draft' | 'approved'
+  ai_body_ml_status: 'none' | 'draft' | 'approved'
   is_active: boolean
   display_order: number
+}
+
+function emptyConcern(order: number): ConcernDraft {
+  return {
+    title_en: '',
+    title_ml: '',
+    content_en: '',
+    content_ml: '',
+    email_subject_en: '',
+    email_subject_ml: '',
+    email_body_en: '',
+    email_body_ml: '',
+    ai_body_en: '',
+    ai_body_ml: '',
+    ai_body_en_status: 'none',
+    ai_body_ml_status: 'none',
+    is_active: true,
+    display_order: order,
+  }
 }
 
 function fromClause(clause: ObjectionClause): ConcernDraft {
@@ -55,6 +83,10 @@ function fromClause(clause: ObjectionClause): ConcernDraft {
     email_subject_ml: clause.email_subject_ml || '',
     email_body_en: clause.email_body_en || clause.email_en,
     email_body_ml: clause.email_body_ml || clause.email_ml,
+    ai_body_en: clause.ai_body_en || '',
+    ai_body_ml: clause.ai_body_ml || '',
+    ai_body_en_status: clause.ai_body_en_status || 'none',
+    ai_body_ml_status: clause.ai_body_ml_status || 'none',
     is_active: clause.is_active,
     display_order: clause.sort_order,
   }
@@ -66,12 +98,16 @@ export function CampaignStudio({
   recipients,
   formFields,
   initialTab = 0,
+  postalCount = null,
+  aiConfigured = false,
 }: {
   campaign: Campaign
   concerns: ObjectionClause[]
   recipients: CampaignRecipient[]
   formFields: CampaignFormField[]
   initialTab?: number
+  postalCount?: number | null
+  aiConfigured?: boolean
 }) {
   const router = useRouter()
   const [tab, setTab] = useState(initialTab)
@@ -121,6 +157,9 @@ export function CampaignStudio({
   )
   const [clauseDrafts, setClauseDrafts] = useState<ConcernDraft[]>(concerns.map(fromClause))
   const [editing, setEditing] = useState<ConcernDraft | null>(null)
+  const [aiBusy, setAiBusy] = useState<'en' | 'ml' | null>(null)
+  const [features, setFeatures] = useState<CampaignFeatureSettings>(() => parseFeatureSettings(campaign.feature_settings))
+  const [selection, setSelection] = useState<ConcernSelectionDraft>(() => draftFromCampaign(campaign))
 
   useEffect(() => {
     setClauseDrafts(concerns.map(fromClause))
@@ -136,6 +175,15 @@ export function CampaignStudio({
     const result = await saveCampaignStudio({
       id: campaign.id,
       ...form,
+      allow_multiple_concerns: selection.concern_selection_mode === 'multiple',
+      concern_selection_mode: selection.concern_selection_mode,
+      max_concern_selections: selection.max_concern_selections,
+      allow_custom_concern: selection.allow_custom_concern,
+      custom_concern_label_en: selection.custom_concern_label_en,
+      custom_concern_label_ml: selection.custom_concern_label_ml,
+      custom_concern_placeholder_en: selection.custom_concern_placeholder_en,
+      custom_concern_placeholder_ml: selection.custom_concern_placeholder_ml,
+      feature_settings: features,
       to_emails: form.to_emails.split(/[\n,;]+/),
       cc_emails: form.cc_emails.split(/[\n,;]+/),
       bcc_emails: form.bcc_emails.split(/[\n,;]+/),
@@ -180,6 +228,26 @@ export function CampaignStudio({
     setEditing(null)
     setMessage('Concern saved.')
     router.refresh()
+  }
+
+  async function generateAi(language: 'ml' | 'en') {
+    if (!editing?.id) {
+      setMessage('Save the concern first, then generate an AI draft.')
+      return
+    }
+    setAiBusy(language)
+    const result = await generateAiConcernDraft(campaign.id, editing.id, language)
+    setAiBusy(null)
+    if (!result.ok) {
+      setMessage(result.error)
+      return
+    }
+    if (language === 'en') {
+      setEditing((prev) => (prev ? { ...prev, ai_body_en: result.body ?? '', ai_body_en_status: 'draft' } : prev))
+    } else {
+      setEditing((prev) => (prev ? { ...prev, ai_body_ml: result.body ?? '', ai_body_ml_status: 'draft' } : prev))
+    }
+    setMessage('AI draft generated. Review, edit, then set status to Approved.')
   }
 
   const preview = useMemo(
@@ -283,23 +351,17 @@ export function CampaignStudio({
 
       {tab === 3 ? (
         <div className="space-y-4">
+          <ConcernSelectionSettings
+            value={selection}
+            onChange={(patch) => {
+              setSelection((prev) => ({ ...prev, ...patch }))
+              setSaveState('unsaved')
+            }}
+          />
           <button
             type="button"
             className={adminBtnPrimary}
-            onClick={() =>
-              setEditing({
-                title_en: '',
-                title_ml: '',
-                content_en: '',
-                content_ml: '',
-                email_subject_en: '',
-                email_subject_ml: '',
-                email_body_en: '',
-                email_body_ml: '',
-                is_active: true,
-                display_order: clauseDrafts.length + 1,
-              })
-            }
+            onClick={() => setEditing(emptyConcern(clauseDrafts.length + 1))}
           >
             Add concern
           </button>
@@ -372,6 +434,52 @@ export function CampaignStudio({
                 <Field label="Optional subject — Malayalam" value={editing.email_subject_ml} onChange={(v) => setEditing({ ...editing, email_subject_ml: v })} />
                 <Area label="Optional email body — English" value={editing.email_body_en} onChange={(v) => setEditing({ ...editing, email_body_en: v })} />
                 <Area label="Optional email body — Malayalam" value={editing.email_body_ml} onChange={(v) => setEditing({ ...editing, email_body_ml: v })} />
+                <div className="space-y-2">
+                  <Area label="AI email version — English" value={editing.ai_body_en} onChange={(v) => setEditing({ ...editing, ai_body_en: v })} />
+                  <button
+                    type="button"
+                    className={adminBtnSecondary}
+                    disabled={aiBusy !== null}
+                    onClick={() => void generateAi('en')}
+                  >
+                    {aiBusy === 'en' ? 'Generating…' : 'Generate English AI draft'}
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  <Area label="AI email version — Malayalam" value={editing.ai_body_ml} onChange={(v) => setEditing({ ...editing, ai_body_ml: v })} />
+                  <button
+                    type="button"
+                    className={adminBtnSecondary}
+                    disabled={aiBusy !== null}
+                    onClick={() => void generateAi('ml')}
+                  >
+                    {aiBusy === 'ml' ? 'Generating…' : 'Generate Malayalam AI draft'}
+                  </button>
+                </div>
+                <label className={adminLabel}>
+                  English AI status
+                  <select
+                    className={adminInput}
+                    value={editing.ai_body_en_status}
+                    onChange={(e) => setEditing({ ...editing, ai_body_en_status: e.target.value as ConcernDraft['ai_body_en_status'] })}
+                  >
+                    <option value="none">None</option>
+                    <option value="draft">Draft</option>
+                    <option value="approved">Approved</option>
+                  </select>
+                </label>
+                <label className={adminLabel}>
+                  Malayalam AI status
+                  <select
+                    className={adminInput}
+                    value={editing.ai_body_ml_status}
+                    onChange={(e) => setEditing({ ...editing, ai_body_ml_status: e.target.value as ConcernDraft['ai_body_ml_status'] })}
+                  >
+                    <option value="none">None</option>
+                    <option value="draft">Draft</option>
+                    <option value="approved">Approved</option>
+                  </select>
+                </label>
                 <label className={adminLabel}>
                   Active
                   <input
@@ -406,35 +514,50 @@ export function CampaignStudio({
 
       {tab === 5 ? (
         <div className="space-y-3">
-          {fields.map((field, index) => (
-            <div key={field.field_key} className="grid gap-2 rounded-md border border-stone-200 bg-white p-3 lg:grid-cols-4">
-              <p className="font-medium text-stone-800">{field.field_key}</p>
-              <Field label="Label EN" value={field.label_en} onChange={(v) => setFields(fields.map((item, i) => (i === index ? { ...item, label_en: v } : item)))} />
-              <Field label="Label ML" value={field.label_ml} onChange={(v) => setFields(fields.map((item, i) => (i === index ? { ...item, label_ml: v } : item)))} />
-              <label className="text-sm text-stone-700">
-                <input
-                  type="checkbox"
-                  className="mr-2"
-                  checked={field.is_enabled}
-                  onChange={(e) => setFields(fields.map((item, i) => (i === index ? { ...item, is_enabled: e.target.checked } : item)))}
-                />
-                Enabled
-              </label>
-              <label className="text-sm text-stone-700">
-                <input
-                  type="checkbox"
-                  className="mr-2"
-                  checked={field.is_required}
-                  onChange={(e) => setFields(fields.map((item, i) => (i === index ? { ...item, is_required: e.target.checked } : item)))}
-                />
-                Required
-              </label>
-            </div>
-          ))}
+          <p className="text-sm text-stone-600">
+            Phone and Address can be disabled, optional, or required per campaign. Email and extra location fields stay hidden unless you enable them.
+          </p>
+          {fields.map((field, index) => {
+            const mode: FieldMode = !field.is_enabled ? 'disabled' : field.is_required ? 'required' : 'optional'
+            return (
+              <div key={field.field_key} className="grid gap-2 rounded-md border border-stone-200 bg-white p-3 lg:grid-cols-4">
+                <p className="font-medium text-stone-800">{field.field_key}</p>
+                <Field label="Label EN" value={field.label_en} onChange={(v) => setFields(fields.map((item, i) => (i === index ? { ...item, label_en: v } : item)))} />
+                <Field label="Label ML" value={field.label_ml} onChange={(v) => setFields(fields.map((item, i) => (i === index ? { ...item, label_ml: v } : item)))} />
+                <label className={adminLabel}>
+                  Availability
+                  <select
+                    className={adminInput}
+                    value={mode}
+                    onChange={(event) => {
+                      const next = applyFieldMode(field, event.target.value as FieldMode)
+                      setFields(fields.map((item, i) => (i === index ? { ...item, is_enabled: next.is_enabled, is_required: next.is_required } : item)))
+                      setSaveState('unsaved')
+                    }}
+                  >
+                    <option value="disabled">Disabled</option>
+                    <option value="optional">Enabled — Optional</option>
+                    <option value="required">Enabled — Required</option>
+                  </select>
+                </label>
+              </div>
+            )
+          })}
         </div>
       ) : null}
 
       {tab === 6 ? (
+        <CampaignFeaturesPanel
+          value={features}
+          onChange={(patch) => {
+            setFeatures((prev) => ({ ...prev, ...patch }))
+            setSaveState('unsaved')
+          }}
+          health={{ postalCount, aiConfigured }}
+        />
+      ) : null}
+
+      {tab === 7 ? (
         <div className="grid gap-3 lg:grid-cols-2">
           <Field label="Start date" type="datetime-local" value={form.opens_at} onChange={(v) => patch({ opens_at: v })} />
           <Field label="End date" type="datetime-local" value={form.deadline_at} onChange={(v) => patch({ deadline_at: v })} />
@@ -467,7 +590,7 @@ export function CampaignStudio({
         </div>
       ) : null}
 
-      {tab === 7 ? (
+      {tab === 8 ? (
         <div className="space-y-4 rounded-md border border-stone-200 bg-white p-4">
           <p className="font-mono text-xs text-stone-500">{status.toUpperCase()}</p>
           <h2 className="text-2xl font-semibold text-stone-900">{preview.title}</h2>

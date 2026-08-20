@@ -2,7 +2,7 @@ export const focusRing =
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent'
 
 export const btnPrimary = [
-  'inline-flex min-h-11 items-center justify-center gap-2 rounded-[5px] border border-accent bg-accent px-5 py-2.5 text-center text-base font-semibold leading-snug text-white',
+  'inline-flex min-h-12 items-center justify-center gap-2 rounded-[5px] border border-accent bg-accent px-5 py-3 text-center text-base font-semibold leading-snug text-white',
   'hover:border-accent-hover hover:bg-accent-hover',
   'disabled:cursor-not-allowed disabled:border-rule disabled:bg-rule disabled:text-muted',
   focusRing,

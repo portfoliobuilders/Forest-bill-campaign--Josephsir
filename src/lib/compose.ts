@@ -1,10 +1,14 @@
 import { uniqueEmails } from '@/lib/compose-emails'
+import { concernTitle } from '@/lib/compose-concerns'
+import { identityBlock, privacyLetter } from '@/lib/compose-identity'
+import { campaignConcernConfig, formatConcernsForEmail, selectedClausesForLetter } from '@/lib/concern-selection'
 import { defaultBodyTemplate, renderSafeTemplate, type EmailTemplateValues } from '@/lib/email-template'
 import type { Lang } from '@/lib/i18n'
 import type { WizardMode } from '@/lib/wizard-mode'
 import type { Campaign, ObjectionClause } from '@/types/database'
 
 export { uniqueEmails } from '@/lib/compose-emails'
+export { concernBody, concernShort, concernTitle } from '@/lib/compose-concerns'
 
 export const MAX_BODY_CHARS = 1500
 export const URL_LENGTH_WARN = 1900
@@ -22,6 +26,11 @@ export type ComposeDetails = {
   email: string
   customText?: string
   extraConcerns?: string[]
+  postOffice?: string
+  state?: string
+  postalRegion?: string
+  taluk?: string
+  privacyMode?: boolean
 }
 
 export type ComposeEmailInput = {
@@ -116,9 +125,10 @@ export function resolveMailTargets({
       liveBcc: live.bcc,
     }
   }
+  const tester = uniqueEmails([testerEmail])
   return {
-    to: uniqueEmails([testerEmail]),
-    cc: [],
+    to: tester.length > 0 ? tester : live.to,
+    cc: tester.length > 0 ? [] : live.cc,
     bcc: [],
     dryRun: true,
     liveTo: live.to,
@@ -131,28 +141,25 @@ export function clausesForLetter(clauses: ObjectionClause[], selectedIds: string
   return selectedClausesForLetter(clauses, selectedIds)
 }
 
-export function concernTitle(clause: ObjectionClause, lang: Lang): string {
-  return pick(lang, clause.title_ml, clause.title_en).trim()
-}
-
-export function concernBody(clause: ObjectionClause, lang: Lang): string {
-  return (
-    pick(lang, clause.email_body_ml ?? '', clause.email_body_en ?? '').trim() ||
-    pick(lang, clause.full_text_ml ?? '', clause.full_text_en ?? '').trim() ||
-    pick(lang, clause.email_ml, clause.email_en).trim() ||
-    pick(lang, clause.explain_ml, clause.explain_en).trim()
-  )
-}
-
-export function concernShort(clause: ObjectionClause, lang: Lang): string {
-  return pick(lang, clause.explain_ml, clause.explain_en).trim() || concernBody(clause, lang)
-}
-
 function senderValues(
   details: ComposeDetails,
+  identity: string,
 ): Pick<
   EmailTemplateValues,
-  'full_name' | 'email' | 'phone' | 'address' | 'panchayat' | 'village' | 'district' | 'pincode' | 'constituency' | 'custom_text'
+  | 'full_name'
+  | 'email'
+  | 'phone'
+  | 'address'
+  | 'panchayat'
+  | 'village'
+  | 'district'
+  | 'pincode'
+  | 'constituency'
+  | 'custom_text'
+  | 'post_office'
+  | 'state'
+  | 'postal_region'
+  | 'identity_block'
 > {
   return {
     full_name: details.fullName,
@@ -165,29 +172,11 @@ function senderValues(
     pincode: details.pincode,
     constituency: '',
     custom_text: (details.customText ?? '').trim(),
+    post_office: details.postOffice ?? '',
+    state: details.state ?? '',
+    postal_region: details.postalRegion ?? '',
+    identity_block: identity,
   }
-}
-
-function formattedConcerns(clauses: ObjectionClause[], extraConcerns: string[], lang: Lang): string {
-  const sorted = [...clauses].sort((a, b) => a.sort_order - b.sort_order)
-  const blocks: string[] = []
-  sorted.forEach((clause, index) => {
-    const title = concernTitle(clause, lang)
-    const body = concernBody(clause, lang)
-    const n = index + 1
-    if (sorted.length === 1) {
-      blocks.push(body.startsWith(title) || !title ? body : `${title}\n\n${body}`)
-      return
-    }
-    const text = body && title && !body.startsWith(title) ? `${title}\n\n${body}` : body || title
-    blocks.push(`${n}. ${text}`)
-  })
-  for (const extra of extraConcerns) {
-    const text = extra.replace(/\s+/g, ' ').trim()
-    if (!text) continue
-    blocks.push(`${blocks.length + 1}. ${text}`)
-  }
-  return blocks.join('\n\n')
 }
 
 export function composeSubject(campaign: Campaign, clauses: ObjectionClause[], lang: Lang): string {
@@ -206,17 +195,45 @@ function assembleBody(
   details: ComposeDetails,
   lang: Lang,
 ): string {
+  if (details.privacyMode) {
+    return privacyLetter({
+      campaign,
+      clauses,
+      extraConcerns: details.extraConcerns ?? [],
+      lang,
+    })
+  }
+
   const intro = pick(lang, campaign.intro_ml, campaign.intro_en)
   const closing = pick(lang, campaign.closing_ml, campaign.closing_en)
   const extras = details.extraConcerns ?? []
   const stored = pick(lang, campaign.body_template_ml ?? '', campaign.body_template_en ?? '').trim()
   const template = stored || defaultBodyTemplate(lang)
   const config = campaignConcernConfig(campaign)
+  const identity = identityBlock(
+    {
+      fullName: details.fullName,
+      pincode: details.pincode,
+      phone: details.phone,
+      addressLine: details.addressLine,
+      postOffice: details.postOffice,
+      district: details.district,
+      state: details.state,
+      postalRegion: details.postalRegion,
+      taluk: details.taluk,
+    },
+    lang,
+  )
   const values: EmailTemplateValues = {
     intro,
     closing,
-    concerns: formattedConcerns(clauses, extras, lang),
-    ...senderValues(details),
+    concerns: formatConcernsForEmail({
+      mode: config.mode,
+      clauses,
+      extraConcerns: extras,
+      lang,
+    }),
+    ...senderValues(details, identity),
   }
   return renderSafeTemplate(template, values)
 }

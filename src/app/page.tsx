@@ -1,4 +1,5 @@
 import { CampaignFlow, NoActiveCampaign } from '@/components/campaign/CampaignFlow'
+import { aiServerConfigured } from '@/lib/ai/provider'
 import { resolvePublicCampaign } from '@/lib/campaign'
 import { loadObjectionData } from '@/lib/campaigns'
 
@@ -23,6 +24,7 @@ export default async function Home({ searchParams }: Props) {
       districts={data.districts}
       mode={data.mode}
       view={view}
+      aiConfigured={aiServerConfigured()}
     />
   )
 }
