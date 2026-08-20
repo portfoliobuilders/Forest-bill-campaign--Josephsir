@@ -4,15 +4,21 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
-import { duplicateConcern, reorderConcerns, setConcernActive } from '@/app/admin/cms-actions'
-import { AdminPageHeader, EmptyState } from '@/components/admin/AdminPrimitives'
-import { adminBtnSecondary, adminFocus } from '@/components/admin/admin-ui'
+import { duplicateConcern, reorderConcerns, saveConcernSelectionSettings, setConcernActive } from '@/app/admin/cms-actions'
+import { AdminPageHeader, EmptyState, SaveStatus } from '@/components/admin/AdminPrimitives'
+import {
+  ConcernSelectionSettings,
+  draftFromCampaign,
+  type ConcernSelectionDraft,
+} from '@/components/admin/ConcernSelectionSettings'
+import { adminBtnPrimary, adminBtnSecondary, adminFocus } from '@/components/admin/admin-ui'
+import type { Campaign } from '@/types/database'
 
 export function ConcernsList({
-  campaignId,
+  campaign,
   rows,
 }: {
-  campaignId: string
+  campaign: Campaign
   rows: {
     id: string
     code: string
@@ -25,7 +31,32 @@ export function ConcernsList({
   }[]
 }) {
   const router = useRouter()
+  const campaignId = campaign.id
   const [ordered, setOrdered] = useState(rows)
+  const [selection, setSelection] = useState<ConcernSelectionDraft>(() => draftFromCampaign(campaign))
+  const [saveState, setSaveState] = useState<'idle' | 'unsaved' | 'saving' | 'saved' | 'error'>('idle')
+  const [saveMessage, setSaveMessage] = useState('')
+
+  function patchSelection(next: Partial<ConcernSelectionDraft>) {
+    setSelection((prev) => ({ ...prev, ...next }))
+    setSaveState('unsaved')
+  }
+
+  async function saveSelection() {
+    setSaveState('saving')
+    const result = await saveConcernSelectionSettings({
+      id: campaignId,
+      ...selection,
+    })
+    if (!result.ok) {
+      setSaveState('error')
+      setSaveMessage(result.error)
+      return
+    }
+    setSaveState('saved')
+    setSaveMessage('Concern selection settings saved.')
+    router.refresh()
+  }
 
   async function persist(next: typeof rows) {
     setOrdered(next)
@@ -46,24 +77,42 @@ export function ConcernsList({
     void persist(next)
   }
 
+  const settings = (
+    <div className="space-y-3">
+      <ConcernSelectionSettings value={selection} onChange={patchSelection} />
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" className={adminBtnPrimary} onClick={() => void saveSelection()} disabled={saveState === 'saving'}>
+          Save selection settings
+        </button>
+        <SaveStatus state={saveState} />
+        {saveMessage ? <p className="text-sm text-stone-600">{saveMessage}</p> : null}
+      </div>
+    </div>
+  )
+
   if (rows.length === 0) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         <AdminPageHeader
           title="Concerns"
+          description="Configure how people select concerns, then add the predefined points for this campaign."
           actions={
             <Link href="/admin/concerns/new" className={adminBtnSecondary}>
               New concern
             </Link>
           }
         />
-        <EmptyState title="No concerns created." body="Add the first objection concern for this campaign." />
+        {settings}
+        <section>
+          <h2 className="mb-3 text-base font-semibold text-stone-900">Predefined Concerns</h2>
+          <EmptyState title="No concerns created." body="Add the first objection concern for this campaign." />
+        </section>
       </div>
     )
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <AdminPageHeader
         title="Concerns"
         description="Create, reorder, and disable objection points. Do not delete concerns that already appear in submissions."
@@ -73,6 +122,14 @@ export function ConcernsList({
           </Link>
         }
       />
+      {settings}
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-base font-semibold text-stone-900">Predefined Concerns</h2>
+          <Link href="/admin/concerns/new" className={adminBtnSecondary}>
+            + Add Concern
+          </Link>
+        </div>
       <div className="hidden overflow-hidden rounded-md border border-stone-200 bg-white md:block">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-stone-200 bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
@@ -163,6 +220,7 @@ export function ConcernsList({
           </li>
         ))}
       </ul>
+      </section>
     </div>
   )
 }

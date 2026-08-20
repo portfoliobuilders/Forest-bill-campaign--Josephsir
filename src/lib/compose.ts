@@ -11,8 +11,6 @@ export const URL_LENGTH_WARN = 1900
 export const GMAIL_URL_WARN = 7000
 export const MAILTO_URL_WARN = 1900
 
-export type LetterMode = 'selected' | 'full'
-
 export type ComposeDetails = {
   fullName: string
   addressLine: string
@@ -129,15 +127,8 @@ export function resolveMailTargets({
   }
 }
 
-export function clausesForLetter(
-  clauses: ObjectionClause[],
-  selectedIds: string[],
-  letterMode: LetterMode,
-): ObjectionClause[] {
-  const sorted = [...clauses].sort((a, b) => a.sort_order - b.sort_order)
-  if (letterMode === 'full') return sorted
-  const selected = new Set(selectedIds)
-  return sorted.filter((clause) => selected.has(clause.id))
+export function clausesForLetter(clauses: ObjectionClause[], selectedIds: string[]): ObjectionClause[] {
+  return selectedClausesForLetter(clauses, selectedIds)
 }
 
 export function concernTitle(clause: ObjectionClause, lang: Lang): string {
@@ -217,9 +208,10 @@ function assembleBody(
 ): string {
   const intro = pick(lang, campaign.intro_ml, campaign.intro_en)
   const closing = pick(lang, campaign.closing_ml, campaign.closing_en)
-  const extras = (details.extraConcerns ?? []).map((item) => item.replace(/\s+/g, ' ').trim()).filter(Boolean)
+  const extras = details.extraConcerns ?? []
   const stored = pick(lang, campaign.body_template_ml ?? '', campaign.body_template_en ?? '').trim()
   const template = stored || defaultBodyTemplate(lang)
+  const config = campaignConcernConfig(campaign)
   const values: EmailTemplateValues = {
     intro,
     closing,

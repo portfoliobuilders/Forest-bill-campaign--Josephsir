@@ -5,6 +5,7 @@ import { useState } from 'react'
 
 import { createCampaignDraft } from '@/app/admin/cms-actions'
 import { AdminPageHeader } from '@/components/admin/AdminPrimitives'
+import { ConcernSelectionSettings, type ConcernSelectionDraft } from '@/components/admin/ConcernSelectionSettings'
 import { adminBtnPrimary, adminBtnSecondary, adminInput, adminLabel } from '@/components/admin/admin-ui'
 
 const STEPS = ['Basic information', 'Dates / source', 'Recipients', 'Email template', 'Concerns', 'Review']
@@ -32,6 +33,15 @@ export function NewCampaignWizard() {
     closing_ml: '',
     closing_en: '',
   })
+  const [selection, setSelection] = useState<ConcernSelectionDraft>({
+    concern_selection_mode: 'single',
+    max_concern_selections: null,
+    allow_custom_concern: true,
+    custom_concern_label_en: '',
+    custom_concern_label_ml: '',
+    custom_concern_placeholder_en: '',
+    custom_concern_placeholder_ml: '',
+  })
 
   function patch(key: keyof typeof form, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -45,6 +55,13 @@ export function NewCampaignWizard() {
       cc_emails: form.cc_emails.split('\n'),
       opens_at: form.opens_at || new Date().toISOString(),
       deadline_at: form.deadline_at || new Date(Date.now() + 30 * 86_400_000).toISOString(),
+      concern_selection_mode: selection.concern_selection_mode,
+      max_concern_selections: selection.max_concern_selections,
+      allow_custom_concern: selection.allow_custom_concern,
+      custom_concern_label_en: selection.custom_concern_label_en,
+      custom_concern_label_ml: selection.custom_concern_label_ml,
+      custom_concern_placeholder_en: selection.custom_concern_placeholder_en,
+      custom_concern_placeholder_ml: selection.custom_concern_placeholder_ml,
     })
     setSaving(false)
     if (!result.ok) {
@@ -105,9 +122,11 @@ export function NewCampaignWizard() {
         </div>
       ) : null}
       {step === 4 ? (
-        <div className="rounded-md border border-stone-200 bg-white p-4 text-sm leading-relaxed text-stone-700">
-          <p>Objection concerns are edited in the Concerns CMS after this campaign is saved as Draft.</p>
-          <p className="mt-2">You can create, reorder, and disable concerns there without touching the database.</p>
+        <div className="space-y-4">
+          <ConcernSelectionSettings value={selection} onChange={(patch) => setSelection((prev) => ({ ...prev, ...patch }))} />
+          <p className="text-sm leading-relaxed text-stone-600">
+            Predefined concern cards are added in the Concerns CMS after this campaign is saved as Draft.
+          </p>
         </div>
       ) : null}
       {step === 5 ? (

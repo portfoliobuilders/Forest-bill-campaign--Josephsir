@@ -1,15 +1,14 @@
 import type { Metadata } from 'next'
 import { Gayathri, IBM_Plex_Mono, Instrument_Serif, Inter, Manjari } from 'next/font/google'
 import { cookies, headers } from 'next/headers'
+import { Analytics } from '@vercel/analytics/next'
 
 import { AuthErrorCatcher } from '@/components/AuthErrorCatcher'
-import { DemoBannerGate } from '@/components/DemoBanner'
 import { Header } from '@/components/Header'
 import { LanguageProvider } from '@/components/LanguageProvider'
 import { SiteFooterGate } from '@/components/SiteFooter'
 import { isAdminPath } from '@/lib/admin/paths'
 import { fetchSiteSettings } from '@/lib/admin/queries'
-import { resolveCampaignState } from '@/lib/campaign'
 import { parseLang } from '@/lib/lang'
 
 import './globals.css'
@@ -109,7 +108,6 @@ export default async function RootLayout({
   const lang = parseLang(cookieStore.get('lang')?.value)
   const pathname = (await headers()).get('x-pathname') ?? ''
   const admin = isAdminPath(pathname)
-  const campaignState = admin ? { state: 'live' as const } : await resolveCampaignState()
   const settings = admin ? null : await loadPublicSiteSettings()
 
   return (
@@ -141,6 +139,7 @@ export default async function RootLayout({
             />
           )}
         </LanguageProvider>
+        <Analytics />
       </body>
     </html>
   )

@@ -285,6 +285,43 @@ export function Step3_Preview({
       </div>
       {dryRun ? <p className="mt-3 text-base leading-relaxed text-amber-900">{t(lang, 'demoLetterHint')}</p> : null}
 
+      <section className="mt-5 space-y-4 rounded-[8px] border border-rule bg-raised p-4">
+        <div>
+          <h2 className="text-base font-semibold text-ink">
+            {campaign.concern_selection_mode === 'multiple'
+              ? t(lang, 'selectedConcernsHeading')
+              : t(lang, 'selectedConcernHeading')}
+          </h2>
+          {clauses.length === 0 ? (
+            <p className="mt-2 text-sm text-muted">—</p>
+          ) : campaign.concern_selection_mode === 'multiple' ? (
+            <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm leading-relaxed text-body sm:text-base">
+              {clauses.map((clause) => (
+                <li key={clause.id} className="break-words">
+                  {lang === 'en' ? clause.title_en : clause.title_ml}
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="mt-2 break-words text-sm leading-relaxed text-body sm:text-base">
+              {lang === 'en' ? clauses[0].title_en : clauses[0].title_ml}
+            </p>
+          )}
+        </div>
+        {extraConcerns.length > 0 ? (
+          <div>
+            <h2 className="text-base font-semibold text-ink">{t(lang, 'yourAdditionalConcern')}</h2>
+            <div className="mt-2 space-y-2 text-sm leading-relaxed text-body sm:text-base">
+              {extraConcerns.map((text, index) => (
+                <p key={`extra-${index}`} className="break-words whitespace-pre-wrap">
+                  {text}
+                </p>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </section>
+
       <dl className="mt-5 space-y-3 text-sm sm:text-base">
         <div>
           <dt className="font-semibold text-ink">{t(lang, 'toLabel')}</dt>

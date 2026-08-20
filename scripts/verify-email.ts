@@ -25,7 +25,7 @@ const details = {
 }
 
 const full = composeEmail({
-  campaign: demoCampaign,
+  campaign: { ...demoCampaign, concern_selection_mode: 'multiple' },
   clauses: demoClauses,
   details,
   lang: 'ml',
@@ -33,6 +33,7 @@ const full = composeEmail({
 
 assert.equal(full.subject, 'No_to_Kerala_Forest(Amendment)_Bill_2024')
 assert.match(full.body, /^Sir,\n\n/)
+assert.match(full.body, /വിഷയങ്ങൾ:/)
 for (let i = 1; i <= 12; i += 1) {
   assert.match(full.body, new RegExp(`^${i}\\. `, 'm'))
 }
@@ -46,7 +47,7 @@ assert.match(full.body, /ഇമെയിൽ: test@example.com/)
 assert.doesNotMatch(full.body, /13\. /)
 
 const selected = composeEmail({
-  campaign: demoCampaign,
+  campaign: { ...demoCampaign, concern_selection_mode: 'multiple' },
   clauses: demoClauses.filter((clause) => clause.sort_order <= 2),
   details: { ...details, customText: 'എന്റെ സ്വന്തം അനുഭവം' },
   lang: 'ml',
@@ -55,6 +56,22 @@ assert.match(selected.body, /^1\. /m)
 assert.match(selected.body, /^2\. /m)
 assert.doesNotMatch(selected.body, /^3\. /m)
 assert.match(selected.body, /എന്റെ സ്വന്തം അനുഭവം/)
+
+const single = composeEmail({
+  campaign: { ...demoCampaign, concern_selection_mode: 'single' },
+  clauses: [demoClauses[2]],
+  details: {
+    ...details,
+    extraConcerns: ['My property has been excluded incorrectly...'],
+  },
+  lang: 'en',
+})
+assert.match(single.body, /Selected Concern:/)
+assert.match(single.body, /Additional Concern:/)
+assert.match(single.body, /My property has been excluded incorrectly/)
+assert.ok(single.body.includes(demoClauses[2].title_en))
+assert.ok(!single.body.includes(demoClauses[0].title_en))
+assert.doesNotMatch(single.body, /^2\. /m)
 
 const targets = liveMailTargets(demoCampaign)
 assert.deepEqual(targets.to, ['esz-mef@nic.in', 'prlsecy.forest@kerala.gov.in'])

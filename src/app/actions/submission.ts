@@ -3,7 +3,7 @@
 import { headers } from 'next/headers'
 import { z } from 'zod'
 
-import { composeEmail, clausesForLetter, liveMailTargets, resolveMailTargets } from '@/lib/compose'
+import { composeEmail, liveMailTargets, resolveMailTargets } from '@/lib/compose'
 import { getCampaignState, publicCampaign, readPreviewToken } from '@/lib/campaign'
 import { withCampaignClauses } from '@/lib/campaigns'
 import { getClientIp, hashIp } from '@/lib/security'
@@ -17,8 +17,6 @@ import type { ActionResult } from '@/lib/submission-types'
 const uuidSchema = z.uuid()
 const langSchema = z.enum(['ml', 'en'])
 const sendMethodSchema = z.enum(['gmail_web', 'mailto', 'copy', 'server', 'print'])
-
-const letterModeSchema = z.enum(['selected', 'full'])
 
 const letterInputSchema = z.object({
   campaignSlug: z.string().min(1),
@@ -50,8 +48,8 @@ type CanonicalCompose = {
 }
 
 async function composeCanonicalLetter(input: LetterFields): Promise<ActionResult<CanonicalCompose>> {
-  const extraConcerns = input.extraConcerns.map((item) => item.replace(/\s+/g, ' ').trim()).filter(Boolean)
-  if (input.letterMode === 'selected' && input.clauseCodes.length + extraConcerns.length < 1) {
+  const extraConcerns = flattenCustomConcerns(input.extraConcerns)
+  if (input.clauseCodes.length < 1) {
     return { ok: false, error: 'invalid_clauses' }
   }
 
@@ -89,12 +87,24 @@ async function composeCanonicalLetter(input: LetterFields): Promise<ActionResult
     sourceClauses = []
   }
 
-  const selectedIds =
-    input.letterMode === 'full'
-      ? sourceClauses.map((clause) => clause.id)
-      : sourceClauses.filter((clause) => input.clauseCodes.includes(clause.code)).map((clause) => clause.id)
-  const clauses = clausesForLetter(sourceClauses, selectedIds, input.letterMode)
-  if (input.letterMode === 'selected' && clauses.length === 0 && extraConcerns.length === 0) {
+  const selectedIds = sourceClauses
+    .filter((clause) => input.clauseCodes.includes(clause.code))
+    .map((clause) => clause.id)
+  const config = campaignConcernConfig(campaign)
+  if (
+    validatePredefinedSelection({
+      mode: config.mode,
+      selectedIds,
+      maxSelections: config.maxSelections,
+    }) !== 'ok'
+  ) {
+    return { ok: false, error: 'invalid_clauses' }
+  }
+  if (config.mode === 'single' && selectedIds.length !== 1) {
+    return { ok: false, error: 'invalid_clauses' }
+  }
+  const clauses = selectedClausesForLetter(sourceClauses, selectedIds)
+  if (clauses.length === 0) {
     return { ok: false, error: 'invalid_clauses' }
   }
 
@@ -111,7 +121,7 @@ async function composeCanonicalLetter(input: LetterFields): Promise<ActionResult
       phone: phone ?? '',
       email: input.email,
       customText: input.customText,
-      extraConcerns,
+      extraConcerns: config.allowCustomConcern ? extraConcerns : [],
     },
     lang: input.language,
   })

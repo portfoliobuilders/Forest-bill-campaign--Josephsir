@@ -99,6 +99,58 @@ export async function saveCampaign(input: CampaignSaveInput): Promise<ActionResu
   return { ok: true, id: input.id }
 }
 
+export type ConcernSelectionSaveInput = {
+  id: string
+  concern_selection_mode: 'single' | 'multiple'
+  max_concern_selections: number | null
+  allow_custom_concern: boolean
+  custom_concern_label_en: string
+  custom_concern_label_ml: string
+  custom_concern_placeholder_en: string
+  custom_concern_placeholder_ml: string
+}
+
+export async function saveConcernSelectionSettings(input: ConcernSelectionSaveInput): Promise<ActionResult> {
+  const session = await requireAdminSession()
+  const mode = input.concern_selection_mode === 'multiple' ? 'multiple' : 'single'
+  const maxRaw = input.max_concern_selections
+  const max =
+    mode === 'multiple' && typeof maxRaw === 'number' && Number.isInteger(maxRaw) && maxRaw >= 1 ? maxRaw : null
+
+  const supabase = createServiceClient()
+  const { data: before } = await supabase.from('campaigns').select('*').eq('id', input.id).maybeSingle()
+  if (!before) return { ok: false, error: 'Campaign not found.' }
+
+  const patch = {
+    concern_selection_mode: mode,
+    max_concern_selections: max,
+    allow_custom_concern: input.allow_custom_concern !== false,
+    custom_concern_label_en: input.custom_concern_label_en.trim() || null,
+    custom_concern_label_ml: input.custom_concern_label_ml.trim() || null,
+    custom_concern_placeholder_en: input.custom_concern_placeholder_en.trim() || null,
+    custom_concern_placeholder_ml: input.custom_concern_placeholder_ml.trim() || null,
+    updated_by: session.email,
+  }
+
+  const { error } = await supabase.from('campaigns').update(patch).eq('id', input.id)
+  if (error) return { ok: false, error: 'Could not save concern selection settings.' }
+
+  await writeAdminAudit({
+    adminEmail: session.email,
+    action: 'campaign_concern_selection_updated',
+    entityType: 'campaign',
+    entityId: input.id,
+    before: {
+      concern_selection_mode: before.concern_selection_mode,
+      max_concern_selections: before.max_concern_selections,
+      allow_custom_concern: before.allow_custom_concern,
+    },
+    after: patch,
+  })
+  revalidateAfterCmsSave()
+  return { ok: true, id: input.id }
+}
+
 export type EmailTemplateSaveInput = {
   id: string
   recipient_emails: string[]
@@ -223,6 +275,13 @@ export type NewCampaignInput = {
   intro_en: string
   closing_ml: string
   closing_en: string
+  concern_selection_mode?: 'single' | 'multiple'
+  max_concern_selections?: number | null
+  allow_custom_concern?: boolean
+  custom_concern_label_en?: string
+  custom_concern_label_ml?: string
+  custom_concern_placeholder_en?: string
+  custom_concern_placeholder_ml?: string
 }
 
 export async function createCampaignDraft(input: NewCampaignInput): Promise<ActionResult> {
@@ -265,6 +324,19 @@ export async function createCampaignDraft(input: NewCampaignInput): Promise<Acti
       body_template_en: DEFAULT_BODY_TEMPLATE_EN,
       explainer_ml: [],
       explainer_en: [],
+      concern_selection_mode: input.concern_selection_mode === 'multiple' ? 'multiple' : 'single',
+      max_concern_selections:
+        input.concern_selection_mode === 'multiple' &&
+        typeof input.max_concern_selections === 'number' &&
+        Number.isInteger(input.max_concern_selections) &&
+        input.max_concern_selections >= 1
+          ? input.max_concern_selections
+          : null,
+      allow_custom_concern: input.allow_custom_concern !== false,
+      custom_concern_label_en: input.custom_concern_label_en?.trim() || null,
+      custom_concern_label_ml: input.custom_concern_label_ml?.trim() || null,
+      custom_concern_placeholder_en: input.custom_concern_placeholder_en?.trim() || null,
+      custom_concern_placeholder_ml: input.custom_concern_placeholder_ml?.trim() || null,
       is_active: false,
       publish_status: 'draft',
       preview_token: randomBytes(24).toString('hex'),
@@ -332,6 +404,13 @@ export async function duplicateCampaign(campaignId: string): Promise<ActionResul
       body_template_en: source.body_template_en ?? DEFAULT_BODY_TEMPLATE_EN,
       explainer_ml: source.explainer_ml ?? [],
       explainer_en: source.explainer_en ?? [],
+      concern_selection_mode: source.concern_selection_mode === 'multiple' ? 'multiple' : 'single',
+      max_concern_selections: source.max_concern_selections ?? null,
+      allow_custom_concern: source.allow_custom_concern !== false,
+      custom_concern_label_en: source.custom_concern_label_en ?? null,
+      custom_concern_label_ml: source.custom_concern_label_ml ?? null,
+      custom_concern_placeholder_en: source.custom_concern_placeholder_en ?? null,
+      custom_concern_placeholder_ml: source.custom_concern_placeholder_ml ?? null,
       is_active: false,
       publish_status: 'draft',
       preview_token: randomBytes(24).toString('hex'),
